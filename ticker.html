@@ -8,15 +8,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
 // ── Data source — edit these two lines to switch to Supabase ─────────────────
-const SUPABASE_URL   = "https://wpenzrjybvysvfaefkxh.supabase.co";   // paste: "https://wpenzrjybvysvfaefkxh.supabase.co"
-const SUPABASE_KEY   = "sb_publishable_5RX4B4l-IM9rgARaPJObEA_P_lr-uz_";   // paste your anon/public key
+const SUPABASE_URL   = "";   // paste: "https://wpenzrjybvysvfaefkxh.supabase.co"
+const SUPABASE_KEY   = "";   // paste your anon/public key
 const SUPABASE_TABLE = "market_history";
 const API_FALLBACK   = "https://script.google.com/macros/s/AKfycbzVBbR6zZn4dMSATDe4KZ76VHIvuKr6n8ttlzT8LtdmRpOOdamE7oklZxh989pOJbAb/exec";
 
 async function fetchMarketData(ticker) {
   if (SUPABASE_URL && SUPABASE_KEY) {
     let url = SUPABASE_URL.replace(/\/+$/,"") + "/rest/v1/" + SUPABASE_TABLE
-      + "?select=fecha,ticker,open,high,low,close,volumen&order=fecha.asc";
+      + "?select=fecha,ticker,open,high,low,close,volumen&order=fecha.asc&limit=20000";
     if (ticker) url += "&ticker=eq." + encodeURIComponent(ticker);
     const res = await fetch(url, {
       headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
