@@ -9,7 +9,7 @@
 // Leave SUPABASE_URL as "" to keep using Apps Script.
 // ============================================================
 
-const SUPABASE_URL   = "https://wpenzrjybvysvfaefkxh.supabase.co/rest/v1/";  // e.g. "https://abcxyz.supabase.co"
+const SUPABASE_URL   = "https://wpenzrjybvysvfaefkxh.supabase.co";  // e.g. "https://abcxyz.supabase.co"
 const SUPABASE_KEY   = "sb_publishable_5RX4B4l-IM9rgARaPJObEA_P_lr-uz_";  // anon/public key (Settings → API)
 const SUPABASE_TABLE = "market_history";
 
