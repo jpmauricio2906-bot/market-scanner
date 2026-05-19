@@ -130,7 +130,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 /* ── Theme switcher ── */
 .theme-switcher{display:flex;gap:5px;align-items:center}
-.theme-dot{width:14px;height:14px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all .18s;padding:0;outline:none}
+.theme-dot{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.3);cursor:pointer;transition:all .18s;padding:0;outline:none;display:inline-block}
 .theme-dot:hover{transform:scale(1.2)}
 .theme-dot.active{border-color:var(--text);transform:scale(1.25);box-shadow:0 0 0 2px var(--bg),0 0 0 3px var(--text)}
 .theme-sep{width:1px;height:14px;background:var(--border);margin:0 2px}
@@ -278,7 +278,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 // ── Theme engine ──────────────────────────────────────────────────────────────
 const THEMES_T={
-  dark:{name:"Dark",color:"#1e2d3d",vars:{"--bg":"#090e14","--surface":"#0f1923","--surface2":"#141f2b","--border":"#1e2d3d","--text":"#c8d8e8","--muted":"#4a6278","--accent":"#00d4ff","--buy":"#00e676","--sell":"#ff3d57","--hold":"#ffc107","--buy-bg":"rgba(0,230,118,.08)","--sell-bg":"rgba(255,61,87,.08)","--hold-bg":"rgba(255,193,7,.06)"}},
+  dark:{name:"Dark",color:"#00d4ff",vars:{"--bg":"#090e14","--surface":"#0f1923","--surface2":"#141f2b","--border":"#1e2d3d","--text":"#c8d8e8","--muted":"#4a6278","--accent":"#00d4ff","--buy":"#00e676","--sell":"#ff3d57","--hold":"#ffc107","--buy-bg":"rgba(0,230,118,.08)","--sell-bg":"rgba(255,61,87,.08)","--hold-bg":"rgba(255,193,7,.06)"}},
   powerbi:{name:"Power BI",color:"#0078d4",vars:{"--bg":"#f3f2f1","--surface":"#ffffff","--surface2":"#faf9f8","--border":"#d8d6d4","--text":"#252423","--muted":"#8a8886","--accent":"#0078d4","--buy":"#107c10","--sell":"#c50f1f","--hold":"#c97d00","--buy-bg":"rgba(16,124,16,.1)","--sell-bg":"rgba(197,15,31,.08)","--hold-bg":"rgba(201,125,0,.08)"}},
   tableau:{name:"Tableau",color:"#4e79a7",vars:{"--bg":"#f0eff0","--surface":"#ffffff","--surface2":"#f7f7f7","--border":"#cccccc","--text":"#1a1a1a","--muted":"#767676","--accent":"#4e79a7","--buy":"#59a14f","--sell":"#e15759","--hold":"#d37800","--buy-bg":"rgba(89,161,79,.12)","--sell-bg":"rgba(225,87,89,.1)","--hold-bg":"rgba(242,142,43,.1)"}},
   stata:{name:"Stata",color:"#1a476f",vars:{"--bg":"#f4f2ee","--surface":"#ffffff","--surface2":"#eeece8","--border":"#ccc9c0","--text":"#1a1a1a","--muted":"#7a7060","--accent":"#1a476f","--buy":"#285e28","--sell":"#8b1c1c","--hold":"#7a5c00","--buy-bg":"rgba(40,94,40,.12)","--sell-bg":"rgba(139,28,28,.08)","--hold-bg":"rgba(122,92,0,.08)"}},
