@@ -25,6 +25,13 @@ header{display:flex;align-items:center;justify-content:space-between;padding-bot
 .hdr-right{display:flex;gap:14px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--muted)}
 .pulse{width:7px;height:7px;border-radius:50%;background:var(--buy);animation:pulse 2s infinite;display:inline-block;margin-right:5px}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,230,118,.4)}50%{box-shadow:0 0 0 5px rgba(0,230,118,0)}}
+
+/* ── Theme switcher ── */
+.theme-switcher{display:flex;gap:5px;align-items:center}
+.theme-dot{width:14px;height:14px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all .18s;padding:0;outline:none}
+.theme-dot:hover{transform:scale(1.2)}
+.theme-dot.active{border-color:var(--text);transform:scale(1.25);box-shadow:0 0 0 2px var(--bg),0 0 0 3px var(--text)}
+.theme-sep{width:1px;height:14px;background:var(--border);margin:0 2px}
 .active-preset{font-family:var(--mono);font-size:10px;color:var(--accent);border:1px solid rgba(0,212,255,.3);border-radius:3px;padding:2px 8px;background:rgba(0,212,255,.06)}
 
 /* Controls */
@@ -214,6 +221,8 @@ svg.spark{display:block}
     <span id="tsUpdate">—</span>
     <span id="tsCount">—</span>
     <span id="activePresetBadge"></span>
+    <div class="theme-sep"></div>
+    <div class="theme-switcher" id="themeSwitcher"></div>
   </div>
 </header>
 
@@ -308,6 +317,48 @@ async function fetchMarketData(ticker) {
   if (json.error) throw new Error(json.error);
   return { data: json.data, total: json.total, source: "apps-script" };
 }
+
+
+// ── Theme engine ──────────────────────────────────────────────────────────────
+var THEMES={
+  dark:{name:"Dark",color:"#1e2d3d",vars:{"--bg":"#090e14","--surface":"#0f1923","--surface2":"#141f2b","--border":"#1e2d3d","--text":"#c8d8e8","--muted":"#4a6278","--accent":"#00d4ff","--buy":"#00e676","--sell":"#ff3d57","--hold":"#ffc107","--buy-bg":"rgba(0,230,118,.08)","--sell-bg":"rgba(255,61,87,.08)","--hold-bg":"rgba(255,193,7,.06)"}},
+  powerbi:{name:"Power BI",color:"#0078d4",vars:{"--bg":"#f3f2f1","--surface":"#ffffff","--surface2":"#faf9f8","--border":"#d8d6d4","--text":"#252423","--muted":"#8a8886","--accent":"#0078d4","--buy":"#107c10","--sell":"#c50f1f","--hold":"#c97d00","--buy-bg":"rgba(16,124,16,.1)","--sell-bg":"rgba(197,15,31,.08)","--hold-bg":"rgba(201,125,0,.08)"}},
+  tableau:{name:"Tableau",color:"#4e79a7",vars:{"--bg":"#f0eff0","--surface":"#ffffff","--surface2":"#f7f7f7","--border":"#cccccc","--text":"#1a1a1a","--muted":"#767676","--accent":"#4e79a7","--buy":"#59a14f","--sell":"#e15759","--hold":"#d37800","--buy-bg":"rgba(89,161,79,.12)","--sell-bg":"rgba(225,87,89,.1)","--hold-bg":"rgba(242,142,43,.1)"}},
+  stata:{name:"Stata",color:"#1a476f",vars:{"--bg":"#f4f2ee","--surface":"#ffffff","--surface2":"#eeece8","--border":"#ccc9c0","--text":"#1a1a1a","--muted":"#7a7060","--accent":"#1a476f","--buy":"#285e28","--sell":"#8b1c1c","--hold":"#7a5c00","--buy-bg":"rgba(40,94,40,.12)","--sell-bg":"rgba(139,28,28,.08)","--hold-bg":"rgba(122,92,0,.08)"}},
+  bloomberg:{name:"Bloomberg",color:"#ff6600",vars:{"--bg":"#000000","--surface":"#0d0d0d","--surface2":"#111111","--border":"#222222","--text":"#cccccc","--muted":"#555555","--accent":"#ff6600","--buy":"#00cc44","--sell":"#ff3333","--hold":"#ff9900","--buy-bg":"rgba(0,204,68,.08)","--sell-bg":"rgba(255,51,51,.08)","--hold-bg":"rgba(255,153,0,.06)"}},
+  ocean:{name:"Ocean",color:"#1e6091",vars:{"--bg":"#071626","--surface":"#0d2035","--surface2":"#102540","--border":"#1a3a5c","--text":"#b0d0f0","--muted":"#3a6080","--accent":"#48b0e0","--buy":"#3ddc84","--sell":"#ff6b6b","--hold":"#ffd166","--buy-bg":"rgba(61,220,132,.08)","--sell-bg":"rgba(255,107,107,.08)","--hold-bg":"rgba(255,209,102,.06)"}}
+};
+var _activeTheme="dark";
+
+function applyTheme(id){
+  var t=THEMES[id];if(!t)return;
+  _activeTheme=id;
+  var r=document.documentElement;
+  Object.keys(t.vars).forEach(function(k){r.style.setProperty(k,t.vars[k]);});
+  document.querySelectorAll(".theme-dot").forEach(function(b){b.classList.toggle("active",b.dataset.theme===id);});
+  try{localStorage.setItem("ms-theme",id);}catch(e){}
+  if(results&&results.length)renderTable();
+}
+
+function buildThemeSwitcher(){
+  var el=document.getElementById("themeSwitcher");if(!el)return;
+  el.innerHTML=Object.keys(THEMES).map(function(id){
+    var t=THEMES[id];
+    return '<button class="theme-dot'+(id===_activeTheme?" active":"")+'" data-theme="'+id+'" style="background:'+t.color+'" title="'+t.name+'" onclick="applyTheme(''+id+'')"></button>';
+  }).join("");
+}
+
+// Apply saved theme immediately
+(function(){
+  try{
+    var s=localStorage.getItem("ms-theme");
+    if(s&&THEMES[s]){
+      _activeTheme=s;
+      var r=document.documentElement;
+      Object.keys(THEMES[s].vars).forEach(function(k){r.style.setProperty(k,THEMES[s].vars[k]);});
+    }
+  }catch(e){}
+})();
 
 // ── Indicator definitions ─────────────────────────────────────────────────────
 var INDICATORS = [
@@ -696,6 +747,7 @@ function hide(){document.getElementById("stateMsg").style.display="none";}
 
 buildPresetCards();
 buildCfgPanel();
+buildThemeSwitcher();
 loadData();
 </script>
 </body>
