@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ticker Detail — Market Scanner</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/indicators.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+:root{
+  --bg:#090e14;--surface:#0f1923;--surface2:#141f2b;--border:#1e2d3d;
+  --text:#c8d8e8;--muted:#4a6278;--accent:#00d4ff;
+  --buy:#00e676;--sell:#ff3d57;--hold:#ffc107;
+  --buy-bg:rgba(0,230,118,.08);--sell-bg:rgba(255,61,87,.08);--hold-bg:rgba(255,193,7,.06);
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+  --chart-h:200px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.2;pointer-events:none;z-index:0}
+.page{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:16px 20px}
+
+/* ── Header ── */
+.page-header{display:flex;align-items:center;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap}
+.back-btn{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:6px 14px;border-radius:4px;cursor:pointer;border:1px solid var(--muted);color:var(--muted);background:transparent;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.back-btn:hover{border-color:var(--accent);color:var(--accent)}
+.ticker-hero{display:flex;align-items:baseline;gap:12px;flex:1;flex-wrap:wrap}
+.ticker-name{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--accent);letter-spacing:.05em}
+.company-name{font-size:14px;color:var(--muted)}
+.price-block{display:flex;align-items:baseline;gap:10px;margin-left:auto;flex-wrap:wrap}
+.price-val{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--text)}
+.price-chg{font-family:var(--mono);font-size:13px;font-weight:500}
+.price-chg.up{color:var(--buy)}.price-chg.dn{color:var(--sell)}
+.sig-badge{display:inline-block;padding:4px 12px;border-radius:4px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase}
+.sig-badge.BUY{background:var(--buy-bg);color:var(--buy);border:1px solid rgba(0,230,118,.3)}
+.sig-badge.SELL{background:var(--sell-bg);color:var(--sell);border:1px solid rgba(255,61,87,.3)}
+.sig-badge.HOLD{background:var(--hold-bg);color:var(--hold);border:1px solid rgba(255,193,7,.25)}
+.score-val{font-family:var(--mono);font-size:13px;color:var(--muted)}
+
+/* ── Layout ── */
+.main-chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}
+.chart-title{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.chart-title .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.main-chart{height:340px}
+
+.subcharts-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.subchart-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}
+.subchart-inner{height:var(--chart-h);position:relative}
+
+/* ── Heatmap strip ── */
+.heatmap-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}
+.hm-strip{display:grid;grid-template-columns:repeat(14,1fr);gap:4px;margin-top:8px}
+.hm-item{border-radius:4px;padding:8px 4px;text-align:center;transition:filter .15s;cursor:default}
+.hm-item:hover{filter:brightness(1.2)}
+.hm-label{font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hm-sym{font-family:var(--mono);font-size:14px;font-weight:700;line-height:1}
+.hm-num{font-family:var(--mono);font-size:9px;margin-top:2px;opacity:.8}
+
+/* ── Score gauge ── */
+.bottom-row{display:grid;grid-template-columns:280px 1fr;gap:12px;margin-bottom:12px}
+.score-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.score-label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.score-gauge{position:relative;width:140px;height:75px}
+.score-number{font-family:var(--mono);font-size:32px;font-weight:600}
+.stats-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;height:100%}
+.stat-item{display:flex;flex-direction:column;gap:4px}
+.stat-lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.stat-val{font-family:var(--mono);font-size:14px;font-weight:500}
+
+/* ── Chart legend ── */
+.chart-legend{display:flex;gap:12px;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.leg-dot{width:10px;height:3px;border-radius:2px}
+
+/* ── State ── */
+.state-msg{text-align:center;padding:80px 24px;font-family:var(--mono);font-size:13px;color:var(--muted)}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err{color:var(--sell);font-size:12px;margin-top:10px}
+
+/* ── Zone annotations ── */
+.zone-label{position:absolute;right:6px;font-family:var(--mono);font-size:9px;opacity:.6}
+
+.footer{margin-top:12px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--muted)}
+
+@media(max-width:900px){.subcharts-grid{grid-template-columns:1fr}.bottom-row{grid-template-columns:1fr}.hm-strip{grid-template-columns:repeat(7,1fr)}}
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- Header -->
+  <div class="page-header">
+    <a class="back-btn" href="index.html">← Scanner</a>
+    <div class="ticker-hero">
+      <span class="ticker-name" id="tickerName">—</span>
+      <span class="company-name" id="companyName"></span>
+    </div>
+    <div class="price-block">
+      <span class="price-val" id="priceVal">—</span>
+      <span class="price-chg" id="priceChg"></span>
+      <span class="sig-badge" id="sigBadge">—</span>
+      <span class="score-val" id="scoreVal"></span>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div id="loadState" class="state-msg"><div class="spinner"></div>Loading data…</div>
+
+  <!-- Content (hidden until loaded) -->
+  <div id="content" style="display:none">
+
+    <!-- Main chart: Candlestick + Bollinger Bands -->
+    <div class="main-chart-wrap">
+      <div class="chart-title">
+        <span class="dot" style="background:var(--accent)"></span>
+        Price — Candlestick + Bollinger Bands (20,2)
+        <div class="chart-legend" style="margin-left:auto">
+          <div class="leg-item"><div class="leg-dot" style="background:rgba(0,212,255,.6)"></div>Upper BB</div>
+          <div class="leg-item"><div class="leg-dot" style="background:rgba(0,212,255,.3)"></div>SMA 20</div>
+          <div class="leg-item"><div class="leg-dot" style="background:rgba(0,212,255,.6)"></div>Lower BB</div>
+        </div>
+      </div>
+      <div class="main-chart" id="mainChart"></div>
+    </div>
+
+    <!-- Subcharts 2×2 grid -->
+    <div class="subcharts-grid">
+
+      <!-- RSI -->
+      <div class="subchart-card">
+        <div class="chart-title"><span class="dot" style="background:var(--hold)"></span>RSI (14)
+          <div class="chart-legend" style="margin-left:auto">
+            <div class="leg-item"><div class="leg-dot" style="background:var(--hold)"></div>RSI</div>
+            <div class="leg-item"><div class="leg-dot" style="background:rgba(255,61,87,.4)"></div>OB 70</div>
+            <div class="leg-item"><div class="leg-dot" style="background:rgba(0,230,118,.4)"></div>OS 30</div>
+          </div>
+        </div>
+        <div class="subchart-inner"><canvas id="rsiChart"></canvas></div>
+      </div>
+
+      <!-- MACD -->
+      <div class="subchart-card">
+        <div class="chart-title"><span class="dot" style="background:var(--accent)"></span>MACD (12,26,9)
+          <div class="chart-legend" style="margin-left:auto">
+            <div class="leg-item"><div class="leg-dot" style="background:var(--accent)"></div>MACD</div>
+            <div class="leg-item"><div class="leg-dot" style="background:var(--sell)"></div>Signal</div>
+          </div>
+        </div>
+        <div class="subchart-inner"><canvas id="macdChart"></canvas></div>
+      </div>
+
+      <!-- Stochastic RSI -->
+      <div class="subchart-card">
+        <div class="chart-title"><span class="dot" style="background:#a855f7"></span>Stochastic RSI
+          <div class="chart-legend" style="margin-left:auto">
+            <div class="leg-item"><div class="leg-dot" style="background:#a855f7"></div>StochRSI</div>
+          </div>
+        </div>
+        <div class="subchart-inner"><canvas id="stochChart"></canvas></div>
+      </div>
+
+      <!-- Williams %R -->
+      <div class="subchart-card">
+        <div class="chart-title"><span class="dot" style="background:#fd79a8"></span>Williams %R (14)
+          <div class="chart-legend" style="margin-left:auto">
+            <div class="leg-item"><div class="leg-dot" style="background:#fd79a8)"></div>%R</div>
+          </div>
+        </div>
+        <div class="subchart-inner"><canvas id="willChart"></canvas></div>
+      </div>
+
+      <!-- Volume -->
+      <div class="subchart-card">
+        <div class="chart-title"><span class="dot" style="background:#00b894"></span>Volume + 20d Avg</div>
+        <div class="subchart-inner"><canvas id="volChart"></canvas></div>
+      </div>
+
+      <!-- OBV -->
+      <div class="subchart-card">
+        <div class="chart-title"><span class="dot" style="background:#00b894"></span>On-Balance Volume (OBV)</div>
+        <div class="subchart-inner"><canvas id="obvChart"></canvas></div>
+      </div>
+
+      <!-- ROC -->
+      <div class="subchart-card">
+        <div class="chart-title"><span class="dot" style="background:#fdcb6e"></span>Rate of Change (10d)</div>
+        <div class="subchart-inner"><canvas id="rocChart"></canvas></div>
+      </div>
+
+      <!-- ATR -->
+      <div class="subchart-card">
+        <div class="chart-title"><span class="dot" style="background:#b2bec3"></span>ATR Normalized (%)</div>
+        <div class="subchart-inner"><canvas id="atrChart"></canvas></div>
+      </div>
+
+    </div><!-- subcharts-grid -->
+
+    <!-- Bottom: Score + Stats -->
+    <div class="bottom-row">
+      <div class="score-card">
+        <div class="score-label">Composite Score</div>
+        <canvas id="gaugeChart" width="200" height="110"></canvas>
+        <div class="score-number" id="scoreNum">—</div>
+        <div class="score-label" id="scoreDesc">—</div>
+      </div>
+      <div class="stats-card">
+        <div class="chart-title"><span class="dot" style="background:var(--text)"></span>Key Statistics</div>
+        <div class="stats-grid" id="statsGrid"></div>
+      </div>
+    </div>
+
+    <!-- Heatmap strip: all 14 indicators -->
+    <div class="heatmap-wrap">
+      <div class="chart-title"><span class="dot" style="background:var(--text)"></span>All Indicator Signals</div>
+      <div class="hm-strip" id="hmStrip"></div>
+    </div>
+
+  </div><!-- content -->
+  <div class="footer" id="footer"></div>
+</div>
+
+<script>
+// ── Indicator definitions (for heatmap + weights) ─────────────────────────────
+const INDICATORS = [
+  {id:"sma_cross",group:"Trend",    name:"SMA 5/20",  weight:2,grpColor:"var(--accent)"},
+  {id:"ema_cross",group:"Trend",    name:"EMA 12/26", weight:2,grpColor:"var(--accent)"},
+  {id:"sma50",    group:"Trend",    name:"vs SMA50",  weight:1,grpColor:"var(--accent)"},
+  {id:"macd",     group:"Trend",    name:"MACD",      weight:2,grpColor:"var(--accent)"},
+  {id:"rsi",      group:"Mom",      name:"RSI 14",    weight:3,grpColor:"var(--hold)"},
+  {id:"stoch_rsi",group:"Mom",      name:"Stoch RSI", weight:2,grpColor:"var(--hold)"},
+  {id:"roc",      group:"Mom",      name:"ROC 10d",   weight:1,grpColor:"var(--hold)"},
+  {id:"williams", group:"Mom",      name:"%R",        weight:1,grpColor:"var(--hold)"},
+  {id:"bb",       group:"Vol",      name:"Bollinger", weight:2,grpColor:"#a855f7"},
+  {id:"atr",      group:"Vol",      name:"ATR",       weight:1,grpColor:"#a855f7"},
+  {id:"obv",      group:"Volume",   name:"OBV",       weight:1,grpColor:"#00b894"},
+  {id:"vol_avg",  group:"Volume",   name:"Vol/Avg",   weight:1,grpColor:"#00b894"},
+  {id:"candle",   group:"Candles",  name:"Candle",    weight:2,grpColor:"#fd79a8"},
+  {id:"gap",      group:"Candles",  name:"Gap",       weight:1,grpColor:"#fd79a8"},
+];
+
+// ── Chart.js global defaults ──────────────────────────────────────────────────
+Chart.defaults.color = "#4a6278";
+Chart.defaults.borderColor = "#1e2d3d";
+Chart.defaults.font.family = "IBM Plex Mono";
+Chart.defaults.font.size = 10;
+Chart.defaults.plugins.legend.display = false;
+Chart.defaults.animation = false;
+
+const CHART_OPTIONS = {
+  responsive: true, maintainAspectRatio: false,
+  scales: {
+    x: { grid:{color:"#1e2d3d"}, ticks:{maxTicksLimit:8, maxRotation:0} },
+    y: { grid:{color:"#1e2d3d"}, ticks:{maxTicksLimit:5} }
+  },
+  plugins: { tooltip:{mode:"index",intersect:false}, legend:{display:false} },
+  interaction: { mode:"index", intersect:false }
+};
+
+// ── Get ticker from URL ───────────────────────────────────────────────────────
+const ticker = new URLSearchParams(window.location.search).get("ticker") || "AAPL";
+document.title = ticker + " — Market Scanner";
+document.getElementById("tickerName").textContent = ticker;
+
+// ── Fetch and render ──────────────────────────────────────────────────────────
+async function init() {
+  try {
+    // Fetch with ticker filter (faster if WebApp supports it, falls back gracefully)
+    const url = API_URL + "?ticker=" + encodeURIComponent(ticker);
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+    if (!json.data || !json.data.length) throw new Error("No data returned.");
+
+    // Parse rows → filter by ticker
+    const rows = json.data.filter(r => String(r[1]).trim().toUpperCase() === ticker);
+    if (!rows.length) throw new Error("No data for ticker " + ticker + ". Check if backfill includes it.");
+
+    // Build OHLCV objects sorted by date
+    const raw = rows.map(r => {
+      const is7 = r.length >= 7 && +r[5] > 0;
+      const cl   = is7 ? +r[5] : +r[2];
+      return { date:r[0], open:is7?+r[2]:cl, high:is7?+r[3]:cl, low:is7?+r[4]:cl, close:cl, vol:is7?+r[6]:+r[3]||0 };
+    }).filter(d => d.close > 0).sort((a,b) => a.date.localeCompare(b.date));
+
+    const dates  = raw.map(d => d.date);
+    const closes = raw.map(d => d.close);
+
+    // Header info
+    const last    = raw[raw.length-1];
+    const prev    = raw[raw.length-2];
+    const chgPct  = prev ? ((last.close-prev.close)/prev.close*100).toFixed(2) : 0;
+    const sigs    = computeSignals(raw);
+    const score   = computeScore(sigs, INDICATORS);
+    const signal  = score>=70?"BUY":score<=30?"SELL":"HOLD";
+
+    document.getElementById("priceVal").textContent  = "$" + last.close.toFixed(2);
+    const chgEl = document.getElementById("priceChg");
+    chgEl.textContent = (chgPct>=0?"+":"")+chgPct+"%";
+    chgEl.className   = "price-chg " + (chgPct>=0?"up":"dn");
+    const badgeEl = document.getElementById("sigBadge");
+    badgeEl.textContent = signal; badgeEl.className = "sig-badge "+signal;
+    document.getElementById("scoreVal").textContent  = "Score: " + score;
+    document.getElementById("scoreNum").textContent  = score;
+    document.getElementById("scoreDesc").textContent = signal;
+    document.getElementById("footer").textContent    = ticker + " · " + raw.length + " trading days · " + dates[0] + " → " + dates[dates.length-1];
+
+    // Show content
+    document.getElementById("loadState").style.display = "none";
+    document.getElementById("content").style.display   = "block";
+
+    // Render all charts
+    renderMainChart(raw, dates, closes);
+    renderRSI(closes, dates);
+    renderMACD(closes, dates);
+    renderStochRSI(closes, dates);
+    renderWilliams(raw, dates);
+    renderVolume(raw, dates);
+    renderOBV(raw, dates);
+    renderROC(closes, dates);
+    renderATR(raw, dates);
+    renderGauge(score, signal);
+    renderStats(raw, closes, dates);
+    renderHeatmap(sigs);
+
+  } catch(e) {
+    document.getElementById("loadState").innerHTML =
+      '<div style="color:var(--sell);font-size:15px">⚠ Error</div><div class="err">'+e.message+'</div><br><a href="index.html" class="back-btn" style="display:inline-flex;margin-top:12px">← Back to Scanner</a>';
+  }
+}
+
+// ── Main candlestick + Bollinger ──────────────────────────────────────────────
+function renderMainChart(raw, dates, closes) {
+  const container = document.getElementById("mainChart");
+  const chart = LightweightCharts.createChart(container, {
+    layout: { background:{color:"#0f1923"}, textColor:"#4a6278" },
+    grid:   { vertLines:{color:"#1e2d3d"}, horzLines:{color:"#1e2d3d"} },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor:"#1e2d3d" },
+    timeScale: { borderColor:"#1e2d3d", timeVisible:true },
+    handleScroll: true, handleScale: true,
+  });
+
+  // Candlestick
+  const candleSeries = chart.addCandlestickSeries({
+    upColor:"#00e676", downColor:"#ff3d57",
+    borderUpColor:"#00e676", borderDownColor:"#ff3d57",
+    wickUpColor:"rgba(0,230,118,.6)", wickDownColor:"rgba(255,61,87,.6)"
+  });
+  candleSeries.setData(raw.map(d => ({time:d.date, open:d.open, high:d.high, low:d.low, close:d.close})));
+
+  // Bollinger Bands
+  const bb = bollingerSeries(closes, dates);
+  const bbStyle = { color:"rgba(0,212,255,.5)", lineWidth:1, lineStyle:2 };
+  chart.addLineSeries({...bbStyle}).setData(bb.upper);
+  chart.addLineSeries({color:"rgba(0,212,255,.25)", lineWidth:1}).setData(bb.mid);
+  chart.addLineSeries({...bbStyle}).setData(bb.lower);
+
+  // Fill between bands (area series approximation)
+  chart.addAreaSeries({
+    topColor:"rgba(0,212,255,.04)", bottomColor:"rgba(0,212,255,.01)",
+    lineColor:"transparent", lineWidth:1
+  }).setData(bb.upper);
+
+  chart.timeScale().fitContent();
+}
+
+// ── Chart.js helpers ──────────────────────────────────────────────────────────
+function makeChart(id, type, labels, datasets, extraOpts={}) {
+  const ctx = document.getElementById(id).getContext("2d");
+  return new Chart(ctx, {
+    type, data:{labels, datasets},
+    options: deepMerge(JSON.parse(JSON.stringify(CHART_OPTIONS)), extraOpts)
+  });
+}
+function deepMerge(a, b) {
+  for (const k in b) {
+    if (b[k] && typeof b[k]==="object" && !Array.isArray(b[k])) {
+      a[k]=a[k]||{}; deepMerge(a[k],b[k]);
+    } else a[k]=b[k];
+  }
+  return a;
+}
+function labelEvery(arr, n=20) {
+  return arr.map((v,i)=>i%n===0?v:"");
+}
+
+// ── RSI ───────────────────────────────────────────────────────────────────────
+function renderRSI(closes, dates) {
+  const series = rsiSeries(closes, dates);
+  const lbls   = series.map(s=>s.time);
+  const vals   = series.map(s=>s.value);
+  makeChart("rsiChart","line", labelEvery(lbls), [
+    { label:"RSI", data:vals, borderColor:"#ffc107", borderWidth:1.5, pointRadius:0, tension:.3,
+      fill:{target:{value:70},above:"rgba(255,61,87,.12)",below:"transparent"},
+    },
+    { label:"RSI", data:vals, borderColor:"transparent", pointRadius:0,
+      fill:{target:{value:30},above:"transparent",below:"rgba(0,230,118,.12)"},
+    }
+  ], {
+    scales:{
+      y:{min:0,max:100,
+        grid:{color:"#1e2d3d"},
+        ticks:{maxTicksLimit:5},
+        afterDataLimits(axis){axis.min=0;axis.max=100}
+      }
+    },
+    plugins:{
+      annotation:{annotations:{
+        ob:{type:"line",yMin:70,yMax:70,borderColor:"rgba(255,61,87,.4)",borderWidth:1,borderDash:[4,4]},
+        os:{type:"line",yMin:30,yMax:30,borderColor:"rgba(0,230,118,.4)",borderWidth:1,borderDash:[4,4]},
+        mid:{type:"line",yMin:50,yMax:50,borderColor:"rgba(255,255,255,.1)",borderWidth:1,borderDash:[2,6]}
+      }}
+    }
+  });
+}
+
+// ── MACD ──────────────────────────────────────────────────────────────────────
+function renderMACD(closes, dates) {
+  const m    = macdSeries(closes, dates);
+  if (!m.macd.length) return;
+  const lbls = m.macd.map(d=>d.time);
+  const histColors = m.hist.map(d=>d.value>=0?"rgba(0,230,118,.65)":"rgba(255,61,87,.65)");
+  makeChart("macdChart","bar", labelEvery(lbls), [
+    { label:"Hist",   data:m.hist.map(d=>d.value),   backgroundColor:histColors, borderWidth:0, order:2 },
+    { label:"MACD",   data:m.macd.map(d=>d.value),   borderColor:"#00d4ff",      borderWidth:1.5, pointRadius:0, type:"line", order:1 },
+    { label:"Signal", data:m.signal.map(d=>d.value), borderColor:"#ff3d57",      borderWidth:1.5, pointRadius:0, type:"line", order:1 }
+  ]);
+}
+
+// ── Stochastic RSI ────────────────────────────────────────────────────────────
+function renderStochRSI(closes, dates) {
+  const series = stochRsiSeries(closes, dates);
+  if (!series.length) return;
+  const lbls = series.map(d=>d.time), vals = series.map(d=>d.value);
+  makeChart("stochChart","line", labelEvery(lbls), [
+    { data:vals, borderColor:"#a855f7", borderWidth:1.5, pointRadius:0, tension:.3,
+      fill:{target:{value:80},above:"rgba(255,61,87,.1)",below:"transparent"} },
+    { data:vals, borderColor:"transparent", pointRadius:0,
+      fill:{target:{value:20},above:"transparent",below:"rgba(0,230,118,.1)"} }
+  ], {scales:{y:{min:0,max:100}}});
+}
+
+// ── Williams %R ───────────────────────────────────────────────────────────────
+function renderWilliams(raw, dates) {
+  const series = williamsRSeries(raw, dates);
+  if (!series.length) return;
+  const lbls = series.map(d=>d.time), vals = series.map(d=>d.value);
+  makeChart("willChart","line", labelEvery(lbls), [
+    { data:vals, borderColor:"#fd79a8", borderWidth:1.5, pointRadius:0, tension:.3 }
+  ], {
+    scales:{y:{min:-100,max:0,reverse:false,ticks:{callback:v=>v}}},
+    plugins:{annotation:{annotations:{
+      ob:{type:"line",yMin:-20,yMax:-20,borderColor:"rgba(255,61,87,.4)",borderWidth:1,borderDash:[4,4]},
+      os:{type:"line",yMin:-80,yMax:-80,borderColor:"rgba(0,230,118,.4)",borderWidth:1,borderDash:[4,4]}
+    }}}
+  });
+}
+
+// ── Volume ────────────────────────────────────────────────────────────────────
+function renderVolume(raw, dates) {
+  const n=20;
+  const volColors = raw.map((d,i)=>i===0||d.close>=raw[i-1].close?"rgba(0,230,118,.55)":"rgba(255,61,87,.55)");
+  // 20-day avg line
+  const avgLine = raw.map((_,i)=>{
+    if(i<n) return null;
+    return raw.slice(i-n,i).reduce((a,b)=>a+b.vol,0)/n;
+  });
+  makeChart("volChart","bar", labelEvery(dates), [
+    { label:"Volume", data:raw.map(d=>d.vol),  backgroundColor:volColors, borderWidth:0, order:2 },
+    { label:"Avg20",  data:avgLine, borderColor:"rgba(255,193,7,.8)", borderWidth:1.5, pointRadius:0, type:"line", order:1, spanGaps:true }
+  ], {scales:{y:{ticks:{callback:v=>v>1e9?(v/1e9).toFixed(1)+"B":v>1e6?(v/1e6).toFixed(0)+"M":v}}}});
+}
+
+// ── OBV ───────────────────────────────────────────────────────────────────────
+function renderOBV(raw, dates) {
+  const series = obvSeries(raw, dates);
+  if (!series.length) return;
+  const lbls = series.map(d=>d.time), vals = series.map(d=>d.value);
+  const trend = vals[vals.length-1]>=vals[0];
+  makeChart("obvChart","line", labelEvery(lbls), [
+    { data:vals, borderColor:"#00b894", borderWidth:1.5, pointRadius:0, tension:.3,
+      fill:true, backgroundColor:"rgba(0,184,148,.08)" }
+  ], {scales:{y:{ticks:{callback:v=>v>1e9?(v/1e9).toFixed(1)+"B":v>1e6?(v/1e6).toFixed(0)+"M":v}}}});
+}
+
+// ── ROC ───────────────────────────────────────────────────────────────────────
+function renderROC(closes, dates) {
+  const series = rocSeries(closes, dates);
+  if (!series.length) return;
+  const lbls = series.map(d=>d.time), vals = series.map(d=>d.value);
+  const colors = vals.map(v=>v>=0?"rgba(0,230,118,.7)":"rgba(255,61,87,.7)");
+  makeChart("rocChart","bar", labelEvery(lbls), [
+    { data:vals, backgroundColor:colors, borderWidth:0 }
+  ]);
+}
+
+// ── ATR ───────────────────────────────────────────────────────────────────────
+function renderATR(raw, dates) {
+  const series = atrSeries(raw, dates);
+  if (!series.length) return;
+  const lbls = series.map(d=>d.time), vals = series.map(d=>d.value);
+  makeChart("atrChart","line", labelEvery(lbls), [
+    { data:vals, borderColor:"#b2bec3", borderWidth:1.5, pointRadius:0, tension:.3,
+      fill:true, backgroundColor:"rgba(178,190,195,.06)" }
+  ], {
+    plugins:{annotation:{annotations:{
+      hi:{type:"line",yMin:5,yMax:5,borderColor:"rgba(255,61,87,.4)",borderWidth:1,borderDash:[4,4]},
+      lo:{type:"line",yMin:1,yMax:1,borderColor:"rgba(0,230,118,.4)",borderWidth:1,borderDash:[4,4]}
+    }}}
+  });
+}
+
+// ── Gauge (half-donut) ────────────────────────────────────────────────────────
+function renderGauge(score, signal) {
+  const ctx = document.getElementById("gaugeChart").getContext("2d");
+  const clr = signal==="BUY"?"#00e676":signal==="SELL"?"#ff3d57":"#ffc107";
+  const pct  = score/100;
+  new Chart(ctx, {
+    type:"doughnut",
+    data:{
+      datasets:[{
+        data:[pct, 1-pct],
+        backgroundColor:[clr,"rgba(30,45,61,.8)"],
+        borderWidth:0,
+        circumference:180,
+        rotation:270
+      }]
+    },
+    options:{
+      responsive:false,
+      plugins:{tooltip:{enabled:false},legend:{display:false}},
+      cutout:"75%",
+      animation:{duration:800}
+    }
+  });
+}
+
+// ── Stats grid ────────────────────────────────────────────────────────────────
+function renderStats(raw, closes, dates) {
+  const n = raw.length;
+  const last = raw[n-1], first = raw[0];
+  const high52 = Math.max(...raw.slice(-252).map(d=>d.high));
+  const low52  = Math.min(...raw.slice(-252).map(d=>d.low));
+  const rsi    = rsiCalc(closes, 14);
+  const bb     = bollingerSeries(closes, dates);
+  const bbLast = bb.upper.length ? bb.upper[bb.upper.length-1].value : 0;
+  const bbPct  = bb.upper.length ? ((last.close-bb.lower[bb.lower.length-1].value)/(bb.upper[bb.upper.length-1].value-bb.lower[bb.lower.length-1].value)*100).toFixed(0) : "—";
+  const atr_v  = atrSeries(raw, dates);
+  const atrLast = atr_v.length ? atr_v[atr_v.length-1].value.toFixed(2)+"%" : "—";
+  const totalChg = ((last.close-first.close)/first.close*100).toFixed(1);
+
+  const stats = [
+    {l:"Days",        v:n},
+    {l:"High 52W",    v:"$"+high52.toFixed(2)},
+    {l:"Low 52W",     v:"$"+low52.toFixed(2)},
+    {l:"RSI (14)",    v:rsi.toFixed(1), c:rsi>70?"var(--sell)":rsi<30?"var(--buy)":"var(--text)"},
+    {l:"BB %B",       v:bbPct+"%"},
+    {l:"ATR (norm)",  v:atrLast},
+    {l:"Period Chg",  v:(totalChg>=0?"+":"")+totalChg+"%", c:totalChg>=0?"var(--buy)":"var(--sell)"},
+    {l:"Avg Volume",  v:(raw.slice(-20).reduce((a,b)=>a+b.vol,0)/20/1e6).toFixed(1)+"M"},
+  ];
+
+  document.getElementById("statsGrid").innerHTML = stats.map(s=>
+    `<div class="stat-item"><div class="stat-lbl">${s.l}</div><div class="stat-val" style="color:${s.c||"var(--text)"}">${s.v}</div></div>`
+  ).join("");
+}
+
+// ── Heatmap strip ─────────────────────────────────────────────────────────────
+function hmBg(v){
+  if(v>=0.6)return"rgba(0,230,118,.85)";if(v>=0.25)return"rgba(0,230,118,.45)";if(v>=0.05)return"rgba(0,230,118,.18)";
+  if(v<=-0.6)return"rgba(255,61,87,.85)";if(v<=-0.25)return"rgba(255,61,87,.45)";if(v<=-0.05)return"rgba(255,61,87,.18)";
+  return"rgba(255,255,255,.05)";
+}
+function hmSym(v){
+  if(v>=0.6)return"▲▲";if(v>=0.25)return"▲";if(v>=0.05)return"△";
+  if(v<=-0.6)return"▼▼";if(v<=-0.25)return"▼";if(v<=-0.05)return"▽";return"·";
+}
+function hmTxt(v){
+  if(v>=0.6)return"#003d1a";if(v>=0.25)return"var(--buy)";if(v>=0.05)return"#00a855";
+  if(v<=-0.6)return"#3d0009";if(v<=-0.25)return"var(--sell)";if(v<=-0.05)return"#cc2240";
+  return"#2a3f52";
+}
+
+function renderHeatmap(sigs) {
+  document.getElementById("hmStrip").innerHTML = INDICATORS.map(ind => {
+    const v = sigs[ind.id]||0;
+    return `<div class="hm-item" style="background:${hmBg(v)}" title="${ind.name}: ${v.toFixed(2)}">
+      <div class="hm-label" style="color:${ind.grpColor}">${ind.name}</div>
+      <div class="hm-sym" style="color:${hmTxt(v)}">${hmSym(v)}</div>
+      <div class="hm-num" style="color:${hmTxt(v)}">${v.toFixed(2)}</div>
+    </div>`;
+  }).join("");
+}
+
+init();
+</script>
+</body>
+</html>
