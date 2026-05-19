@@ -548,8 +548,12 @@ function renderTable(){
     return sortAsc?va-vb:vb-va;
   });
 
-  if(!rows.length){show("No results.");return;}
-  hide();
+if(!rows.length){
+  document.getElementById("tbody").innerHTML="";
+  show("No tickers match this filter.");
+  return;
+}
+hide();
 
   // Build HTML string for maximum speed
   var html="";
