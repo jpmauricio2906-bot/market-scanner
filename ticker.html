@@ -8,8 +8,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
 // ── Data source — edit these two lines to switch to Supabase ─────────────────
-const SUPABASE_URL   = "https://wpenzrjybvysvfaefkxh.supabase.co";   // paste: "https://wpenzrjybvysvfaefkxh.supabase.co"
-const SUPABASE_KEY   = "sb_publishable_5RX4B4l-IM9rgARaPJObEA_P_lr-uz_";   // paste your anon/public key
+const SUPABASE_URL   = "https://wpenzrjybvysvfaefkxh.supabase.co";
+const SUPABASE_KEY   = "sb_publishable_5RX4B4l-IM9rgARaPJObEA_P_lr-uz_";
 const SUPABASE_TABLE = "market_history";
 const API_FALLBACK   = "https://script.google.com/macros/s/AKfycbzVBbR6zZn4dMSATDe4KZ76VHIvuKr6n8ttlzT8LtdmRpOOdamE7oklZxh989pOJbAb/exec";
 
@@ -130,6 +130,13 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .footer{margin-top:12px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--muted)}
 
 @media(max-width:900px){.subcharts-grid{grid-template-columns:1fr}.bottom-row{grid-template-columns:1fr}.hm-strip{grid-template-columns:repeat(7,1fr)}}
+
+/* ── Themes ── */
+.theme-dot{width:14px;height:14px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all .18s;padding:0;outline:none;flex-shrink:0}
+.theme-dot:hover{transform:scale(1.2)}
+.theme-dot.active{border-color:var(--text);transform:scale(1.25);box-shadow:0 0 0 2px var(--bg),0 0 0 3px var(--text)}
+.theme-switcher{display:flex;gap:5px;align-items:center}
+.theme-sep{width:1px;height:14px;background:var(--border);margin:0 4px}
 </style>
 </head>
 <body>
@@ -146,6 +153,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <span class="price-chg" id="priceChg"></span>
       <span class="sig-badge" id="sigBadge">—</span>
       <span class="score-val" id="scoreVal"></span>
+      <div class="theme-sep"></div>
+      <div class="theme-switcher" id="themeSwitcher"></div>
     </div>
   </div>
 
@@ -266,6 +275,72 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </div>
 
 <script>
+
+// ── Theme engine ──────────────────────────────────────────────────────────────
+const THEMES_T = {
+  dark:{name:"Dark",color:"#1e2d3d",light:false,vars:{"--bg":"#090e14","--surface":"#0f1923","--surface2":"#141f2b","--border":"#1e2d3d","--text":"#c8d8e8","--muted":"#4a6278","--accent":"#00d4ff","--buy":"#00e676","--sell":"#ff3d57","--hold":"#ffc107","--buy-bg":"rgba(0,230,118,.08)","--sell-bg":"rgba(255,61,87,.08)","--hold-bg":"rgba(255,193,7,.06)"}},
+  powerbi:{name:"Power BI",color:"#0078d4",light:true,vars:{"--bg":"#f3f2f1","--surface":"#ffffff","--surface2":"#faf9f8","--border":"#d8d6d4","--text":"#252423","--muted":"#8a8886","--accent":"#0078d4","--buy":"#107c10","--sell":"#c50f1f","--hold":"#c97d00","--buy-bg":"rgba(16,124,16,.1)","--sell-bg":"rgba(197,15,31,.08)","--hold-bg":"rgba(201,125,0,.08)"}},
+  tableau:{name:"Tableau",color:"#4e79a7",light:true,vars:{"--bg":"#f0eff0","--surface":"#ffffff","--surface2":"#f7f7f7","--border":"#cccccc","--text":"#1a1a1a","--muted":"#767676","--accent":"#4e79a7","--buy":"#59a14f","--sell":"#e15759","--hold":"#d37800","--buy-bg":"rgba(89,161,79,.12)","--sell-bg":"rgba(225,87,89,.1)","--hold-bg":"rgba(242,142,43,.1)"}},
+  stata:{name:"Stata",color:"#1a476f",light:true,vars:{"--bg":"#f4f2ee","--surface":"#ffffff","--surface2":"#eeece8","--border":"#ccc9c0","--text":"#1a1a1a","--muted":"#7a7060","--accent":"#1a476f","--buy":"#285e28","--sell":"#8b1c1c","--hold":"#7a5c00","--buy-bg":"rgba(40,94,40,.12)","--sell-bg":"rgba(139,28,28,.08)","--hold-bg":"rgba(122,92,0,.08)"}},
+  bloomberg:{name:"Bloomberg",color:"#ff6600",light:false,vars:{"--bg":"#000000","--surface":"#0d0d0d","--surface2":"#111111","--border":"#222222","--text":"#cccccc","--muted":"#555555","--accent":"#ff6600","--buy":"#00cc44","--sell":"#ff3333","--hold":"#ff9900","--buy-bg":"rgba(0,204,68,.08)","--sell-bg":"rgba(255,51,51,.08)","--hold-bg":"rgba(255,153,0,.06)"}},
+  ocean:{name:"Ocean",color:"#1e6091",light:false,vars:{"--bg":"#071626","--surface":"#0d2035","--surface2":"#102540","--border":"#1a3a5c","--text":"#b0d0f0","--muted":"#3a6080","--accent":"#48b0e0","--buy":"#3ddc84","--sell":"#ff6b6b","--hold":"#ffd166","--buy-bg":"rgba(61,220,132,.08)","--sell-bg":"rgba(255,107,107,.08)","--hold-bg":"rgba(255,209,102,.06)"}}
+};
+let currentThemeId_t = "dark";
+
+function applyTheme_t(id) {
+  const t = THEMES_T[id]; if(!t) return;
+  currentThemeId_t = id;
+  const root = document.documentElement;
+  Object.entries(t.vars).forEach(([k,v]) => root.style.setProperty(k,v));
+  document.querySelectorAll(".theme-dot").forEach(b => b.classList.toggle("active", b.dataset.theme === id));
+  try { localStorage.setItem("ms-theme", id); } catch(e){}
+  // Update Lightweight Charts if loaded
+  if (window._mainLWChart) {
+    window._mainLWChart.applyOptions({
+      layout: { background:{color:t.vars["--surface"]}, textColor:t.vars["--muted"] },
+      grid:   { vertLines:{color:t.vars["--border"]}, horzLines:{color:t.vars["--border"]} }
+    });
+  }
+  // Update Chart.js instances
+  if (window._chartInstances) {
+    Chart.defaults.color = t.vars["--muted"];
+    Chart.defaults.borderColor = t.vars["--border"];
+    Object.values(window._chartInstances).forEach(c => {
+      if (!c) return;
+      ["x","y"].forEach(ax => {
+        if (c.options.scales && c.options.scales[ax]) {
+          c.options.scales[ax].grid = c.options.scales[ax].grid || {};
+          c.options.scales[ax].grid.color = t.vars["--border"];
+          c.options.scales[ax].ticks = c.options.scales[ax].ticks || {};
+          c.options.scales[ax].ticks.color = t.vars["--muted"];
+        }
+      });
+      c.update("none");
+    });
+  }
+}
+
+function buildThemeSwitcher_t() {
+  const el = document.getElementById("themeSwitcher"); if (!el) return;
+  el.innerHTML = Object.keys(THEMES_T).map(id => {
+    const t = THEMES_T[id];
+    return `<button class="theme-dot${id===currentThemeId_t?" active":""}" data-theme="${id}" style="background:${t.color}" title="${t.name}" onclick="applyTheme_t('${id}')"></button>`;
+  }).join("");
+}
+
+// Load saved theme before charts are created
+(function(){
+  try {
+    const s = localStorage.getItem("ms-theme");
+    if (s && THEMES_T[s]) {
+      currentThemeId_t = s;
+      const t = THEMES_T[s];
+      const r = document.documentElement;
+      Object.entries(t.vars).forEach(([k,v]) => r.style.setProperty(k,v));
+    }
+  } catch(e){}
+})();
+
 // ── Indicator definitions (for heatmap + weights) ─────────────────────────────
 const INDICATORS = [
   {id:"sma_cross",group:"Trend",    name:"SMA 5/20",  weight:2,grpColor:"var(--accent)"},
@@ -352,6 +427,7 @@ async function init() {
     // Show content
     document.getElementById("loadState").style.display = "none";
     document.getElementById("content").style.display   = "block";
+    buildThemeSwitcher_t();
 
     // Render all charts
     renderMainChart(raw, dates, closes);
@@ -386,6 +462,7 @@ function renderMainChart(raw, dates, closes) {
   });
 
   // Candlestick
+  window._mainLWChart = chart;
   const candleSeries = chart.addCandlestickSeries({
     upColor:"#00e676", downColor:"#ff3d57",
     borderUpColor:"#00e676", borderDownColor:"#ff3d57",
@@ -412,10 +489,14 @@ function renderMainChart(raw, dates, closes) {
 // ── Chart.js helpers ──────────────────────────────────────────────────────────
 function makeChart(id, type, labels, datasets, extraOpts={}) {
   const ctx = document.getElementById(id).getContext("2d");
-  return new Chart(ctx, {
+  if (!window._chartInstances) window._chartInstances = {};
+  if (window._chartInstances[id]) { window._chartInstances[id].destroy(); }
+  const c = new Chart(ctx, {
     type, data:{labels, datasets},
     options: deepMerge(JSON.parse(JSON.stringify(CHART_OPTIONS)), extraOpts)
   });
+  window._chartInstances[id] = c;
+  return c;
 }
 function deepMerge(a, b) {
   for (const k in b) {
