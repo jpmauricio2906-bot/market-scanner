@@ -97,6 +97,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .mc-btn:hover{border-color:var(--accent);color:var(--accent)}
 .mc-btn.active{background:rgba(0,212,255,.12);border-color:var(--accent);color:var(--accent)}
 .mc-btn.active-sell{background:rgba(255,61,87,.1);border-color:var(--sell);color:var(--sell)}
+.mc-btn:disabled,.mc-btn[data-cmp-disabled]{opacity:0.28;cursor:not-allowed;pointer-events:none;border-color:var(--border) !important;color:var(--muted) !important;background:transparent !important}
 .mc-label{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 4px}
 .mc-select{font-family:var(--mono);font-size:10px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;outline:none}
 .mc-select:focus{border-color:var(--accent)}
@@ -694,13 +695,8 @@ function _buildMainChart() {
   // because % values can be negative; % scale doesn't conflict either.
   const effectiveScale = inCompare ? (scale === "log" ? "price" : scale) : scale;
 
-  // Update scale buttons to reflect the forced state
-  document.querySelectorAll("#scaleGroup .mc-btn").forEach(b => {
-    const forced = inCompare && b.dataset.scale === "log";
-    b.disabled = forced;
-    b.style.opacity = forced ? "0.3" : "";
-    b.title = forced ? "Log scale unavailable in compare mode" : "";
-  });
+  // Sync all toolbar button states (disabled / active) for compare mode
+  if (typeof _syncCompareUI === 'function') _syncCompareUI();
 
   // Prepare main data
   let data = aggregateOHLCV(raw, freq);
@@ -1041,6 +1037,59 @@ function _bindMainChartControls() {
   cInput.addEventListener("keydown", e => { if (e.key === "Enter") addCompareTicker(); });
 }
 
+// Controls disabled in compare mode
+const CMP_DISABLED = {
+  chartType: ["candle","ohlc","area","heikin"], // only "line" works
+  scale:     ["price","log"],                   // only "%Chg" (pct) works
+  overlay:   ["bb","sma20","sma50","sma200","ema12","ema26","vwap"] // all price-based
+};
+
+function _syncCompareUI() {
+  const inCompare = _mc.compareTickers.length > 0;
+  const REASON = "Not available in compare mode (% scale)";
+
+  // ── Chart type ────────────────────────────────────────────────────────────
+  document.querySelectorAll("#chartTypeGroup .mc-btn").forEach(b => {
+    const off = inCompare && CMP_DISABLED.chartType.includes(b.dataset.chartType);
+    b.toggleAttribute("data-cmp-disabled", off);
+    b.title = off ? REASON : (b.dataset.chartType === "candle" ? "Candlestick" :
+                               b.dataset.chartType === "heikin" ? "Heikin Ashi" : "");
+    // In compare mode force "line" to appear active; restore real state on exit
+    if (inCompare) {
+      b.classList.toggle("active", b.dataset.chartType === "line");
+    } else {
+      b.classList.toggle("active", b.dataset.chartType === _mc.chartType);
+    }
+  });
+
+  // ── Scale ─────────────────────────────────────────────────────────────────
+  document.querySelectorAll("#scaleGroup .mc-btn").forEach(b => {
+    const off = inCompare && CMP_DISABLED.scale.includes(b.dataset.scale);
+    b.toggleAttribute("data-cmp-disabled", off);
+    b.title = off ? REASON : (b.dataset.scale === "price" ? "Price level" :
+                               b.dataset.scale === "log"   ? "Logarithmic" : "% change from range start");
+    // In compare mode force "%Chg" to appear active
+    if (inCompare) {
+      b.classList.toggle("active", b.dataset.scale === "pct");
+    } else {
+      b.classList.toggle("active", b.dataset.scale === _mc.scale);
+    }
+  });
+
+  // ── Overlays ──────────────────────────────────────────────────────────────
+  document.querySelectorAll("#overlayGroup .mc-btn").forEach(b => {
+    const off = inCompare && CMP_DISABLED.overlay.includes(b.dataset.overlay);
+    b.toggleAttribute("data-cmp-disabled", off);
+    b.title = off ? REASON : b.title.replace(REASON, "").trim();
+    // In compare mode visually deactivate all overlays; restore on exit
+    if (inCompare) {
+      b.classList.remove("active");
+    } else {
+      b.classList.toggle("active", _mc.overlays.has(b.dataset.overlay));
+    }
+  });
+}
+
 function _renderCompareTags() {
   const wrap = document.getElementById("compareTagsWrap");
   const modeTag = document.getElementById("compareModeTag");
@@ -1049,12 +1098,8 @@ function _renderCompareTags() {
   // Show/hide compare-mode badge
   modeTag.style.display = inCompare ? "" : "none";
 
-  // Dim chart-type buttons that lose meaning in compare mode (candle/ohlc/heikin -> line only)
-  document.querySelectorAll("#chartTypeGroup .mc-btn").forEach(b => {
-    const incompatible = inCompare && ["ohlc","heikin"].includes(b.dataset.chartType);
-    b.style.opacity = incompatible ? "0.35" : "";
-    b.title = incompatible ? "Not available in compare mode" : "";
-  });
+  // Sync all button disabled/active states
+  _syncCompareUI();
 
   const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
   wrap.innerHTML = _mc.compareTickers.map((ct, i) =>
