@@ -53,10 +53,10 @@ function computeScore(signals,indicators){let ws=0,mw=0;indicators.forEach(i=>{i
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
 :root{
-  --bg:#090e14;--surface:#0f1923;--surface2:#141f2b;--border:#1e2d3d;
-  --text:#c8d8e8;--muted:#4a6278;--accent:#00d4ff;
-  --buy:#00e676;--sell:#ff3d57;--hold:#ffc107;
-  --buy-bg:rgba(0,230,118,.08);--sell-bg:rgba(255,61,87,.08);--hold-bg:rgba(255,193,7,.06);
+  --bg:#0d1117;--surface:#13181f;--surface2:#1a1f2e;--border:#1e2838;
+  --text:#e8eaf0;--muted:#7a8298;--accent:#4f8ef7;
+  --buy:#2ecc71;--sell:#e74c3c;--hold:#f7c44f;
+  --buy-bg:rgba(46,204,113,.1);--sell-bg:rgba(231,76,60,.09);--hold-bg:rgba(247,196,79,.06);
   --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
   --chart-h:200px;
 }
@@ -373,14 +373,16 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 // ── Theme engine ──────────────────────────────────────────────────────────────
 const THEMES_T={
-  dark:{name:"Dark",color:"#00d4ff",vars:{"--bg":"#090e14","--surface":"#0f1923","--surface2":"#141f2b","--border":"#1e2d3d","--text":"#c8d8e8","--muted":"#4a6278","--accent":"#00d4ff","--buy":"#00e676","--sell":"#ff3d57","--hold":"#ffc107","--buy-bg":"rgba(0,230,118,.08)","--sell-bg":"rgba(255,61,87,.08)","--hold-bg":"rgba(255,193,7,.06)"}},
-  powerbi:{name:"Power BI",color:"#0078d4",vars:{"--bg":"#f3f2f1","--surface":"#ffffff","--surface2":"#faf9f8","--border":"#d8d6d4","--text":"#252423","--muted":"#8a8886","--accent":"#0078d4","--buy":"#107c10","--sell":"#c50f1f","--hold":"#c97d00","--buy-bg":"rgba(16,124,16,.1)","--sell-bg":"rgba(197,15,31,.08)","--hold-bg":"rgba(201,125,0,.08)"}},
-  tableau:{name:"Tableau",color:"#4e79a7",vars:{"--bg":"#f0eff0","--surface":"#ffffff","--surface2":"#f7f7f7","--border":"#cccccc","--text":"#1a1a1a","--muted":"#767676","--accent":"#4e79a7","--buy":"#59a14f","--sell":"#e15759","--hold":"#d37800","--buy-bg":"rgba(89,161,79,.12)","--sell-bg":"rgba(225,87,89,.1)","--hold-bg":"rgba(242,142,43,.1)"}},
-  stata:{name:"Stata",color:"#1a476f",vars:{"--bg":"#f4f2ee","--surface":"#ffffff","--surface2":"#eeece8","--border":"#ccc9c0","--text":"#1a1a1a","--muted":"#7a7060","--accent":"#1a476f","--buy":"#285e28","--sell":"#8b1c1c","--hold":"#7a5c00","--buy-bg":"rgba(40,94,40,.12)","--sell-bg":"rgba(139,28,28,.08)","--hold-bg":"rgba(122,92,0,.08)"}},
-  bloomberg:{name:"Bloomberg",color:"#ff6600",vars:{"--bg":"#000000","--surface":"#0d0d0d","--surface2":"#111111","--border":"#222222","--text":"#cccccc","--muted":"#555555","--accent":"#ff6600","--buy":"#00cc44","--sell":"#ff3333","--hold":"#ff9900","--buy-bg":"rgba(0,204,68,.08)","--sell-bg":"rgba(255,51,51,.08)","--hold-bg":"rgba(255,153,0,.06)"}},
-  ocean:{name:"Ocean",color:"#1e6091",vars:{"--bg":"#071626","--surface":"#0d2035","--surface2":"#102540","--border":"#1a3a5c","--text":"#b0d0f0","--muted":"#3a6080","--accent":"#48b0e0","--buy":"#3ddc84","--sell":"#ff6b6b","--hold":"#ffd166","--buy-bg":"rgba(61,220,132,.08)","--sell-bg":"rgba(255,107,107,.08)","--hold-bg":"rgba(255,209,102,.06)"}}
+  midnight:{name:"🌙 Midnight",color:"#4f8ef7",vars:{"--bg":"#0d1117","--surface":"#13181f","--surface2":"#1a1f2e","--border":"#1e2838","--text":"#e8eaf0","--muted":"#7a8298","--accent":"#4f8ef7","--buy":"#2ecc71","--sell":"#e74c3c","--hold":"#f7c44f","--buy-bg":"rgba(46,204,113,0.1)","--sell-bg":"rgba(231,76,60,0.09)","--hold-bg":"rgba(247,196,79,0.06)"}},
+  arctic:{name:"❄️ Arctic",color:"#2563eb",vars:{"--bg":"#f0f4f8","--surface":"#ffffff","--surface2":"#f7f9fc","--border":"#dde3ec","--text":"#1a2332","--muted":"#64748b","--accent":"#2563eb","--buy":"#16a34a","--sell":"#dc2626","--hold":"#d97706","--buy-bg":"rgba(22,163,74,0.1)","--sell-bg":"rgba(220,38,38,0.09)","--hold-bg":"rgba(217,119,6,0.07)"}},
+  tableau:{name:"📊 Tableau",color:"#4e79a7",vars:{"--bg":"#f5f5f0","--surface":"#ffffff","--surface2":"#f9f8f5","--border":"#e0ddd8","--text":"#1a1a2e","--muted":"#666660","--accent":"#4e79a7","--buy":"#59a14f","--sell":"#e15759","--hold":"#f28e2b","--buy-bg":"rgba(89,161,79,0.12)","--sell-bg":"rgba(225,87,89,0.1)","--hold-bg":"rgba(242,142,43,0.08)"}},
+  forest:{name:"🌿 Forest",color:"#4caf50",vars:{"--bg":"#0f1a0f","--surface":"#142014","--surface2":"#1a2e1a","--border":"#1e3a1e","--text":"#d4e8d4","--muted":"#7a9e7a","--accent":"#4caf50","--buy":"#81c784","--sell":"#ef5350","--hold":"#ffcc02","--buy-bg":"rgba(118,196,66,0.1)","--sell-bg":"rgba(239,83,80,0.09)","--hold-bg":"rgba(255,204,2,0.06)"}},
+  sunset:{name:"🌅 Sunset",color:"#ff6b35",vars:{"--bg":"#1a0e0a","--surface":"#231510","--surface2":"#2e1a12","--border":"#3a2218","--text":"#f0e6e0","--muted":"#9e7060","--accent":"#ff6b35","--buy":"#4caf50","--sell":"#ef5350","--hold":"#ffc947","--buy-bg":"rgba(76,175,80,0.1)","--sell-bg":"rgba(239,83,80,0.09)","--hold-bg":"rgba(255,201,71,0.06)"}},
+  slate:{name:"🪨 Slate",color:"#58a6ff",vars:{"--bg":"#0d1117","--surface":"#161b22","--surface2":"#21262d","--border":"#30363d","--text":"#c9d1d9","--muted":"#8b949e","--accent":"#58a6ff","--buy":"#3fb950","--sell":"#f85149","--hold":"#e3b341","--buy-bg":"rgba(63,185,80,0.1)","--sell-bg":"rgba(248,81,73,0.09)","--hold-bg":"rgba(227,179,65,0.06)"}},
+  lavender:{name:"💜 Lavender",color:"#7c3aed",vars:{"--bg":"#f7f6ff","--surface":"#ffffff","--surface2":"#faf9ff","--border":"#e0deff","--text":"#1e1b4b","--muted":"#6d6a9a","--accent":"#7c3aed","--buy":"#059669","--sell":"#dc2626","--hold":"#db7706","--buy-bg":"rgba(5,150,105,0.1)","--sell-bg":"rgba(220,38,38,0.08)","--hold-bg":"rgba(219,119,6,0.07)"}},
+  solarized:{name:"☀️ Solarized",color:"#268bd2",vars:{"--bg":"#002b36","--surface":"#073642","--surface2":"#001f27","--border":"#0d4a5a","--text":"#839496","--muted":"#586e75","--accent":"#268bd2","--buy":"#859900","--sell":"#dc322f","--hold":"#b58900","--buy-bg":"rgba(133,153,0,0.12)","--sell-bg":"rgba(220,50,47,0.1)","--hold-bg":"rgba(181,137,0,0.07)"}}
 };
-let _activeTheme_t="dark";
+let _activeTheme_t="midnight";
 
 function applyTheme_t(id){
   const t=THEMES_T[id];if(!t)return;
@@ -433,7 +435,8 @@ function buildThemeSwitcher_t(){
 // Apply saved theme before charts load
 (function(){
   try{
-    const s=localStorage.getItem("ms-theme");
+    let s=localStorage.getItem("ms-theme");
+    if(s==="dark"||s==="powerbi"||s==="bloomberg"||s==="ocean"||s==="stata")s="midnight";
     if(s&&THEMES_T[s]){
       _activeTheme_t=s;
       const r=document.documentElement;
