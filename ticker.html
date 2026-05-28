@@ -86,7 +86,31 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .main-chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}
 .chart-title{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .chart-title .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.main-chart{height:340px}
+.main-chart{height:420px}
+
+/* ── Main chart controls toolbar ── */
+.mc-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.mc-toolbar-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%}
+.mc-divider{width:1px;height:18px;background:var(--border);flex-shrink:0}
+.mc-btn-group{display:flex;gap:2px;align-items:center}
+.mc-btn{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.06em;padding:4px 9px;border-radius:4px;cursor:pointer;border:1px solid var(--border);color:var(--muted);background:transparent;transition:all .15s;white-space:nowrap}
+.mc-btn:hover{border-color:var(--accent);color:var(--accent)}
+.mc-btn.active{background:rgba(0,212,255,.12);border-color:var(--accent);color:var(--accent)}
+.mc-btn.active-sell{background:rgba(255,61,87,.1);border-color:var(--sell);color:var(--sell)}
+.mc-label{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 4px}
+.mc-select{font-family:var(--mono);font-size:10px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;outline:none}
+.mc-select:focus{border-color:var(--accent)}
+.mc-compare-wrap{display:flex;align-items:center;gap:4px;flex:1;min-width:200px}
+.mc-compare-input{font-family:var(--mono);font-size:10px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);outline:none;width:80px;text-transform:uppercase}
+.mc-compare-input:focus{border-color:var(--accent)}
+.mc-compare-input::placeholder{color:var(--muted);text-transform:none}
+.mc-tag{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);color:var(--text)}
+.mc-tag .mc-tag-x{cursor:pointer;color:var(--muted);margin-left:2px}
+.mc-tag .mc-tag-x:hover{color:var(--sell)}
+.mc-ohlcv-bar{font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;gap:10px;padding:4px 0;flex-wrap:wrap}
+.mc-ohlcv-bar span{color:var(--text)}
+.mc-ohlcv-bar .lbl{color:var(--muted);font-size:9px}
+.mc-crosshair-info{flex:1;text-align:right}
 
 .subcharts-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .subchart-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}
@@ -164,17 +188,79 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <!-- Content (hidden until loaded) -->
   <div id="content" style="display:none">
 
-    <!-- Main chart: Candlestick + Bollinger Bands -->
+    <!-- Main chart: Enhanced with full controls -->
     <div class="main-chart-wrap">
-      <div class="chart-title">
-        <span class="dot" style="background:var(--accent)"></span>
-        Price — Candlestick + Bollinger Bands (20,2)
-        <div class="chart-legend" style="margin-left:auto">
-          <div class="leg-item"><div class="leg-dot" style="background:rgba(0,212,255,.6)"></div>Upper BB</div>
-          <div class="leg-item"><div class="leg-dot" style="background:rgba(0,212,255,.3)"></div>SMA 20</div>
-          <div class="leg-item"><div class="leg-dot" style="background:rgba(0,212,255,.6)"></div>Lower BB</div>
+
+      <!-- Row 1: Chart type + Range + Frequency -->
+      <div class="mc-toolbar">
+        <div class="mc-toolbar-row">
+          <span class="mc-label">Type</span>
+          <div class="mc-btn-group" id="chartTypeGroup">
+            <button class="mc-btn active" data-chart-type="candle" title="Candlestick">Candle</button>
+            <button class="mc-btn" data-chart-type="ohlc" title="OHLC Bars">OHLC</button>
+            <button class="mc-btn" data-chart-type="line" title="Line">Line</button>
+            <button class="mc-btn" data-chart-type="area" title="Area">Area</button>
+            <button class="mc-btn" data-chart-type="heikin" title="Heikin Ashi">Heikin</button>
+          </div>
+          <div class="mc-divider"></div>
+          <span class="mc-label">Range</span>
+          <div class="mc-btn-group" id="rangeGroup">
+            <button class="mc-btn" data-range="5">5D</button>
+            <button class="mc-btn" data-range="21">1M</button>
+            <button class="mc-btn" data-range="63">3M</button>
+            <button class="mc-btn" data-range="126">6M</button>
+            <button class="mc-btn" data-range="252">1Y</button>
+            <button class="mc-btn" data-range="504">2Y</button>
+            <button class="mc-btn active" data-range="0">All</button>
+          </div>
+          <div class="mc-divider"></div>
+          <span class="mc-label">Freq</span>
+          <div class="mc-btn-group" id="freqGroup">
+            <button class="mc-btn active" data-freq="daily">Daily</button>
+            <button class="mc-btn" data-freq="weekly">Weekly</button>
+            <button class="mc-btn" data-freq="monthly">Monthly</button>
+          </div>
+          <div class="mc-divider"></div>
+          <span class="mc-label">Scale</span>
+          <div class="mc-btn-group" id="scaleGroup">
+            <button class="mc-btn active" data-scale="price" title="Price level">$</button>
+            <button class="mc-btn" data-scale="log" title="Logarithmic">Log</button>
+            <button class="mc-btn" data-scale="pct" title="% change from range start">%Chg</button>
+          </div>
         </div>
-      </div>
+
+        <!-- Row 2: Overlays + Compare + Volume toggle -->
+        <div class="mc-toolbar-row" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+          <span class="mc-label">Overlays</span>
+          <div class="mc-btn-group" id="overlayGroup">
+            <button class="mc-btn active" data-overlay="bb" title="Bollinger Bands (20,2)">BB(20)</button>
+            <button class="mc-btn" data-overlay="sma20" title="SMA 20">SMA20</button>
+            <button class="mc-btn" data-overlay="sma50" title="SMA 50">SMA50</button>
+            <button class="mc-btn" data-overlay="sma200" title="SMA 200">SMA200</button>
+            <button class="mc-btn" data-overlay="ema12" title="EMA 12">EMA12</button>
+            <button class="mc-btn" data-overlay="ema26" title="EMA 26">EMA26</button>
+            <button class="mc-btn" data-overlay="vwap" title="Approx VWAP">VWAP</button>
+          </div>
+          <div class="mc-divider"></div>
+          <button class="mc-btn active" id="toggleVol" title="Toggle volume bars">&#x1F4CA; Vol</button>
+          <div class="mc-divider"></div>
+          <span class="mc-label">Compare</span>
+          <div class="mc-compare-wrap">
+            <input class="mc-compare-input" id="compareInput" placeholder="Add ticker…" maxlength="8">
+            <button class="mc-btn" id="compareAddBtn">+Add</button>
+            <div id="compareTagsWrap" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+          </div>
+          <div class="mc-ohlcv-bar mc-crosshair-info" id="ohlcvBar">
+            <span id="ohlcvDate" style="color:var(--muted)"></span>
+            <span><span class="lbl">O </span><span id="ohlcvO">—</span></span>
+            <span><span class="lbl">H </span><span id="ohlcvH">—</span></span>
+            <span><span class="lbl">L </span><span id="ohlcvL">—</span></span>
+            <span><span class="lbl">C </span><span id="ohlcvC">—</span></span>
+            <span><span class="lbl">Vol </span><span id="ohlcvV">—</span></span>
+          </div>
+        </div>
+      </div><!-- end toolbar -->
+
       <div class="main-chart" id="mainChart"></div>
     </div>
 
@@ -294,11 +380,12 @@ function applyTheme_t(id){
   Object.entries(t.vars).forEach(([k,v])=>r.style.setProperty(k,v));
   document.querySelectorAll(".theme-dot").forEach(b=>b.classList.toggle("active",b.dataset.theme===id));
   try{localStorage.setItem("ms-theme",id);}catch(e){}
-  // Live-update Lightweight Charts
-  if(window._lwChart){
+  // Live-update Lightweight Charts — rebuild with new theme
+  if(typeof _buildMainChart !== 'undefined' && _mc.raw.length) { _buildMainChart(); }
+  else if(window._lwChart){
     window._lwChart.applyOptions({
-      layout:{background:{color:t.vars["--surface"]},textColor:t.vars["--muted"]},
-      grid:{vertLines:{color:t.vars["--border"]},horzLines:{color:t.vars["--border"]}}
+      layout:{background:{color:t.vars['--surface']},textColor:t.vars['--muted']},
+      grid:{vertLines:{color:t.vars['--border']},horzLines:{color:t.vars['--border']}}
     });
   }
   // Live-update Chart.js instances
@@ -455,40 +542,400 @@ async function init() {
 }
 
 // ── Main candlestick + Bollinger ──────────────────────────────────────────────
+// ── Main chart state ──────────────────────────────────────────────────────────
+const _mc = {
+  raw: [], dates: [], closes: [],
+  chartType: "candle",
+  range: 0,
+  freq: "daily",
+  scale: "price",
+  overlays: new Set(["bb"]),
+  showVol: true,
+  compareTickers: [],      // [{ticker, data, series}]
+  chart: null,
+  mainSeries: null,
+  volSeries: null,
+  overlaySeries: {},
+  compareSeries: {},
+};
+
+// Aggregate OHLCV to weekly/monthly
+function aggregateOHLCV(raw, freq) {
+  if (freq === "daily") return raw;
+  const buckets = {};
+  raw.forEach(d => {
+    const dt = new Date(d.date);
+    let key;
+    if (freq === "weekly") {
+      const day = dt.getDay();
+      const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
+      const mon = new Date(dt.setDate(diff));
+      key = mon.toISOString().slice(0, 10);
+    } else {
+      key = d.date.slice(0, 7) + "-01";
+    }
+    if (!buckets[key]) buckets[key] = { date: key, open: d.open, high: d.high, low: d.low, close: d.close, vol: d.vol };
+    else {
+      buckets[key].high = Math.max(buckets[key].high, d.high);
+      buckets[key].low  = Math.min(buckets[key].low, d.low);
+      buckets[key].close = d.close;
+      buckets[key].vol  += d.vol;
+    }
+  });
+  return Object.values(buckets).sort((a,b) => a.date.localeCompare(b.date));
+}
+
+// Slice by range (number of bars, 0 = all)
+function sliceByRange(data, range) {
+  if (!range || range >= data.length) return data;
+  return data.slice(-range);
+}
+
+// Convert to % change from first close
+function toPct(data) {
+  if (!data.length) return data;
+  const base = data[0].close || 1;
+  return data.map(d => ({
+    ...d,
+    open:  +((d.open  / base - 1) * 100).toFixed(4),
+    high:  +((d.high  / base - 1) * 100).toFixed(4),
+    low:   +((d.low   / base - 1) * 100).toFixed(4),
+    close: +((d.close / base - 1) * 100).toFixed(4),
+  }));
+}
+
+// Heikin-Ashi conversion
+function toHeikin(data) {
+  const out = [];
+  data.forEach((d, i) => {
+    const pO = i > 0 ? out[i-1].open : d.open;
+    const pC = i > 0 ? out[i-1].close : d.close;
+    const hC = (d.open + d.high + d.low + d.close) / 4;
+    const hO = (pO + pC) / 2;
+    const hH = Math.max(d.high, hO, hC);
+    const hL = Math.min(d.low, hO, hC);
+    out.push({ date: d.date, open: +hO.toFixed(4), high: +hH.toFixed(4), low: +hL.toFixed(4), close: +hC.toFixed(4), vol: d.vol });
+  });
+  return out;
+}
+
+// Approx VWAP (cumulative typical price * vol / cumVol)
+function vwapSeries(data) {
+  let cumTPV = 0, cumVol = 0;
+  return data.map(d => {
+    const tp = (d.high + d.low + d.close) / 3;
+    cumTPV += tp * (d.vol || 1);
+    cumVol += (d.vol || 1);
+    return { time: d.date, value: +(cumTPV / cumVol).toFixed(4) };
+  });
+}
+
+// Format number for display
+function fmtNum(v, pct) {
+  if (v === undefined || v === null) return "—";
+  if (pct) return v.toFixed(2) + "%";
+  return v >= 1e9 ? (v/1e9).toFixed(2)+"B" : v >= 1e6 ? (v/1e6).toFixed(2)+"M" : v >= 1e3 ? (v/1e3).toFixed(1)+"K" : v.toFixed(2);
+}
+
+// SMA series for overlays
+function smaSeries(closes, dates, n) {
+  const out = [];
+  for (let i = n-1; i < closes.length; i++) {
+    const s = closes.slice(i-n+1, i+1).reduce((a,b)=>a+b,0)/n;
+    out.push({ time: dates[i], value: +s.toFixed(4) });
+  }
+  return out;
+}
+
+// EMA series for overlays
+function emaSeries(closes, dates, n) {
+  if (closes.length < n) return [];
+  const k = 2/(n+1);
+  let e = closes.slice(0,n).reduce((a,b)=>a+b,0)/n;
+  const out = [{ time: dates[n-1], value: +e.toFixed(4) }];
+  for (let i = n; i < closes.length; i++) {
+    e = closes[i]*k + e*(1-k);
+    out.push({ time: dates[i], value: +e.toFixed(4) });
+  }
+  return out;
+}
+
+function getThemeColors() {
+  const s = getComputedStyle(document.documentElement);
+  return {
+    bg:     s.getPropertyValue("--surface").trim() || "#0f1923",
+    text:   s.getPropertyValue("--muted").trim()   || "#4a6278",
+    border: s.getPropertyValue("--border").trim()  || "#1e2d3d",
+  };
+}
+
 function renderMainChart(raw, dates, closes) {
+  _mc.raw = raw; _mc.dates = dates; _mc.closes = closes;
+  _buildMainChart();
+  _bindMainChartControls();
+}
+
+function _buildMainChart() {
+  const { raw, dates, closes, chartType, range, freq, scale, overlays, showVol, compareTickers } = _mc;
   const container = document.getElementById("mainChart");
+  const tc = getThemeColors();
+
+  // Destroy old chart
+  if (_mc.chart) { _mc.chart.remove(); _mc.chart = null; }
+  _mc.overlaySeries = {}; _mc.compareSeries = {};
+
+  // Create chart
   const chart = LightweightCharts.createChart(container, {
-    layout: { background:{color:"#0f1923"}, textColor:"#4a6278" },
-    grid:   { vertLines:{color:"#1e2d3d"}, horzLines:{color:"#1e2d3d"} },
+    layout: { background:{color:tc.bg}, textColor:tc.text },
+    grid:   { vertLines:{color:tc.border}, horzLines:{color:tc.border} },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    rightPriceScale: { borderColor:"#1e2d3d" },
-    timeScale: { borderColor:"#1e2d3d", timeVisible:true },
+    rightPriceScale: { borderColor:tc.border, mode: scale === "log" ? 1 : 0 },
+    timeScale: { borderColor:tc.border, timeVisible:true },
     handleScroll: true, handleScale: true,
   });
+  _mc.chart = chart;
+  window._lwChart = chart;
 
-  // Candlestick
-  const candleSeries = chart.addCandlestickSeries({
-    upColor:"#00e676", downColor:"#ff3d57",
-    borderUpColor:"#00e676", borderDownColor:"#ff3d57",
-    wickUpColor:"rgba(0,230,118,.6)", wickDownColor:"rgba(255,61,87,.6)"
+  // Prepare data
+  let data = aggregateOHLCV(raw, freq);
+  data = sliceByRange(data, range);
+  if (chartType === "heikin") data = toHeikin(data);
+  const isPct = scale === "pct";
+  if (isPct) data = toPct(data);
+
+  const dDates  = data.map(d => d.date);
+  const dCloses = data.map(d => d.close);
+
+  // ── Main series ──────────────────────────────────────────────────────────
+  let mainSeries;
+  if (chartType === "line") {
+    mainSeries = chart.addLineSeries({ color:"#00d4ff", lineWidth:2 });
+    mainSeries.setData(data.map(d => ({ time:d.date, value:d.close })));
+  } else if (chartType === "area") {
+    mainSeries = chart.addAreaSeries({ topColor:"rgba(0,212,255,.25)", bottomColor:"rgba(0,212,255,.02)", lineColor:"#00d4ff", lineWidth:2 });
+    mainSeries.setData(data.map(d => ({ time:d.date, value:d.close })));
+  } else if (chartType === "ohlc") {
+    mainSeries = chart.addBarSeries({ upColor:"#00e676", downColor:"#ff3d57" });
+    mainSeries.setData(data.map(d => ({ time:d.date, open:d.open, high:d.high, low:d.low, close:d.close })));
+  } else {
+    // candle or heikin
+    mainSeries = chart.addCandlestickSeries({
+      upColor:"#00e676", downColor:"#ff3d57",
+      borderUpColor:"#00e676", borderDownColor:"#ff3d57",
+      wickUpColor:"rgba(0,230,118,.6)", wickDownColor:"rgba(255,61,87,.6)"
+    });
+    mainSeries.setData(data.map(d => ({ time:d.date, open:d.open, high:d.high, low:d.low, close:d.close })));
+  }
+  _mc.mainSeries = mainSeries;
+
+  // ── Volume histogram ─────────────────────────────────────────────────────
+  if (showVol && !isPct) {
+    const vs = chart.addHistogramSeries({
+      color:"rgba(100,160,220,.3)", priceFormat:{type:"volume"},
+      priceScaleId:"vol", scaleMargins:{top:0.82, bottom:0}
+    });
+    vs.setData(data.map(d => ({ time:d.date, value:d.vol||0,
+      color: d.close >= d.open ? "rgba(0,230,118,.25)" : "rgba(255,61,87,.2)"
+    })));
+    _mc.volSeries = vs;
+  } else {
+    _mc.volSeries = null;
+  }
+
+  // ── Overlay series ──────────────────────────────────────────────────────
+  const OVERLAY_COLORS = {
+    bb:"rgba(0,212,255,.55)", sma20:"#f9ca24", sma50:"#e17055", sma200:"#a29bfe", ema12:"#fd79a8", ema26:"#55efc4", vwap:"#fdcb6e"
+  };
+  overlays.forEach(ov => {
+    if (ov === "bb") {
+      if (isPct) return;
+      const bb = bollingerSeries(dCloses, dDates);
+      const s  = { color:OVERLAY_COLORS.bb, lineWidth:1, lineStyle:2 };
+      const u  = chart.addLineSeries(s); u.setData(bb.upper);
+      const m  = chart.addLineSeries({color:"rgba(0,212,255,.2)",lineWidth:1}); m.setData(bb.mid);
+      const l  = chart.addLineSeries(s); l.setData(bb.lower);
+      _mc.overlaySeries.bb = [u,m,l];
+    } else if (ov === "sma20") {
+      const s = chart.addLineSeries({color:OVERLAY_COLORS.sma20, lineWidth:1});
+      s.setData(smaSeries(dCloses, dDates, 20));
+      _mc.overlaySeries.sma20 = s;
+    } else if (ov === "sma50") {
+      const s = chart.addLineSeries({color:OVERLAY_COLORS.sma50, lineWidth:1});
+      s.setData(smaSeries(dCloses, dDates, 50));
+      _mc.overlaySeries.sma50 = s;
+    } else if (ov === "sma200") {
+      const s = chart.addLineSeries({color:OVERLAY_COLORS.sma200, lineWidth:1});
+      s.setData(smaSeries(dCloses, dDates, 200));
+      _mc.overlaySeries.sma200 = s;
+    } else if (ov === "ema12") {
+      const s = chart.addLineSeries({color:OVERLAY_COLORS.ema12, lineWidth:1, lineStyle:1});
+      s.setData(emaSeries(dCloses, dDates, 12));
+      _mc.overlaySeries.ema12 = s;
+    } else if (ov === "ema26") {
+      const s = chart.addLineSeries({color:OVERLAY_COLORS.ema26, lineWidth:1, lineStyle:1});
+      s.setData(emaSeries(dCloses, dDates, 26));
+      _mc.overlaySeries.ema26 = s;
+    } else if (ov === "vwap") {
+      if (!isPct) {
+        const s = chart.addLineSeries({color:OVERLAY_COLORS.vwap, lineWidth:1, lineStyle:3});
+        s.setData(vwapSeries(data));
+        _mc.overlaySeries.vwap = s;
+      }
+    }
   });
-  candleSeries.setData(raw.map(d => ({time:d.date, open:d.open, high:d.high, low:d.low, close:d.close})));
 
-  // Bollinger Bands
-  const bb = bollingerSeries(closes, dates);
-  const bbStyle = { color:"rgba(0,212,255,.5)", lineWidth:1, lineStyle:2 };
-  chart.addLineSeries({...bbStyle}).setData(bb.upper);
-  chart.addLineSeries({color:"rgba(0,212,255,.25)", lineWidth:1}).setData(bb.mid);
-  chart.addLineSeries({...bbStyle}).setData(bb.lower);
+  // ── Compare tickers ───────────────────────────────────────────────────────
+  const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
+  compareTickers.forEach((ct, i) => {
+    if (!ct.data || !ct.data.length) return;
+    let cdata = aggregateOHLCV(ct.data, freq);
+    cdata = sliceByRange(cdata, range);
+    // Always % for compare
+    const cbase = cdata[0]?.close || 1;
+    const cSeries = chart.addLineSeries({ color:COMP_COLORS[i % COMP_COLORS.length], lineWidth:1.5, lineStyle:0, title:ct.ticker });
+    cSeries.setData(cdata.map(d => ({ time:d.date, value:+((d.close/cbase-1)*100).toFixed(4) })));
+    _mc.compareSeries[ct.ticker] = cSeries;
+    // Also convert main to % if we have comparisons
+  });
 
-  // Fill between bands (area series approximation)
-  chart.addAreaSeries({
-    topColor:"rgba(0,212,255,.04)", bottomColor:"rgba(0,212,255,.01)",
-    lineColor:"transparent", lineWidth:1
-  }).setData(bb.upper);
+  // If compare tickers exist and not already in pct, normalize main to %
+  if (compareTickers.length > 0 && scale !== "pct") {
+    const base = data[0]?.close || 1;
+    const normData = data.map(d => ({ time:d.date, value:+((d.close/base-1)*100).toFixed(4) }));
+    // Switch main to line for compare mode
+    if (chartType === "candle" || chartType === "ohlc" || chartType === "heikin") {
+      mainSeries.setData(normData); // won't really work for OHLC; best effort
+    }
+  }
+
+  // ── Crosshair subscriber ──────────────────────────────────────────────────
+  chart.subscribeCrosshairMove(param => {
+    const isPctScale = _mc.scale === "pct";
+    if (!param.time || !param.seriesData) {
+      document.getElementById("ohlcvDate").textContent = "";
+      ["ohlcvO","ohlcvH","ohlcvL","ohlcvC","ohlcvV"].forEach(id => document.getElementById(id).textContent = "—");
+      return;
+    }
+    document.getElementById("ohlcvDate").textContent = param.time + " ";
+    const sd = param.seriesData.get(_mc.mainSeries);
+    if (sd) {
+      const isLineArea = _mc.chartType === "line" || _mc.chartType === "area";
+      if (isLineArea || _mc.compareTickers.length > 0) {
+        const v = sd.value !== undefined ? sd.value : sd.close;
+        document.getElementById("ohlcvC").textContent = isPctScale ? v.toFixed(2)+"%" : "$"+v.toFixed(2);
+        ["ohlcvO","ohlcvH","ohlcvL"].forEach(id => document.getElementById(id).textContent = "—");
+      } else {
+        document.getElementById("ohlcvO").textContent = isPctScale ? sd.open?.toFixed(2)+"%" : "$"+(sd.open||0).toFixed(2);
+        document.getElementById("ohlcvH").textContent = isPctScale ? sd.high?.toFixed(2)+"%" : "$"+(sd.high||0).toFixed(2);
+        document.getElementById("ohlcvL").textContent = isPctScale ? sd.low?.toFixed(2)+"%" : "$"+(sd.low||0).toFixed(2);
+        document.getElementById("ohlcvC").textContent = isPctScale ? sd.close?.toFixed(2)+"%" : "$"+(sd.close||0).toFixed(2);
+      }
+    }
+    // Volume
+    if (_mc.volSeries) {
+      const vd = param.seriesData.get(_mc.volSeries);
+      document.getElementById("ohlcvV").textContent = vd ? fmtNum(vd.value) : "—";
+    }
+  });
 
   chart.timeScale().fitContent();
-  window._lwChart = chart;
+}
+
+function _bindMainChartControls() {
+  // Chart type
+  document.getElementById("chartTypeGroup").addEventListener("click", e => {
+    const btn = e.target.closest("[data-chart-type]"); if (!btn) return;
+    _mc.chartType = btn.dataset.chartType;
+    document.querySelectorAll("#chartTypeGroup .mc-btn").forEach(b => b.classList.toggle("active", b === btn));
+    _buildMainChart();
+  });
+
+  // Range
+  document.getElementById("rangeGroup").addEventListener("click", e => {
+    const btn = e.target.closest("[data-range]"); if (!btn) return;
+    _mc.range = +btn.dataset.range;
+    document.querySelectorAll("#rangeGroup .mc-btn").forEach(b => b.classList.toggle("active", b === btn));
+    _buildMainChart();
+  });
+
+  // Frequency
+  document.getElementById("freqGroup").addEventListener("click", e => {
+    const btn = e.target.closest("[data-freq]"); if (!btn) return;
+    _mc.freq = btn.dataset.freq;
+    document.querySelectorAll("#freqGroup .mc-btn").forEach(b => b.classList.toggle("active", b === btn));
+    _buildMainChart();
+  });
+
+  // Scale
+  document.getElementById("scaleGroup").addEventListener("click", e => {
+    const btn = e.target.closest("[data-scale]"); if (!btn) return;
+    _mc.scale = btn.dataset.scale;
+    document.querySelectorAll("#scaleGroup .mc-btn").forEach(b => b.classList.toggle("active", b === btn));
+    _buildMainChart();
+  });
+
+  // Overlays
+  document.getElementById("overlayGroup").addEventListener("click", e => {
+    const btn = e.target.closest("[data-overlay]"); if (!btn) return;
+    const ov = btn.dataset.overlay;
+    if (_mc.overlays.has(ov)) _mc.overlays.delete(ov); else _mc.overlays.add(ov);
+    btn.classList.toggle("active", _mc.overlays.has(ov));
+    _buildMainChart();
+  });
+
+  // Volume toggle
+  document.getElementById("toggleVol").addEventListener("click", function() {
+    _mc.showVol = !_mc.showVol;
+    this.classList.toggle("active", _mc.showVol);
+    _buildMainChart();
+  });
+
+  // Compare: add
+  const cInput = document.getElementById("compareInput");
+  const cAdd   = document.getElementById("compareAddBtn");
+
+  async function addCompareTicker() {
+    const t = cInput.value.trim().toUpperCase();
+    if (!t || _mc.compareTickers.find(c => c.ticker === t) || t === ticker) { cInput.value=""; return; }
+    cAdd.textContent = "…";
+    try {
+      const result = await fetchMarketData(t);
+      const rows = result.data.filter(r => String(r[1]).trim().toUpperCase() === t);
+      if (!rows.length) throw new Error("No data");
+      const data = rows.map(r => {
+        const is7 = r.length >= 7 && +r[5] > 0;
+        const cl  = is7 ? +r[5] : +r[2];
+        return { date:r[0], open:is7?+r[2]:cl, high:is7?+r[3]:cl, low:is7?+r[4]:cl, close:cl, vol:is7?+r[6]:+r[3]||0 };
+      }).filter(d => d.close > 0).sort((a,b) => a.date.localeCompare(b.date));
+      _mc.compareTickers.push({ ticker:t, data });
+      _renderCompareTags();
+      _buildMainChart();
+    } catch(err) {
+      alert("Could not load " + t + ": " + err.message);
+    }
+    cAdd.textContent = "+Add";
+    cInput.value = "";
+  }
+
+  cAdd.addEventListener("click", addCompareTicker);
+  cInput.addEventListener("keydown", e => { if (e.key === "Enter") addCompareTicker(); });
+}
+
+function _renderCompareTags() {
+  const wrap = document.getElementById("compareTagsWrap");
+  const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
+  wrap.innerHTML = _mc.compareTickers.map((ct, i) =>
+    `<span class="mc-tag" style="border-color:${COMP_COLORS[i%COMP_COLORS.length]};color:${COMP_COLORS[i%COMP_COLORS.length]}">
+      ${ct.ticker}<span class="mc-tag-x" data-remove="${ct.ticker}">✕</span>
+    </span>`
+  ).join("");
+  wrap.querySelectorAll(".mc-tag-x").forEach(x => {
+    x.addEventListener("click", () => {
+      _mc.compareTickers = _mc.compareTickers.filter(c => c.ticker !== x.dataset.remove);
+      _renderCompareTags();
+      _buildMainChart();
+    });
+  });
 }
 
 // ── Chart.js helpers ──────────────────────────────────────────────────────────
