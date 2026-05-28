@@ -249,6 +249,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
             <input class="mc-compare-input" id="compareInput" placeholder="Add ticker…" maxlength="8">
             <button class="mc-btn" id="compareAddBtn">+Add</button>
             <div id="compareTagsWrap" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+            <span id="compareModeTag" style="display:none;font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);color:var(--accent)">% mode</span>
           </div>
           <div class="mc-ohlcv-bar mc-crosshair-info" id="ohlcvBar">
             <span id="ohlcvDate" style="color:var(--muted)"></span>
@@ -684,35 +685,137 @@ function _buildMainChart() {
   if (_mc.chart) { _mc.chart.remove(); _mc.chart = null; }
   _mc.overlaySeries = {}; _mc.compareSeries = {};
 
+  // ── Compare mode: active whenever compare tickers are present ────────────
+  // In compare mode every series is normalised to % change from its own
+  // first visible bar so they all share a common price scale.
+  const inCompare = compareTickers.length > 0;
+
+  // Effective scale: force "price" axis (never "log") in compare mode
+  // because % values can be negative; % scale doesn't conflict either.
+  const effectiveScale = inCompare ? (scale === "log" ? "price" : scale) : scale;
+
+  // Update scale buttons to reflect the forced state
+  document.querySelectorAll("#scaleGroup .mc-btn").forEach(b => {
+    const forced = inCompare && b.dataset.scale === "log";
+    b.disabled = forced;
+    b.style.opacity = forced ? "0.3" : "";
+    b.title = forced ? "Log scale unavailable in compare mode" : "";
+  });
+
+  // Prepare main data
+  let data = aggregateOHLCV(raw, freq);
+  data = sliceByRange(data, range);
+
+  const heikinMode = !inCompare && chartType === "heikin";
+  if (heikinMode) data = toHeikin(data);
+
+  const isPct = effectiveScale === "pct" && !inCompare;
+  if (isPct) data = toPct(data);
+
+  const dDates  = data.map(d => d.date);
+  const dCloses = data.map(d => d.close);
+
   // Create chart
   const chart = LightweightCharts.createChart(container, {
     layout: { background:{color:tc.bg}, textColor:tc.text },
     grid:   { vertLines:{color:tc.border}, horzLines:{color:tc.border} },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    rightPriceScale: { borderColor:tc.border, mode: scale === "log" ? 1 : 0 },
+    rightPriceScale: {
+      borderColor: tc.border,
+      mode: (!inCompare && effectiveScale === "log") ? 1 : 0
+    },
     timeScale: { borderColor:tc.border, timeVisible:true },
     handleScroll: true, handleScale: true,
   });
   _mc.chart = chart;
   window._lwChart = chart;
 
-  // Prepare data
-  let data = aggregateOHLCV(raw, freq);
-  data = sliceByRange(data, range);
-  if (chartType === "heikin") data = toHeikin(data);
-  const isPct = scale === "pct";
-  if (isPct) data = toPct(data);
+  // ── Compare mode: normalise main to % from first bar ────────────────────
+  if (inCompare) {
+    const base = data[0]?.close || 1;
+    const pctData = data.map(d => ({ time:d.date, value:+((d.close/base-1)*100).toFixed(4) }));
+    const mainSeries = chart.addLineSeries({
+      color:"#00d4ff", lineWidth:2, title:ticker,
+      priceFormat:{ type:"percent", precision:2, minMove:0.01 }
+    });
+    mainSeries.setData(pctData);
+    _mc.mainSeries = mainSeries;
 
-  const dDates  = data.map(d => d.date);
-  const dCloses = data.map(d => d.close);
+    // Compare lines – each normalised from its own first bar
+    const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
+    compareTickers.forEach((ct, i) => {
+      if (!ct.data?.length) return;
+      let cdata = aggregateOHLCV(ct.data, freq);
+      cdata = sliceByRange(cdata, range);
+      if (!cdata.length) return;
+      const cbase = cdata[0].close || 1;
+      const cs = chart.addLineSeries({
+        color: COMP_COLORS[i % COMP_COLORS.length], lineWidth:1.5, title:ct.ticker,
+        priceFormat:{ type:"percent", precision:2, minMove:0.01 }
+      });
+      cs.setData(cdata.map(d => ({ time:d.date, value:+((d.close/cbase-1)*100).toFixed(4) })));
+      _mc.compareSeries[ct.ticker] = cs;
+    });
 
-  // ── Main series ──────────────────────────────────────────────────────────
+    // Zero baseline
+    const baselineSeries = chart.addLineSeries({
+      color:"rgba(255,255,255,.12)", lineWidth:1, lineStyle:2, crosshairMarkerVisible:false
+    });
+    baselineSeries.setData([
+      { time:dDates[0],              value:0 },
+      { time:dDates[dDates.length-1], value:0 }
+    ]);
+
+    // Volume still works on its own scale – keep it if user wants
+    if (showVol) {
+      const vs = chart.addHistogramSeries({
+        color:"rgba(100,160,220,.3)", priceFormat:{type:"volume"},
+        priceScaleId:"vol", scaleMargins:{top:0.85, bottom:0}
+      });
+      vs.setData(data.map(d => ({
+        time:d.date, value:d.vol||0,
+        color: d.close >= d.open ? "rgba(0,230,118,.2)" : "rgba(255,61,87,.15)"
+      })));
+      _mc.volSeries = vs;
+    }
+
+    chart.timeScale().fitContent();
+
+    // Crosshair for compare mode
+    chart.subscribeCrosshairMove(param => {
+      if (!param.time || !param.seriesData) {
+        document.getElementById("ohlcvDate").textContent = "";
+        ["ohlcvO","ohlcvH","ohlcvL","ohlcvC","ohlcvV"].forEach(id => document.getElementById(id).textContent = "—");
+        return;
+      }
+      document.getElementById("ohlcvDate").textContent = param.time + " ";
+      const sd = param.seriesData.get(_mc.mainSeries);
+      const v  = sd?.value;
+      document.getElementById("ohlcvO").textContent = "—";
+      document.getElementById("ohlcvH").textContent = "—";
+      document.getElementById("ohlcvL").textContent = "—";
+      document.getElementById("ohlcvC").textContent = v != null ? (v>=0?"+":"")+v.toFixed(2)+"%" : "—";
+      if (_mc.volSeries) {
+        const vd = param.seriesData.get(_mc.volSeries);
+        document.getElementById("ohlcvV").textContent = vd ? fmtNum(vd.value) : "—";
+      } else {
+        document.getElementById("ohlcvV").textContent = "—";
+      }
+    });
+
+    return; // compare mode fully handled
+  }
+
+  // ── Normal (non-compare) mode ─────────────────────────────────────────────
   let mainSeries;
   if (chartType === "line") {
     mainSeries = chart.addLineSeries({ color:"#00d4ff", lineWidth:2 });
     mainSeries.setData(data.map(d => ({ time:d.date, value:d.close })));
   } else if (chartType === "area") {
-    mainSeries = chart.addAreaSeries({ topColor:"rgba(0,212,255,.25)", bottomColor:"rgba(0,212,255,.02)", lineColor:"#00d4ff", lineWidth:2 });
+    mainSeries = chart.addAreaSeries({
+      topColor:"rgba(0,212,255,.25)", bottomColor:"rgba(0,212,255,.02)",
+      lineColor:"#00d4ff", lineWidth:2
+    });
     mainSeries.setData(data.map(d => ({ time:d.date, value:d.close })));
   } else if (chartType === "ohlc") {
     mainSeries = chart.addBarSeries({ upColor:"#00e676", downColor:"#ff3d57" });
@@ -734,7 +837,8 @@ function _buildMainChart() {
       color:"rgba(100,160,220,.3)", priceFormat:{type:"volume"},
       priceScaleId:"vol", scaleMargins:{top:0.82, bottom:0}
     });
-    vs.setData(data.map(d => ({ time:d.date, value:d.vol||0,
+    vs.setData(data.map(d => ({
+      time:d.date, value:d.vol||0,
       color: d.close >= d.open ? "rgba(0,230,118,.25)" : "rgba(255,61,87,.2)"
     })));
     _mc.volSeries = vs;
@@ -742,9 +846,10 @@ function _buildMainChart() {
     _mc.volSeries = null;
   }
 
-  // ── Overlay series ──────────────────────────────────────────────────────
+  // ── Overlays ─────────────────────────────────────────────────────────────
   const OVERLAY_COLORS = {
-    bb:"rgba(0,212,255,.55)", sma20:"#f9ca24", sma50:"#e17055", sma200:"#a29bfe", ema12:"#fd79a8", ema26:"#55efc4", vwap:"#fdcb6e"
+    bb:"rgba(0,212,255,.55)", sma20:"#f9ca24", sma50:"#e17055",
+    sma200:"#a29bfe", ema12:"#fd79a8", ema26:"#55efc4", vwap:"#fdcb6e"
   };
   overlays.forEach(ov => {
     if (ov === "bb") {
@@ -757,23 +862,23 @@ function _buildMainChart() {
       _mc.overlaySeries.bb = [u,m,l];
     } else if (ov === "sma20") {
       const s = chart.addLineSeries({color:OVERLAY_COLORS.sma20, lineWidth:1});
-      s.setData(smaSeries(dCloses, dDates, 20));
+      s.setData(isPct ? smaSeries(dCloses,dDates,20).map((p,i)=>({time:p.time,value:+((p.value/(dCloses[0]||1)-1)*100).toFixed(4)})) : smaSeries(dCloses,dDates,20));
       _mc.overlaySeries.sma20 = s;
     } else if (ov === "sma50") {
       const s = chart.addLineSeries({color:OVERLAY_COLORS.sma50, lineWidth:1});
-      s.setData(smaSeries(dCloses, dDates, 50));
+      s.setData(isPct ? smaSeries(dCloses,dDates,50).map(p=>({time:p.time,value:+((p.value/(dCloses[0]||1)-1)*100).toFixed(4)})) : smaSeries(dCloses,dDates,50));
       _mc.overlaySeries.sma50 = s;
     } else if (ov === "sma200") {
       const s = chart.addLineSeries({color:OVERLAY_COLORS.sma200, lineWidth:1});
-      s.setData(smaSeries(dCloses, dDates, 200));
+      s.setData(isPct ? smaSeries(dCloses,dDates,200).map(p=>({time:p.time,value:+((p.value/(dCloses[0]||1)-1)*100).toFixed(4)})) : smaSeries(dCloses,dDates,200));
       _mc.overlaySeries.sma200 = s;
     } else if (ov === "ema12") {
       const s = chart.addLineSeries({color:OVERLAY_COLORS.ema12, lineWidth:1, lineStyle:1});
-      s.setData(emaSeries(dCloses, dDates, 12));
+      s.setData(isPct ? emaSeries(dCloses,dDates,12).map(p=>({time:p.time,value:+((p.value/(dCloses[0]||1)-1)*100).toFixed(4)})) : emaSeries(dCloses,dDates,12));
       _mc.overlaySeries.ema12 = s;
     } else if (ov === "ema26") {
       const s = chart.addLineSeries({color:OVERLAY_COLORS.ema26, lineWidth:1, lineStyle:1});
-      s.setData(emaSeries(dCloses, dDates, 26));
+      s.setData(isPct ? emaSeries(dCloses,dDates,26).map(p=>({time:p.time,value:+((p.value/(dCloses[0]||1)-1)*100).toFixed(4)})) : emaSeries(dCloses,dDates,26));
       _mc.overlaySeries.ema26 = s;
     } else if (ov === "vwap") {
       if (!isPct) {
@@ -784,33 +889,8 @@ function _buildMainChart() {
     }
   });
 
-  // ── Compare tickers ───────────────────────────────────────────────────────
-  const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
-  compareTickers.forEach((ct, i) => {
-    if (!ct.data || !ct.data.length) return;
-    let cdata = aggregateOHLCV(ct.data, freq);
-    cdata = sliceByRange(cdata, range);
-    // Always % for compare
-    const cbase = cdata[0]?.close || 1;
-    const cSeries = chart.addLineSeries({ color:COMP_COLORS[i % COMP_COLORS.length], lineWidth:1.5, lineStyle:0, title:ct.ticker });
-    cSeries.setData(cdata.map(d => ({ time:d.date, value:+((d.close/cbase-1)*100).toFixed(4) })));
-    _mc.compareSeries[ct.ticker] = cSeries;
-    // Also convert main to % if we have comparisons
-  });
-
-  // If compare tickers exist and not already in pct, normalize main to %
-  if (compareTickers.length > 0 && scale !== "pct") {
-    const base = data[0]?.close || 1;
-    const normData = data.map(d => ({ time:d.date, value:+((d.close/base-1)*100).toFixed(4) }));
-    // Switch main to line for compare mode
-    if (chartType === "candle" || chartType === "ohlc" || chartType === "heikin") {
-      mainSeries.setData(normData); // won't really work for OHLC; best effort
-    }
-  }
-
-  // ── Crosshair subscriber ──────────────────────────────────────────────────
+  // ── Crosshair readout ─────────────────────────────────────────────────────
   chart.subscribeCrosshairMove(param => {
-    const isPctScale = _mc.scale === "pct";
     if (!param.time || !param.seriesData) {
       document.getElementById("ohlcvDate").textContent = "";
       ["ohlcvO","ohlcvH","ohlcvL","ohlcvC","ohlcvV"].forEach(id => document.getElementById(id).textContent = "—");
@@ -819,19 +899,21 @@ function _buildMainChart() {
     document.getElementById("ohlcvDate").textContent = param.time + " ";
     const sd = param.seriesData.get(_mc.mainSeries);
     if (sd) {
-      const isLineArea = _mc.chartType === "line" || _mc.chartType === "area";
-      if (isLineArea || _mc.compareTickers.length > 0) {
-        const v = sd.value !== undefined ? sd.value : sd.close;
-        document.getElementById("ohlcvC").textContent = isPctScale ? v.toFixed(2)+"%" : "$"+v.toFixed(2);
-        ["ohlcvO","ohlcvH","ohlcvL"].forEach(id => document.getElementById(id).textContent = "—");
+      const isLineArea = chartType === "line" || chartType === "area";
+      if (isLineArea) {
+        const v = sd.value;
+        document.getElementById("ohlcvO").textContent = "—";
+        document.getElementById("ohlcvH").textContent = "—";
+        document.getElementById("ohlcvL").textContent = "—";
+        document.getElementById("ohlcvC").textContent = isPct ? (v>=0?"+":"")+v.toFixed(2)+"%" : "$"+v.toFixed(2);
       } else {
-        document.getElementById("ohlcvO").textContent = isPctScale ? sd.open?.toFixed(2)+"%" : "$"+(sd.open||0).toFixed(2);
-        document.getElementById("ohlcvH").textContent = isPctScale ? sd.high?.toFixed(2)+"%" : "$"+(sd.high||0).toFixed(2);
-        document.getElementById("ohlcvL").textContent = isPctScale ? sd.low?.toFixed(2)+"%" : "$"+(sd.low||0).toFixed(2);
-        document.getElementById("ohlcvC").textContent = isPctScale ? sd.close?.toFixed(2)+"%" : "$"+(sd.close||0).toFixed(2);
+        const fmt = v => isPct ? (v>=0?"+":"")+v.toFixed(2)+"%" : "$"+v.toFixed(2);
+        document.getElementById("ohlcvO").textContent = fmt(sd.open  || 0);
+        document.getElementById("ohlcvH").textContent = fmt(sd.high  || 0);
+        document.getElementById("ohlcvL").textContent = fmt(sd.low   || 0);
+        document.getElementById("ohlcvC").textContent = fmt(sd.close || 0);
       }
     }
-    // Volume
     if (_mc.volSeries) {
       const vd = param.seriesData.get(_mc.volSeries);
       document.getElementById("ohlcvV").textContent = vd ? fmtNum(vd.value) : "—";
@@ -923,10 +1005,23 @@ function _bindMainChartControls() {
 
 function _renderCompareTags() {
   const wrap = document.getElementById("compareTagsWrap");
+  const modeTag = document.getElementById("compareModeTag");
+  const inCompare = _mc.compareTickers.length > 0;
+
+  // Show/hide compare-mode badge
+  modeTag.style.display = inCompare ? "" : "none";
+
+  // Dim chart-type buttons that lose meaning in compare mode (candle/ohlc/heikin -> line only)
+  document.querySelectorAll("#chartTypeGroup .mc-btn").forEach(b => {
+    const incompatible = inCompare && ["ohlc","heikin"].includes(b.dataset.chartType);
+    b.style.opacity = incompatible ? "0.35" : "";
+    b.title = incompatible ? "Not available in compare mode" : "";
+  });
+
   const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
   wrap.innerHTML = _mc.compareTickers.map((ct, i) =>
     `<span class="mc-tag" style="border-color:${COMP_COLORS[i%COMP_COLORS.length]};color:${COMP_COLORS[i%COMP_COLORS.length]}">
-      ${ct.ticker}<span class="mc-tag-x" data-remove="${ct.ticker}">✕</span>
+      ${ct.ticker}<span class="mc-tag-x" data-remove="${ct.ticker}">&#x2715;</span>
     </span>`
   ).join("");
   wrap.querySelectorAll(".mc-tag-x").forEach(x => {
