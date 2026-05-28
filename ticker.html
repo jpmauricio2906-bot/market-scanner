@@ -97,7 +97,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .mc-btn:hover{border-color:var(--accent);color:var(--accent)}
 .mc-btn.active{background:rgba(0,212,255,.12);border-color:var(--accent);color:var(--accent)}
 .mc-btn.active-sell{background:rgba(255,61,87,.1);border-color:var(--sell);color:var(--sell)}
-.mc-btn:disabled,.mc-btn[data-cmp-disabled]{opacity:0.28;cursor:not-allowed;pointer-events:none;border-color:var(--border) !important;color:var(--muted) !important;background:transparent !important}
+.mc-btn:disabled,.mc-btn[data-cmp-disabled]{
+  opacity:0.25;cursor:not-allowed;pointer-events:none;
+  border-color:var(--border) !important;color:var(--muted) !important;
+  background:transparent !important;text-decoration:line-through;
+  text-decoration-color:rgba(255,255,255,.15)}
 .mc-label{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 4px}
 .mc-select{font-family:var(--mono);font-size:10px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;outline:none}
 .mc-select:focus{border-color:var(--accent)}
@@ -262,6 +266,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
           </div>
         </div>
       </div><!-- end toolbar -->
+
+      <!-- Mode status bar: appears when controls are locked -->
+      <div id="mcStatusBar" style="display:none;font-family:var(--mono);font-size:9px;color:var(--muted);padding:4px 6px 6px;letter-spacing:.04em"></div>
 
       <div class="main-chart" id="mainChart"></div>
     </div>
@@ -696,7 +703,7 @@ function _buildMainChart() {
   const effectiveScale = inCompare ? (scale === "log" ? "price" : scale) : scale;
 
   // Sync all toolbar button states (disabled / active) for compare mode
-  if (typeof _syncCompareUI === 'function') _syncCompareUI();
+  _syncUI();
 
   // Prepare main data
   let data = aggregateOHLCV(raw, freq);
@@ -866,7 +873,7 @@ function _buildMainChart() {
   _mc.mainSeries = mainSeries;
 
   // ── Volume histogram ─────────────────────────────────────────────────────
-  if (showVol && !isPct) {
+  if (showVol) {
     const vs = chart.addHistogramSeries({
       color:"rgba(100,160,220,.3)", priceFormat:{type:"volume"},
       priceScaleId:"vol", scaleMargins:{top:0.82, bottom:0}
@@ -1038,56 +1045,84 @@ function _bindMainChartControls() {
 }
 
 // Controls disabled in compare mode
-const CMP_DISABLED = {
-  chartType: ["candle","ohlc","area","heikin"], // only "line" works
-  scale:     ["price","log"],                   // only "%Chg" (pct) works
-  overlay:   ["bb","sma20","sma50","sma200","ema12","ema26","vwap"] // all price-based
+// ── Toolbar state engine ─────────────────────────────────────────────────────
+// Single source of truth for every button's enabled/active/tooltip state.
+// Called after ANY state change: scale switch, compare add/remove, vol toggle.
+//
+// Compatibility rules (see matrix):
+//   compare mode  → type:line only, scale:%Chg only, all overlays off
+//   %Chg scale    → BB and VWAP off (can't express meaningfully)
+//   Log scale     → all types + overlays fine, just visual transform
+//   Vol           → always on independent scale, always compatible
+
+// Original tooltips (populated on first call)
+const _TIPS = {
+  candle:"Candlestick", ohlc:"OHLC bars", line:"Line", area:"Area", heikin:"Heikin Ashi",
+  price:"Price ($)", log:"Logarithmic", pct:"% change from period start",
+  bb:"Bollinger Bands (20,2)", sma20:"SMA 20", sma50:"SMA 50", sma200:"SMA 200",
+  ema12:"EMA 12", ema26:"EMA 26", vwap:"Approx. VWAP",
+  vol:"Toggle volume bars"
 };
 
-function _syncCompareUI() {
-  const inCompare = _mc.compareTickers.length > 0;
-  const REASON = "Not available in compare mode (% scale)";
+function _btn(el, active, disabled, reason) {
+  el.classList.toggle("active", active && !disabled);
+  el.toggleAttribute("data-cmp-disabled", disabled);
+  el.title = disabled ? "⚠ " + reason : (_TIPS[el.dataset.chartType || el.dataset.scale || el.dataset.overlay || "vol"] || "");
+}
 
-  // ── Chart type ────────────────────────────────────────────────────────────
+function _syncUI() {
+  const inCmp = _mc.compareTickers.length > 0;
+  const isPct = !inCmp && _mc.scale === "pct";
+  const R_CMP = "Locked in compare mode";
+  const R_PCT = "Not available in % Change mode";
+
+  // ── Chart type ───────────────────────────────────────────────────────────
   document.querySelectorAll("#chartTypeGroup .mc-btn").forEach(b => {
-    const off = inCompare && CMP_DISABLED.chartType.includes(b.dataset.chartType);
-    b.toggleAttribute("data-cmp-disabled", off);
-    b.title = off ? REASON : (b.dataset.chartType === "candle" ? "Candlestick" :
-                               b.dataset.chartType === "heikin" ? "Heikin Ashi" : "");
-    // In compare mode force "line" to appear active; restore real state on exit
-    if (inCompare) {
-      b.classList.toggle("active", b.dataset.chartType === "line");
-    } else {
-      b.classList.toggle("active", b.dataset.chartType === _mc.chartType);
-    }
+    const t = b.dataset.chartType;
+    const off = inCmp && t !== "line";
+    _btn(b, inCmp ? t === "line" : t === _mc.chartType, off, R_CMP);
   });
 
-  // ── Scale ─────────────────────────────────────────────────────────────────
+  // ── Scale ────────────────────────────────────────────────────────────────
   document.querySelectorAll("#scaleGroup .mc-btn").forEach(b => {
-    const off = inCompare && CMP_DISABLED.scale.includes(b.dataset.scale);
-    b.toggleAttribute("data-cmp-disabled", off);
-    b.title = off ? REASON : (b.dataset.scale === "price" ? "Price level" :
-                               b.dataset.scale === "log"   ? "Logarithmic" : "% change from range start");
-    // In compare mode force "%Chg" to appear active
-    if (inCompare) {
-      b.classList.toggle("active", b.dataset.scale === "pct");
-    } else {
-      b.classList.toggle("active", b.dataset.scale === _mc.scale);
-    }
+    const s = b.dataset.scale;
+    const off = inCmp && s !== "pct";
+    _btn(b, inCmp ? s === "pct" : s === _mc.scale, off, R_CMP);
   });
 
-  // ── Overlays ──────────────────────────────────────────────────────────────
+  // ── Overlays ─────────────────────────────────────────────────────────────
   document.querySelectorAll("#overlayGroup .mc-btn").forEach(b => {
-    const off = inCompare && CMP_DISABLED.overlay.includes(b.dataset.overlay);
-    b.toggleAttribute("data-cmp-disabled", off);
-    b.title = off ? REASON : b.title.replace(REASON, "").trim();
-    // In compare mode visually deactivate all overlays; restore on exit
-    if (inCompare) {
-      b.classList.remove("active");
-    } else {
-      b.classList.toggle("active", _mc.overlays.has(b.dataset.overlay));
-    }
+    const ov = b.dataset.overlay;
+    let off = false, reason = "";
+    if (inCmp)                       { off = true; reason = R_CMP; }
+    else if (isPct && ov === "bb")   { off = true; reason = R_PCT; }
+    else if (isPct && ov === "vwap") { off = true; reason = R_PCT; }
+    _btn(b, _mc.overlays.has(ov), off, reason);
   });
+
+  // ── Volume ───────────────────────────────────────────────────────────────
+  const volBtn = document.getElementById("toggleVol");
+  _btn(volBtn, _mc.showVol, false, "");
+
+  // ── Status bar ───────────────────────────────────────────────────────────
+  const bar = document.getElementById("mcStatusBar");
+  if (inCmp) {
+    bar.style.display = "";
+    bar.innerHTML =
+      '<span style="color:var(--accent);margin-right:6px">&#x24D8; Compare mode</span>' +
+      'Chart type locked to <b style="color:var(--text)">Line</b> · ' +
+      'Scale locked to <b style="color:var(--text)">% Change</b> · ' +
+      'Overlays unavailable &nbsp;·&nbsp; ' +
+      'Remove all compare tickers to restore full controls.';
+  } else if (isPct) {
+    bar.style.display = "";
+    bar.innerHTML =
+      '<span style="color:var(--hold);margin-right:6px">&#x24D8; % Change mode</span>' +
+      '<b style="color:var(--muted)">BB</b> and <b style="color:var(--muted)">VWAP</b> ' +
+      'overlays are unavailable on a % axis.';
+  } else {
+    bar.style.display = "none";
+  }
 }
 
 function _renderCompareTags() {
@@ -1099,7 +1134,7 @@ function _renderCompareTags() {
   modeTag.style.display = inCompare ? "" : "none";
 
   // Sync all button disabled/active states
-  _syncCompareUI();
+  _syncUI();
 
   const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
   wrap.innerHTML = _mc.compareTickers.map((ct, i) =>
