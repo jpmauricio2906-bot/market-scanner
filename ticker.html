@@ -730,18 +730,36 @@ function _buildMainChart() {
   _mc.chart = chart;
   window._lwChart = chart;
 
-  // ── Compare mode: normalise main to % from first bar ────────────────────
+  // ── Compare mode: normalise all series to % change from their first visible bar ──
+  // NOTE: priceFormat {type:"percent"} is intentionally NOT used — LWC v4 treats
+  // those values as decimals and multiplies by 100, breaking the scale entirely.
+  // Values are already in % units (e.g. 5.23 = +5.23%), displayed via a custom
+  // tick formatter on the right price scale.
   if (inCompare) {
+    // Apply % formatter to right price scale
+    chart.applyOptions({
+      rightPriceScale: {
+        borderColor: tc.border,
+        mode: 0,
+        autoScale: true,
+      },
+      localization: {
+        priceFormatter: v => (v >= 0 ? "+" : "") + v.toFixed(2) + "%",
+      }
+    });
+
     const base = data[0]?.close || 1;
     const pctData = data.map(d => ({ time:d.date, value:+((d.close/base-1)*100).toFixed(4) }));
+
+    // Main series — always a line in compare mode
     const mainSeries = chart.addLineSeries({
-      color:"#00d4ff", lineWidth:2, title:ticker,
-      priceFormat:{ type:"percent", precision:2, minMove:0.01 }
+      color:"#00d4ff", lineWidth:2,
+      priceFormat:{ type:"price", precision:2, minMove:0.01 }
     });
     mainSeries.setData(pctData);
     _mc.mainSeries = mainSeries;
 
-    // Compare lines – each normalised from its own first bar
+    // Compare lines – each normalised from its own first visible bar
     const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
     compareTickers.forEach((ct, i) => {
       if (!ct.data?.length) return;
@@ -750,21 +768,24 @@ function _buildMainChart() {
       if (!cdata.length) return;
       const cbase = cdata[0].close || 1;
       const cs = chart.addLineSeries({
-        color: COMP_COLORS[i % COMP_COLORS.length], lineWidth:1.5, title:ct.ticker,
-        priceFormat:{ type:"percent", precision:2, minMove:0.01 }
+        color: COMP_COLORS[i % COMP_COLORS.length], lineWidth:1.5,
+        priceFormat:{ type:"price", precision:2, minMove:0.01 }
       });
       cs.setData(cdata.map(d => ({ time:d.date, value:+((d.close/cbase-1)*100).toFixed(4) })));
       _mc.compareSeries[ct.ticker] = cs;
     });
 
-    // Zero baseline
-    const baselineSeries = chart.addLineSeries({
-      color:"rgba(255,255,255,.12)", lineWidth:1, lineStyle:2, crosshairMarkerVisible:false
-    });
-    baselineSeries.setData([
-      { time:dDates[0],              value:0 },
-      { time:dDates[dDates.length-1], value:0 }
-    ]);
+    // Zero baseline – only add if we have at least 2 distinct dates
+    if (dDates.length >= 2 && dDates[0] !== dDates[dDates.length-1]) {
+      const baselineSeries = chart.addLineSeries({
+        color: tc.border, lineWidth:1, lineStyle:2, crosshairMarkerVisible:false,
+        priceFormat:{ type:"price", precision:2, minMove:0.01 }
+      });
+      baselineSeries.setData([
+        { time:dDates[0],               value:0 },
+        { time:dDates[dDates.length-1], value:0 }
+      ]);
+    }
 
     // Volume still works on its own scale – keep it if user wants
     if (showVol) {
@@ -781,20 +802,37 @@ function _buildMainChart() {
 
     chart.timeScale().fitContent();
 
-    // Crosshair for compare mode
+    // Crosshair for compare mode – shows all tickers' % values
+    const COMP_COLORS_XH = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
     chart.subscribeCrosshairMove(param => {
+      const ohlcvBar = document.getElementById("ohlcvBar");
       if (!param.time || !param.seriesData) {
         document.getElementById("ohlcvDate").textContent = "";
+        ohlcvBar.querySelectorAll(".cmp-xh").forEach(el => el.remove());
         ["ohlcvO","ohlcvH","ohlcvL","ohlcvC","ohlcvV"].forEach(id => document.getElementById(id).textContent = "—");
         return;
       }
       document.getElementById("ohlcvDate").textContent = param.time + " ";
+      // Main ticker value
       const sd = param.seriesData.get(_mc.mainSeries);
       const v  = sd?.value;
       document.getElementById("ohlcvO").textContent = "—";
       document.getElementById("ohlcvH").textContent = "—";
       document.getElementById("ohlcvL").textContent = "—";
       document.getElementById("ohlcvC").textContent = v != null ? (v>=0?"+":"")+v.toFixed(2)+"%" : "—";
+      // Compare tickers inline
+      ohlcvBar.querySelectorAll(".cmp-xh").forEach(el => el.remove());
+      _mc.compareTickers.forEach((ct, i) => {
+        const cs = _mc.compareSeries[ct.ticker];
+        if (!cs) return;
+        const cd = param.seriesData.get(cs);
+        const cv = cd?.value;
+        const span = document.createElement("span");
+        span.className = "cmp-xh";
+        span.style.cssText = `color:${COMP_COLORS_XH[i%COMP_COLORS_XH.length]};font-family:var(--mono);font-size:10px`;
+        span.textContent = ct.ticker + " " + (cv != null ? (cv>=0?"+":"")+cv.toFixed(2)+"%" : "—");
+        ohlcvBar.appendChild(span);
+      });
       if (_mc.volSeries) {
         const vd = param.seriesData.get(_mc.volSeries);
         document.getElementById("ohlcvV").textContent = vd ? fmtNum(vd.value) : "—";
