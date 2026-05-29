@@ -3,7 +3,377 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ticker Detail — Market Scanner</title>
+<title>Ticker Detail — Market Scanner</title>// ============================================================
+// guardarSnapshotDiario v4.0 — lee directo de hoja Precios
+//
+// Approach: lee los 100 tickers de una vez desde la hoja Precios
+// que ya tiene las fórmulas GOOGLEFINANCE calculadas.
+// Esto tarda ~5 segundos, no 3 minutos.
+//
+// Columnas en hoja Precios (setup v1.3):
+//   C1=Ticker  C2=Nombre  C3=Close   C4=Cambio$
+//   C5=Cambio% C6=Open    C7=High    C8=Low
+//   C9=Volumen C10=52WHigh C11=52WLow C12=Actualizado
+//
+// FUNCIONES:
+//   guardarSnapshotDiario()           → normal: aborta si ya existe hoy
+//   guardarSnapshotDiarioReemplazar() → borra datos de hoy y los rehace
+// ============================================================
+
+function guardarSnapshotDiario() {
+  _runSnapshot(false);
+}
+
+function guardarSnapshotDiarioReemplazar() {
+  _runSnapshot(true);
+}
+
+function _runSnapshot(reemplazar) {
+  var ss         = SpreadsheetApp.getActiveSpreadsheet();
+  var hPrecios   = ss.getSheetByName("Precios");
+  var hHistorial = ss.getSheetByName("Historial");
+
+  if (!hPrecios)   { Logger.log("ERROR: No existe hoja Precios.");   return; }
+  if (!hHistorial) { Logger.log("ERROR: No existe hoja Historial."); return; }
+
+  var hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  Logger.log("=== Snapshot " + hoy + " | reemplazar=" + reemplazar + " ===");
+
+  // ── Gestión de duplicados ─────────────────────────────────
+  var totalFilas = hHistorial.getLastRow();
+  if (totalFilas > 1) {
+    var col1 = hHistorial.getRange(2, 1, totalFilas - 1, 1).getValues();
+    var filasDeHoy = [];
+    for (var i = 0; i < col1.length; i++) {
+      if (_toDateStr(col1[i][0]) === hoy) filasDeHoy.push(i + 2);
+    }
+    if (filasDeHoy.length > 0) {
+      if (!reemplazar) {
+        Logger.log("Ya existe snapshot para " + hoy + " (" + filasDeHoy.length + " filas). Abortando.");
+        Logger.log("Para forzar actualización ejecuta guardarSnapshotDiarioReemplazar().");
+        return;
+      }
+      Logger.log("Eliminando " + filasDeHoy.length + " filas de " + hoy + "...");
+      for (var j = filasDeHoy.length - 1; j >= 0; j--) {
+        hHistorial.deleteRow(filasDeHoy[j]);
+      }
+      Logger.log("Filas eliminadas. Leyendo precios actuales...");
+    }
+  }
+
+  // ── Forzar recálculo de GOOGLEFINANCE antes de leer ───────
+  // Un flush() + pausa corta asegura que las fórmulas estén calculadas
+  SpreadsheetApp.flush();
+  Utilities.sleep(3000);
+
+  // ── Leer todos los precios de una vez desde Precios ───────
+  var lastRow = hPrecios.getLastRow();
+  if (lastRow < 2) { Logger.log("Hoja Precios vacía."); return; }
+
+  // Lee columnas: C1=Ticker, C3=Close, C6=Open, C7=High, C8=Low, C9=Vol
+  var tickers = hPrecios.getRange(2, 1, lastRow - 1, 1).getValues();
+  var closes  = hPrecios.getRange(2, 3, lastRow - 1, 1).getValues();
+  var opens   = hPrecios.getRange(2, 6, lastRow - 1, 1).getValues();
+  var highs   = hPrecios.getRange(2, 7, lastRow - 1, 1).getValues();
+  var lows    = hPrecios.getRange(2, 8, lastRow - 1, 1).getValues();
+  var vols    = hPrecios.getRange(2, 9, lastRow - 1, 1).getValues();
+
+  var filas    = [];
+  var sinDatos = [];
+
+  for (var i = 0; i < tickers.length; i++) {
+    var ticker = String(tickers[i][0]).trim();
+    var close  = closes[i][0];
+    var open   = opens[i][0];
+    var high   = highs[i][0];
+    var low    = lows[i][0];
+    var vol    = vols[i][0];
+
+    if (!ticker) continue;
+
+    // Saltar si GOOGLEFINANCE no calculó aún (devuelve "-" o string)
+    if (!close || close === "-" || typeof close === "string" || isNaN(Number(close))) {
+      sinDatos.push(ticker);
+      continue;
+    }
+
+    filas.push([
+      hoy,
+      ticker,
+      (open  && open  !== "-" && !isNaN(Number(open)))  ? Number(open)  : "",
+      (high  && high  !== "-" && !isNaN(Number(high)))  ? Number(high)  : "",
+      (low   && low   !== "-" && !isNaN(Number(low)))   ? Number(low)   : "",
+      Number(close),
+      (vol   && vol   !== "-" && !isNaN(Number(vol)))   ? Number(vol)   : ""
+    ]);
+  }
+
+  if (filas.length === 0) {
+    Logger.log("Sin precios válidos. ¿Mercado cerrado o GOOGLEFINANCE no calculó?");
+    Logger.log("Intenta correr el script unos minutos después de abrir la hoja Precios.");
+    return;
+  }
+
+  // ── Guardar en Historial ──────────────────────────────────
+  hHistorial.getRange(hHistorial.getLastRow() + 1, 1, filas.length, 7).setValues(filas);
+  Logger.log("✓ Snapshot guardado: " + filas.length + " tickers para " + hoy);
+  if (sinDatos.length > 0) {
+    Logger.log("  Sin datos (" + sinDatos.length + "): " + sinDatos.join(", "));
+    Logger.log("  (Corre el script otra vez si quieres capturar estos tickers)");
+  }
+
+  // ── Sincronizar con Supabase directamente ─────────────────
+  if (typeof SUPABASE_URL !== "undefined" && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+    Logger.log("Sincronizando " + filas.length + " filas con Supabase...");
+    var supaRows = filas.map(function(f) {
+      return {
+        fecha:   f[0],
+        ticker:  f[1],
+        open:    f[2] !== "" ? Number(f[2]) : null,
+        high:    f[3] !== "" ? Number(f[3]) : null,
+        low:     f[4] !== "" ? Number(f[4]) : null,
+        close:   Number(f[5]),
+        volumen: f[6] !== "" ? Number(f[6]) : null
+      };
+    });
+    var result = _upsertToSupabase(supaRows);
+    if (result.ok) Logger.log("✓ Supabase sincronizado: " + filas.length + " filas");
+    else           Logger.log("ERROR Supabase: " + result.error);
+  }
+
+  // ── Autolimpieza ──────────────────────────────────────────
+  var LIMITE   = 50000;
+  var totalNow = hHistorial.getLastRow();
+  if (totalNow > LIMITE) {
+    var sobran = totalNow - LIMITE;
+    hHistorial.deleteRows(2, sobran);
+    Logger.log("Autolimpieza: eliminadas " + sobran + " filas.");
+  }
+}
+
+// ── Upsert a Supabase ─────────────────────────────────────────────────────────
+function _upsertToSupabase(rows) {
+  var base = SUPABASE_URL.replace(/\/+$/, "");
+  var url  = base + "/rest/v1/" + SUPABASE_TABLE;
+  try {
+    var res = UrlFetchApp.fetch(url, {
+      method:  "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "apikey":        SUPABASE_SERVICE_KEY,
+        "Authorization": "Bearer " + SUPABASE_SERVICE_KEY,
+        "Prefer":        "resolution=merge-duplicates,return=minimal"
+      },
+      payload: JSON.stringify(rows),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 200 && code < 300) return { ok: true };
+    return { ok: false, error: "HTTP " + code + " — " + res.getContentText().substring(0, 200) };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+function _toDateStr(val) {
+  if (!val) return "";
+  if (typeof val === "string") {
+    var d = new Date(val);
+    if (!isNaN(d.getTime())) return Utilities.formatDate(d, "UTC", "yyyy-MM-dd");
+    return val.substring(0, 10);
+  }
+  if (val instanceof Date) return Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  if (typeof val === "number") {
+    return Utilities.formatDate(new Date(Math.floor(val - 25569) * 86400 * 1000), "UTC", "yyyy-MM-dd");
+  }
+  return "";
+}// ============================================================
+// guardarSnapshotDiario v4.0 — lee directo de hoja Precios
+//
+// Approach: lee los 100 tickers de una vez desde la hoja Precios
+// que ya tiene las fórmulas GOOGLEFINANCE calculadas.
+// Esto tarda ~5 segundos, no 3 minutos.
+//
+// Columnas en hoja Precios (setup v1.3):
+//   C1=Ticker  C2=Nombre  C3=Close   C4=Cambio$
+//   C5=Cambio% C6=Open    C7=High    C8=Low
+//   C9=Volumen C10=52WHigh C11=52WLow C12=Actualizado
+//
+// FUNCIONES:
+//   guardarSnapshotDiario()           → normal: aborta si ya existe hoy
+//   guardarSnapshotDiarioReemplazar() → borra datos de hoy y los rehace
+// ============================================================
+
+function guardarSnapshotDiario() {
+  _runSnapshot(false);
+}
+
+function guardarSnapshotDiarioReemplazar() {
+  _runSnapshot(true);
+}
+
+function _runSnapshot(reemplazar) {
+  var ss         = SpreadsheetApp.getActiveSpreadsheet();
+  var hPrecios   = ss.getSheetByName("Precios");
+  var hHistorial = ss.getSheetByName("Historial");
+
+  if (!hPrecios)   { Logger.log("ERROR: No existe hoja Precios.");   return; }
+  if (!hHistorial) { Logger.log("ERROR: No existe hoja Historial."); return; }
+
+  var hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  Logger.log("=== Snapshot " + hoy + " | reemplazar=" + reemplazar + " ===");
+
+  // ── Gestión de duplicados ─────────────────────────────────
+  var totalFilas = hHistorial.getLastRow();
+  if (totalFilas > 1) {
+    var col1 = hHistorial.getRange(2, 1, totalFilas - 1, 1).getValues();
+    var filasDeHoy = [];
+    for (var i = 0; i < col1.length; i++) {
+      if (_toDateStr(col1[i][0]) === hoy) filasDeHoy.push(i + 2);
+    }
+    if (filasDeHoy.length > 0) {
+      if (!reemplazar) {
+        Logger.log("Ya existe snapshot para " + hoy + " (" + filasDeHoy.length + " filas). Abortando.");
+        Logger.log("Para forzar actualización ejecuta guardarSnapshotDiarioReemplazar().");
+        return;
+      }
+      Logger.log("Eliminando " + filasDeHoy.length + " filas de " + hoy + "...");
+      for (var j = filasDeHoy.length - 1; j >= 0; j--) {
+        hHistorial.deleteRow(filasDeHoy[j]);
+      }
+      Logger.log("Filas eliminadas. Leyendo precios actuales...");
+    }
+  }
+
+  // ── Forzar recálculo de GOOGLEFINANCE antes de leer ───────
+  // Un flush() + pausa corta asegura que las fórmulas estén calculadas
+  SpreadsheetApp.flush();
+  Utilities.sleep(3000);
+
+  // ── Leer todos los precios de una vez desde Precios ───────
+  var lastRow = hPrecios.getLastRow();
+  if (lastRow < 2) { Logger.log("Hoja Precios vacía."); return; }
+
+  // Lee columnas: C1=Ticker, C3=Close, C6=Open, C7=High, C8=Low, C9=Vol
+  var tickers = hPrecios.getRange(2, 1, lastRow - 1, 1).getValues();
+  var closes  = hPrecios.getRange(2, 3, lastRow - 1, 1).getValues();
+  var opens   = hPrecios.getRange(2, 6, lastRow - 1, 1).getValues();
+  var highs   = hPrecios.getRange(2, 7, lastRow - 1, 1).getValues();
+  var lows    = hPrecios.getRange(2, 8, lastRow - 1, 1).getValues();
+  var vols    = hPrecios.getRange(2, 9, lastRow - 1, 1).getValues();
+
+  var filas    = [];
+  var sinDatos = [];
+
+  for (var i = 0; i < tickers.length; i++) {
+    var ticker = String(tickers[i][0]).trim();
+    var close  = closes[i][0];
+    var open   = opens[i][0];
+    var high   = highs[i][0];
+    var low    = lows[i][0];
+    var vol    = vols[i][0];
+
+    if (!ticker) continue;
+
+    // Saltar si GOOGLEFINANCE no calculó aún (devuelve "-" o string)
+    if (!close || close === "-" || typeof close === "string" || isNaN(Number(close))) {
+      sinDatos.push(ticker);
+      continue;
+    }
+
+    filas.push([
+      hoy,
+      ticker,
+      (open  && open  !== "-" && !isNaN(Number(open)))  ? Number(open)  : "",
+      (high  && high  !== "-" && !isNaN(Number(high)))  ? Number(high)  : "",
+      (low   && low   !== "-" && !isNaN(Number(low)))   ? Number(low)   : "",
+      Number(close),
+      (vol   && vol   !== "-" && !isNaN(Number(vol)))   ? Number(vol)   : ""
+    ]);
+  }
+
+  if (filas.length === 0) {
+    Logger.log("Sin precios válidos. ¿Mercado cerrado o GOOGLEFINANCE no calculó?");
+    Logger.log("Intenta correr el script unos minutos después de abrir la hoja Precios.");
+    return;
+  }
+
+  // ── Guardar en Historial ──────────────────────────────────
+  hHistorial.getRange(hHistorial.getLastRow() + 1, 1, filas.length, 7).setValues(filas);
+  Logger.log("✓ Snapshot guardado: " + filas.length + " tickers para " + hoy);
+  if (sinDatos.length > 0) {
+    Logger.log("  Sin datos (" + sinDatos.length + "): " + sinDatos.join(", "));
+    Logger.log("  (Corre el script otra vez si quieres capturar estos tickers)");
+  }
+
+  // ── Sincronizar con Supabase directamente ─────────────────
+  if (typeof SUPABASE_URL !== "undefined" && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+    Logger.log("Sincronizando " + filas.length + " filas con Supabase...");
+    var supaRows = filas.map(function(f) {
+      return {
+        fecha:   f[0],
+        ticker:  f[1],
+        open:    f[2] !== "" ? Number(f[2]) : null,
+        high:    f[3] !== "" ? Number(f[3]) : null,
+        low:     f[4] !== "" ? Number(f[4]) : null,
+        close:   Number(f[5]),
+        volumen: f[6] !== "" ? Number(f[6]) : null
+      };
+    });
+    var result = _upsertToSupabase(supaRows);
+    if (result.ok) Logger.log("✓ Supabase sincronizado: " + filas.length + " filas");
+    else           Logger.log("ERROR Supabase: " + result.error);
+  }
+
+  // ── Autolimpieza ──────────────────────────────────────────
+  var LIMITE   = 50000;
+  var totalNow = hHistorial.getLastRow();
+  if (totalNow > LIMITE) {
+    var sobran = totalNow - LIMITE;
+    hHistorial.deleteRows(2, sobran);
+    Logger.log("Autolimpieza: eliminadas " + sobran + " filas.");
+  }
+}
+
+// ── Upsert a Supabase ─────────────────────────────────────────────────────────
+function _upsertToSupabase(rows) {
+  var base = SUPABASE_URL.replace(/\/+$/, "");
+  var url  = base + "/rest/v1/" + SUPABASE_TABLE;
+  try {
+    var res = UrlFetchApp.fetch(url, {
+      method:  "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "apikey":        SUPABASE_SERVICE_KEY,
+        "Authorization": "Bearer " + SUPABASE_SERVICE_KEY,
+        "Prefer":        "resolution=merge-duplicates,return=minimal"
+      },
+      payload: JSON.stringify(rows),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 200 && code < 300) return { ok: true };
+    return { ok: false, error: "HTTP " + code + " — " + res.getContentText().substring(0, 200) };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+function _toDateStr(val) {
+  if (!val) return "";
+  if (typeof val === "string") {
+    var d = new Date(val);
+    if (!isNaN(d.getTime())) return Utilities.formatDate(d, "UTC", "yyyy-MM-dd");
+    return val.substring(0, 10);
+  }
+  if (val instanceof Date) return Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  if (typeof val === "number") {
+    return Utilities.formatDate(new Date(Math.floor(val - 25569) * 86400 * 1000), "UTC", "yyyy-MM-dd");
+  }
+  return "";
+}
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
@@ -16,7 +386,7 @@ const API_FALLBACK   = "https://script.google.com/macros/s/AKfycbzVBbR6zZn4dMSAT
 async function fetchMarketData(ticker) {
   if (SUPABASE_URL && SUPABASE_KEY) {
     let url = SUPABASE_URL.replace(/\/+$/,"") + "/rest/v1/" + SUPABASE_TABLE
-      + "?select=fecha,ticker,open,high,low,close,volumen&order=fecha.asc&limit=20000";
+      + "?select=fecha,ticker,open,high,low,close,volumen&order=fecha.asc&limit=100000";
     if (ticker) url += "&ticker=eq." + encodeURIComponent(ticker);
     const res = await fetch(url, {
       headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
