@@ -16,7 +16,7 @@ const API_FALLBACK   = "https://script.google.com/macros/s/AKfycbzVBbR6zZn4dMSAT
 async function fetchMarketData(ticker) {
   if (SUPABASE_URL && SUPABASE_KEY) {
     let url = SUPABASE_URL.replace(/\/+$/,"") + "/rest/v1/" + SUPABASE_TABLE
-      + "?select=fecha,ticker,open,high,low,close,volumen&order=fecha.asc&limit=20000";
+      + "?select=fecha,ticker,open,high,low,close,volumen&order=fecha.asc&limit=100000";
     if (ticker) url += "&ticker=eq." + encodeURIComponent(ticker);
     const res = await fetch(url, {
       headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
