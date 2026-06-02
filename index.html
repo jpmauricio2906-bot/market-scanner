@@ -572,14 +572,41 @@ function groupByTicker(rows){
   return s;
 }
 
+// Returns the close price from the data row whose date is closest to targetDateStr
+// but not after it (i.e. finds the most recent trading day on or before the target).
+function closePriceAtDate(d, targetDateStr) {
+  // d is sorted ascending by date string (ISO format, comparable lexicographically)
+  var best = null;
+  for (var i = 0; i < d.length; i++) {
+    if (d[i].date <= targetDateStr) best = d[i].close;
+    else break;
+  }
+  return best; // null if all dates are after target
+}
+
+function dateStrOffset(isoStr, calendarDays) {
+  // Subtract calendarDays from an ISO date string, return ISO date string
+  var dt = new Date(isoStr + "T12:00:00Z");
+  dt.setUTCDate(dt.getUTCDate() - calendarDays);
+  return dt.toISOString().slice(0, 10);
+}
+
 function computeAll(grouped){
   return Object.keys(grouped).map(function(tk){
     var d=grouped[tk],c=d.map(function(x){return x.close;});
     var sig=computeSignals(d),sc=computeScore(sig);
     var last=c[c.length-1];
-    var chg1d = c.length>=2   ? (last - c[c.length-2])   / c[c.length-2]   * 100 : null;
-    var chg30d = c.length>=31  ? (last - c[c.length-31])  / c[c.length-31]  * 100 : null;
-    var chg1y  = c.length>=253 ? (last - c[c.length-253]) / c[c.length-253] * 100 : null;
+    var lastDate=d[d.length-1].date;
+
+    var p1d  = closePriceAtDate(d, dateStrOffset(lastDate, 1));
+    var p30d = closePriceAtDate(d, dateStrOffset(lastDate, 30));
+    var p365d= closePriceAtDate(d, dateStrOffset(lastDate, 365));
+
+    // Only compute if we found a prior price AND it's meaningfully earlier
+    var chg1d  = (p1d  !== null && p1d  !== last) ? (last - p1d)   / p1d   * 100 : null;
+    var chg30d = (p30d !== null)                   ? (last - p30d)  / p30d  * 100 : null;
+    var chg1y  = (p365d!== null)                   ? (last - p365d) / p365d * 100 : null;
+
     return{ticker:tk,days:d.length,closes:c,close:last,score:sc,signal:sc>=70?"BUY":sc<=30?"SELL":"HOLD",signals:sig,bb:bbPct(c),rsi:rsiCalc(c,14),chg1d:chg1d,chg30d:chg30d,chg1y:chg1y};
   }).sort(function(a,b){return b.score-a.score;});
 }
