@@ -1,95 +1,80 @@
-# Instalación del flujo limpio
+# Instalación del flujo con historial en Supabase
 
-## 1. Credenciales y respaldo
+Estado al 16/10/2026: Supabase, el worker y los tres trabajos Cron ya están desplegados y verificados. El propietario debe actualizar y verificar Apps Script con su cuenta. Esta guía no afirma que sus nuevos temporizadores de Google estén instalados o ejecutándose.
 
-Exportar una copia de `market_history` desde Supabase y conservar el Google Sheets anterior. Detener sus timers antes de cambiar la carga.
+## 1. Conservar datos y detener la carga anterior
 
-El original `marketscanner_supabase.gs` contiene una credencial privada incrustada. **Rotarla en Supabase antes de activar el flujo nuevo**. No copiarla al repositorio ni a celdas. El paquete limpio excluye esos scripts y esa credencial. Si llegó a GitHub, revisar el historial; borrar un archivo no revoca una clave.
+Guardar una copia del Google Sheets y un respaldo de `market_history`. En el proyecto Google actual, ejecutar `detenerTemporizadores` y comprobar que no quedan ejecuciones anteriores trabajando. Si hay varios proyectos vinculados al archivo, detener también sus timers.
 
-La credencial anterior es una JWT `service_role`: crear una `sb_secret_…` no la revoca por sí solo. En **Settings → API Keys**, crear la clave nueva, sustituir y comprobar todos los componentes que la usan y después desactivar las claves heredadas comprometidas. La desactivación heredada es reversible. [Procedimiento oficial de Supabase](https://supabase.com/docs/guides/getting-started/api-keys#rotate-a-leaked-or-compromised-key).
+Conservar la pestaña `Historial` como archivo. El flujo nuevo no la utiliza y no exige corregir sus fechas, reservar bloques, construir índices ni importar otro Excel. No borrar esa pestaña para instalar el cambio.
 
-La clave `sb_publishable_…` de `js/config.js` es pública y permite lectura bajo RLS. La clave de escritura va únicamente en Propiedades del script. Se admite una clave secreta nueva o una JWT `service_role` heredada. Las claves nuevas se envían como `apikey`, sin convertirlas en bearer JWT.
+## 2. Desplegar y verificar Supabase
 
-Antes de configurar la clave privada, restringir la edición de la hoja al propietario y a cuentas de confianza. Un script vinculado comparte los permisos de edición de su hoja; las Propiedades del script no ocultan secretos a sus editores. No dejar **Cualquier persona con el enlace → Editor** en la hoja de producción. [Google: permisos de scripts vinculados](https://developers.google.com/apps-script/guides/bound), [Propiedades del script](https://developers.google.com/apps-script/guides/properties).
+En el proyecto actual este paso ya se completó. Para reproducir la instalación, aplicar [server_owned_history.sql](../supabase/server_owned_history.sql), desplegar el worker, ejecutar las tres pruebas SQL de [ARQUITECTURA_SUPABASE.md](ARQUITECTURA_SUPABASE.md) y activar [activate_schedules.sql](../supabase/activate_schedules.sql), conservando la tabla `public.market_history` y su contrato de lectura. El backend contiene:
 
-## 2. Supabase
+- El universo de 250 instrumentos y el calendario de sesiones.
+- La RPC privada `market_ingest_recent`, que recibe respuestas recientes de Yahoo y devuelve estados por ticker.
+- Validación del servidor, almacenamiento privado de provisionales, auditoría, retención y cola de reparaciones.
+- El worker `market-history-worker` y los trabajos Cron que lo invocan y mantienen los datos.
 
-Ejecutar `supabase/001_market_history.sql` en SQL Editor. Mantiene la tabla, añade `is_final=false` a registros heredados y crea el índice único `(fecha,ticker)`. Los duplicados detienen la migración para que puedan revisarse; no se elige ni borra una versión automáticamente.
+Los nombres y parámetros de las RPC se describen en [ARQUITECTURA_SUPABASE.md](ARQUITECTURA_SUPABASE.md). Comprobar una ingesta reciente real y una reparación completa antes del cambio en Google. Confirmar que el rol público puede leer los cierres y no puede ejecutar RPC de ingesta, reclamar reparaciones ni acceder a provisionales.
 
-El CHECK OHLCV controla nuevas escrituras. `NOT VALID` deja auditar la historia anterior sin afirmar que ya es correcta. Anon/authenticated reciben SELECT y pierden concesiones de escritura; el proceso privado publica con su propia clave.
+El worker exige su token privado de servidor, generado y almacenado en Vault por la configuración del backend. Su autenticación se valida antes de reclamar trabajo. Ese token no se copia a Google Sheets ni a GitHub. La clave privada de plataforma que usa internamente la función permanece en el entorno de Supabase.
 
-**No publicar todavía el frontend nuevo**: lee únicamente `is_final=true`. El backfill siguiente volverá a consultar y validar las barras antes de confirmarlas.
+Se verificaron reparaciones reales de AAPL y la autenticación del worker; las tres programaciones están activas. Para una instalación nueva, comprobar también sus ejecuciones y que los errores de reparación queden visibles antes de actualizar Google.
 
-## 3. Hoja y scripts
+## 3. Copiar Apps Script y su manifiesto
 
-Importar `MarketScanner_250.xlsx` en Google Drive y abrirlo como Google Sheets, conservando `Precios`, `Historial` y encabezados. Esta plantilla reúne las 200 empresas y los 50 ETF. Conserva A:P y añade metadatos en Q:U. Se puede guardar el Excel y la plantilla anterior de 200 como copias independientes.
+En **Extensiones → Apps Script**, sustituir los archivos antiguos por los archivos `.gs` de esta versión y conservar una sola definición de cada función. Si se entrega un archivo único, reemplazar el contenido completo por ese archivo en vez de añadirlo al final del anterior.
 
-En **Extensiones → Apps Script**, utilizar un proyecto limpio. Añadir `Code.gs`, `Yahoo.gs`, `Storage.gs` y `Universe.gs` del paquete. No mezclar los scripts viejos.
+Activar la visualización del manifiesto en Configuración del proyecto y sustituir `appsscript.json` por el incluido. El proyecto usa `America/New_York` para el horario de los activadores. No hace falta publicar un Web App.
 
-En Configuración del proyecto, activar el manifiesto y sustituir `appsscript.json` por el incluido. Zona horaria: `America/New_York`. No hace falta publicar un Web App.
+Mantener las propiedades privadas existentes:
 
-En **Propiedades del script**, configurar:
-
-| Propiedad | Valor |
+| Propiedad | Contenido |
 | --- | --- |
-| `SUPABASE_URL` | URL HTTPS del proyecto Supabase |
-| `SUPABASE_WRITE_KEY` | Nueva clave privada de escritura, solo aquí |
+| `SUPABASE_URL` | URL HTTPS del mismo proyecto Supabase |
+| `SUPABASE_WRITE_KEY` | Clave privada vigente para las RPC de escritura |
+| `SPREADSHEET_ID` | Se guarda automáticamente al preparar la hoja |
 
-Ejecutar `prepararMarketScanner` y aceptar los permisos de Google. Guarda `SPREADSHEET_ID`, comprueba encabezados y lista, conserva Historial y escribe las fórmulas. Amplía Historial a 125.001 filas para 250×500 sesiones más encabezados. La plantilla anterior de 16 columnas requiere importar esta nueva versión; no mezclarla con los scripts de 250.
+La nueva arquitectura no exige crear otra clave para una instalación que ya tiene estas propiedades correctas. No pegar credenciales en celdas, código ni repositorio. La clave pública de `js/config.js` continúa siendo solo de lectura bajo RLS.
 
-Esta preparación es la única lectura completa habitual del historial. Construye un índice de bloques de hasta 500 filas por ticker, reservando espacios para las IPO. Las actualizaciones posteriores solo leen los tickers de su lote. Tras ordenar, insertar/eliminar filas o volver a importar Historial, ejecutar la preparación de nuevo antes de actualizar. Si las fechas ya están reparadas, no hace falta importar otro Excel para instalar la mejora de rendimiento.
+La edición de la hoja y del script debe limitarse a cuentas de confianza: las Propiedades del script no son una barrera frente a sus editores. Si alguna clave se expuso, revocarla; eliminarla de un archivo no la invalida. [Google: scripts vinculados](https://developers.google.com/apps-script/guides/bound), [Supabase: claves](https://supabase.com/docs/guides/getting-started/api-keys).
 
-La preparación valida todo el historial antes de modificarlo. Acepta fechas de celda, fechas `YYYY-MM-DD`, seriales enteros de Excel/Sheets e ISO de medianoche UTC. Conserva la zona horaria del archivo para mantener el día de las fechas importadas; las consultas y los timers utilizan Nueva York explícitamente. Los precios y el volumen deben ser números, sin convertir texto según una configuración regional supuesta.
+## 4. Preparar únicamente Precios y probar
 
-Si aparece `Historial!A2: Fecha vacía`, la importación perdió la fecha de esa fila. Revisar la columna A y volver a importar la plantilla corregida usando **Sustituir la hoja de cálculo**. El script no inventa fechas ni omite filas incompletas. Los demás errores identifican la celda y el requisito incumplido; los duplicados indican ambas filas. No se modifica el historial cuando falla esta validación.
+Ejecutar `prepararMarketScanner` y aceptar los permisos con la cuenta propietaria. Comprueba o crea `Precios`, coloca los 250 instrumentos y guarda la referencia al archivo. No lee ni ordena el historial local y conserva la zona horaria del archivo.
 
-Mantener el orden y tickers de `Precios`. Los cambios de universo deben aplicarse juntos a `data/universe.json`, `Universe.gs` y la plantilla.
+Ejecutar `comprobarConexion`. Si falla, revisar primero la migración del servidor, la URL y la clave de Propiedades del script; no reutilizar el escritor antiguo como alternativa.
 
-## 4. Carga y comprobación
+Ejecutar `actualizarMarketScanner`. Google consulta los últimos cinco días de Yahoo en grupos de cinco y envía cada grupo a Supabase. El servidor devuelve el estado que se muestra en `Precios`. Durante la sesión puede haber datos provisionales; su presencia en la hoja no los publica como cierres para la web.
 
-Ejecutar `comprobarConexion` (solo lectura) y `iniciarHistorial`. El Excel trae datos para revisar desde el principio, pero **Supabase se alimenta de una nueva consulta Yahoo**, no de confiar en las filas importadas.
-
-Se procesan como máximo cinco tickers por ejecución tanto en precios diarios como en reconstrucción histórica. La continuación se instala antes de la descarga y actúa cada minuto. Cada llamada intenta mantenerse dentro de 90 segundos y deja de iniciar tickers adicionales cuando queda poco margen; una petición externa lenta puede exceder ese objetivo. Los 250 instrumentos requieren al menos 50 ejecuciones cortas: unos 49 minutos de intervalos, más red, retrasos de Google y reintentos. La hoja no tiene que permanecer abierta.
-
-Consultar `verEstadoMarketScanner` y el registro de ejecución. Muestra cierre esperado, cobertura por ticker y fallos:
-La consulta de progreso usa los recuentos y estados de `Precios`, sin volver a auditar las 124.076 barras. La calidad se comprueba al cargar los datos de cada ticker.
-
-- `COMPLETADO`: sin fallos ni historia corta.
-- `COMPLETADO CON HISTORIA CORTA`: toda la historia real de cotizaciones recientes, inferior a 500 sesiones.
-- `INCOMPLETO`: quedan fallos. Corregir su causa y ejecutar `iniciarHistorial` de nuevo.
-
-La captura entregada tiene 124.076 barras y 500 sesiones para cada uno de los 50 ETF. Entre las empresas, SPCX tiene 87, SKHY 69 y SNDK 420 sesiones. XOM, SHEL, TTE, ACN, VLO, EQNR, LOW, IBN, SO y PNC tenían su último cierre disponible al 14/10/2026; el resto llega al 15/10. La carga en vivo exige el cierre esperado: si Yahoo sigue atrasado, se informa del fallo y no se publica un provisional como sustituto.
-
-No añadir barras ficticias para alcanzar 500. Revisar las ausencias antes de activar los análisis.
-
-## 5. Timers
-
-Ejecutar `instalarTemporizadores`. Crea actualización horaria 09–20 ET en sesiones de bolsa y reconstrucción cada sábado a las 02 ET. Los timers de continuación existen mientras haya trabajo pendiente.
-
-`Precios` muestra `PROVISIONAL` durante la sesión. `Historial` y Supabase reciben barras terminadas; el día actual se confirma desde las 17 ET. La web muestra el último cierre, conservando la frecuencia diaria de sus indicadores.
-
-`detenerTemporizadores` registra la parada incluso si hay una descarga activa, elimina timers y permite terminar ese lote. Conserva historia y cursor. Reanudar instalando timers o iniciando una actualización manual.
-
-Solo se eliminan timers conocidos en **este proyecto**. Si el proyecto antiguo es distinto, detenerlos allí. Rotar la clave impide que scripts anteriores sigan escribiendo con la credencial revocada.
-
-## 6. GitHub Pages
-
-Revisar `js/config.js`: mismo Supabase y su clave pública. La raíz publicada debe contener `index.html`, `ticker.html`, `js/` y `data/universe.json`. No subir `original version`, credenciales ni dependencias locales.
-
-Después de verificar la carga, actualizar la rama que utiliza Pages. También se pueden versionar scripts, SQL, herramientas, pruebas y documentación: no contienen secretos. La web sigue sin requerir compilación.
-
-Comprobar la principal, un ticker NYSE como JPM, BRK-B y una empresa de historia corta. Confirmar 250 instrumentos (200 empresas y 50 ETF), los filtros por tipo y los avisos de cobertura. Revisar TQQQ, SOXS, USD y MAGS para comprobar las etiquetas de ETF y objetivos diarios. El sitio anterior permanece operativo hasta desplegar.
-
-## Sustitución de scripts
-
-| Original | Sustitución |
+| Estado del servidor | Significado |
 | --- | --- |
-| `setup.gs` y resets | `prepararMarketScanner`, conserva historia |
-| `YahooFinance.gs` | `Yahoo.gs`, barras diarias con fecha de bolsa |
-| `snapchat_diario.gs` | Publicación integrada en la misma descarga validada |
-| `backfill_encadenado.gs` | Cursor persistente y lotes en `Code.gs` |
-| `marketscanner_supabase.gs` | `Storage.gs`, upsert explícito y clave privada |
-| `SingleTicker.gs` | Universo regenerable, sin borrado manual por ticker |
-| `limpiar_duplicados.gs` | Unicidad y validación al ingresar; conflictos heredados se reportan |
-| `connect.gs`, `MarketScanner_WebApp.gs` | Retirados: la web consulta Supabase |
-| `js/indicators.js` sin referencias | Retirado; se conservan los cálculos utilizados por ambas páginas |
+| `FINAL` | Cierre confirmado y aceptado |
+| `PROVISIONAL` | Cotización de una sesión sin cierre confirmado; permanece privada |
+| `PENDIENTE_DE_ACTUALIZAR` | Yahoo todavía no incluye el cierre esperado; revisar una consulta posterior |
+| `REEMPLAZO_PENDIENTE` | El backend ha encolado la reconstrucción de la serie |
+| `RECHAZADO` | Los datos no superan la validación; el motivo aparece en el estado |
+
+Cada ejecución procesa hasta 20 instrumentos con un objetivo de unos 60 segundos y deja una continuación de un minuto mientras haya trabajo. Consultar `verEstadoMarketScanner` y el registro de ejecuciones para ver el avance y los errores. La hoja no tiene que estar abierta.
+
+Una reparación histórica pendiente se ejecuta en Supabase. No ejecutar un backfill desde Google ni volver a importar las 500 sesiones para resolverla. Comprobar el estado del servidor y el worker si esa reparación no progresa.
+
+## 5. Activar los temporizadores de Google
+
+Después de una prueba manual correcta, ejecutar `instalarTemporizadores` con la cuenta propietaria. La actualización horaria se limita a lunes a viernes, entre 09 y 20 ET. La continuación de un minuto procesa los instrumentos pendientes. El calendario de bolsa y la confirmación de cierres pertenecen al servidor.
+
+No se instala una reconstrucción semanal en Google. Las funciones antiguas `iniciarHistorial`, `continuarHistorial` e `iniciarHistorialSemanal` se retiran; las reconstrucciones y auditorías pasan al backend.
+
+`detenerTemporizadores` detiene el emisor Google y conserva su avance. No desactiva los trabajos Cron independientes de Supabase. Para una pausa completa de mantenimiento, detener ambos componentes de forma explícita.
+
+Verificar en el panel de ejecuciones de Google que la primera continuación se completó y que la siguiente ronda horaria se inicia. No considerar activado el sistema únicamente porque se hayan copiado los archivos.
+
+## 6. Comprobar la aplicación
+
+El frontend mantiene su configuración y lee `market_history` con `is_final=true`. Comprobar 250 instrumentos, los filtros de acciones/ETF, una empresa NYSE, una IPO con historia corta y los ETF TQQQ, SOXS, USD y MAGS.
+
+Confirmar que las barras de la sesión abierta no aparecen como cierres en los charts. Si Yahoo falla o una reparación está pendiente, conservar el último cierre válido y revisar el estado del servidor.
+
+La selección de instrumentos debe mantenerse sincronizada entre `data/universe.json`, `Universe.gs` y el universo del servidor. Los cambios de selección no se hacen editando manualmente una fila de `Precios`.

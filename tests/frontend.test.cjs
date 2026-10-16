@@ -234,13 +234,13 @@ test("unmigrated Supabase schema gives an actionable error and never silently tr
   await assert.rejects(() => client.fetchMarketData(), /Run the Supabase migration/);
 });
 
-test("the frontend and ingestion calendars agree on every date in 2024–2030", () => {
-  const backend = vm.createContext({});
-  vm.runInContext(fs.readFileSync(path.join(root, "apps-script/Yahoo.gs"), "utf8") + "\nglobalThis.backendSession = msIsSession_;", backend);
+test("the frontend and server calendar seed agree through the reviewed server horizon", () => {
+  const backend = JSON.parse(fs.readFileSync(path.join(root, "supabase/calendar.json"), "utf8"));
+  const holidays = new Set(backend.holidays);
   const date = new Date("2024-01-01T12:00:00Z");
-  while (date.getUTCFullYear() <= 2030) {
+  while (date.getUTCFullYear() <= backend.lastYear) {
     const iso = date.toISOString().slice(0, 10);
-    assert.equal(calendar.calendarSession(iso), backend.backendSession(iso), iso);
+    assert.equal(calendar.calendarSession(iso), date.getUTCDay() !== 0 && date.getUTCDay() !== 6 && !holidays.has(iso), iso);
     date.setUTCDate(date.getUTCDate() + 1);
   }
   assert.equal(calendar.calendarSession("2025-01-09"), false);

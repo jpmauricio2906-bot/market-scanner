@@ -1,94 +1,73 @@
 # Market Scanner — 200 empresas y 50 ETF
 
-Aplicación estática para GitHub Pages con barras diarias de Yahoo Finance. Google Sheets conserva precios e historia; Apps Script descarga, valida y publica en Supabase; la aplicación lee cierres confirmados.
+Aplicación estática en GitHub Pages con barras diarias de Yahoo Finance. **Supabase mantiene y valida el historial. Google Sheets descarga datos recientes y muestra el resultado del servidor.**
+
+Estado al 16/10/2026: backend Supabase desplegado y verificado, con worker y tres trabajos Cron activos. Falta que el propietario copie esta versión del script y manifiesto, y verifique sus nuevos temporizadores de Google. Tener estos archivos no certifica que esa instalación manual ya esté hecha.
 
 ```mermaid
 flowchart LR
-  Yahoo[Yahoo · barras diarias] --> Script[Apps Script · lotes y validación]
-  Script --> Precios[Google Sheets · Precios]
-  Script --> Historial[Google Sheets · Historial]
-  Script --> Supabase[Supabase · market_history]
-  Supabase --> Web[GitHub Pages · charts y análisis]
+  Yahoo[Yahoo · últimos 5 días] --> Google[Apps Script · grupos de 5]
+  Google --> RPC[Supabase · recepción y validación]
+  RPC --> Precios[Google Sheets · Precios]
+  RPC --> Historial[Supabase · cierres confirmados]
+  RPC --> Cola[Cola de reparaciones]
+  Cron[Cron de Supabase] --> Worker[Worker privado · historia Yahoo]
+  Cola --> Worker
+  Worker --> Historial
+  Historial --> Web[GitHub Pages · charts y análisis]
 ```
 
-El universo tiene **250 instrumentos: 200 compañías distintas y 50 ETF**. Las empresas se seleccionan por capitalización reportada por el screener oficial de Nasdaq, incluidas extranjeras cotizadas en Estados Unidos, con una acción por compañía identificada por CIK SEC. Nasdaq fecha los precios al **14/10/2026**; descarga del **15/10/2026**. Los ETF son una selección curada de productos populares, verificados con sus emisores el 15/10/2026; no un ranking de los 50 mayores por patrimonio. Criterio y lista completa: [data/README.md](data/README.md).
+El universo contiene **250 instrumentos: 200 compañías y 50 ETF**. La selección de empresas usa capitalización del screener oficial de Nasdaq, admite compañías extranjeras cotizadas en EE. UU. y conserva una acción por compañía identificada por CIK SEC. La captura de selección es del 15/10/2026, con precios fechados por Nasdaq al 14/10. Los ETF son una selección curada verificada con sus emisores, no un ranking por patrimonio. Criterio y lista: [data/README.md](data/README.md).
 
-Se incluyen TQQQ, QQQ, LABU, XBI, SOXX, USD, SOXL, SOXS, UPRO y QLD. El ETF estadounidense de las Magnificent Seven usa el ticker **MAGS**, según [Roundhill](https://www.roundhillinvestments.com/etf/mags/). USD corresponde a [ProShares Ultra Semiconductors](https://www.proshares.com/our-etfs/leveraged-and-inverse/usd), con objetivo diario +2×.
-
-## Entrega
-
-- `index.html`, `ticker.html` y `js/`: frontend adaptado a 250 instrumentos, con filtros de acciones/ETF y metadatos de exposición.
-- `data/universe.json` y `.csv`: lista única para web, libro y backend.
-- `apps-script/`: cuatro archivos `.gs` —uno generado— y un manifiesto, que sustituyen los scripts anteriores.
-- `supabase/001_market_history.sql`: unicidad, validación, índices, permisos y marca de cierre.
-- `tests/` y `tools/`: verificaciones y actualización reproducible del universo.
-
-La plantilla Excel importable contiene dos hojas:
-
-| Hoja | Contenido | Actualización |
-| --- | --- | --- |
-| `Precios` | Una fila por instrumento; OHLCV del día, cierre previo, cambio, fecha real y estado | Apps Script escribe datos y cobertura; fórmulas locales calculan cambios |
-| `Historial` | Fecha, Ticker, Open, High, Low, Close, Volumen; hasta 500 sesiones por instrumento | Solo barras terminadas y validadas |
-
-El Excel sirve como archivo y plantilla para Google Sheets. La automatización funciona en **Google Sheets con Apps Script**; Excel por sí solo no ejecuta estos scripts. Las 500 fórmulas de cambio se recalculan en ambos productos. El script mantiene el recuento de sesiones al guardar cada instrumento, evitando búsquedas repetidas sobre hasta 125.000 filas. No se mantienen fórmulas de descarga remota. Las columnas Q:U identifican tipo, categoría, emisor, apalancamiento diario e inversión; A:P conserva su estructura.
-
-La captura inicial contiene **124.076 filas Yahoo**: conserva las 99.076 barras de las 200 empresas y añade 25.000 de los 50 ETF. Los 50 ETF tienen 500 sesiones cada uno. En total, 247 instrumentos tienen 500 sesiones; SPCX tiene 87, SKHY 69 y SNDK 420. Diez series de empresas llegan al 14/10 y están marcadas `ATRASADO`; los otros 240 instrumentos llegan al 15/10/2026. Se conserva la hora real de cada consulta. [El informe de la hoja](docs/WORKBOOK_AUDIT.md) identifica los tickers y el origen. Actualizar la captura después de importarla.
-
-En la hoja y en la web, el multiplicador con signo identifica el objetivo **diario** de los ETF apalancados o inversos: por ejemplo +3× o −3×. Ese valor no representa la rentabilidad acumulada de varios días.
-
-## Activar
-
-Seguir [la guía de instalación](docs/INSTALACION.md): credenciales y respaldo, SQL, hoja y scripts, carga inicial, timers, frontend. Los archivos locales no modifican el sitio ni la base actuales por sí solos.
+Incluye TQQQ, QQQ, LABU, XBI, SOXX, USD, SOXL, SOXS, UPRO y QLD. El ETF estadounidense de las Magnificent Seven usa **MAGS**, según [Roundhill](https://www.roundhillinvestments.com/etf/mags/). [USD, de ProShares](https://www.proshares.com/our-etfs/leveraged-and-inverse/usd), tiene objetivo diario +2× sobre semiconductores. Los multiplicadores de la web identifican objetivos diarios.
 
 ## Operación
 
-El timer de `actualizarMarketScanner` actúa cada hora entre 09 y 20 ET durante días de bolsa. `Precios` puede actualizarse durante la sesión; `Historial` y Supabase reciben cierres. El día actual se confirma desde las **17:00 de Nueva York**, incluso si hubo cierre temprano. La hora del intento no reemplaza la fecha de la cotización. El fin de semana no genera filas.
+Apps Script solicita a Yahoo `range=5d`, con frecuencia diaria. Agrupa cinco tickers por petición conjunta y envía sus metadatos, timestamps y valores originales a `market_ingest_recent`. Cada ejecución procesa hasta 20 tickers con un objetivo de unos 60 segundos; una continuación de un minuto conserva el avance. Google no compara ni reconstruye series de 500 sesiones.
 
-Cada ejecución diaria o histórica procesa como máximo cinco tickers, con continuación automática cada minuto y un presupuesto objetivo de 90 segundos. Lee solamente los bloques de esos tickers, hasta 2.500 filas, mediante un índice construido una vez por `prepararMarketScanner`. Las IPO tienen capacidad reservada para crecer sin sobrescribir otro instrumento. Consultar progreso solo lee `Precios`; las fechas nativas se convierten una vez por fecha distinta durante el lote.
+Supabase comprueba identidad, moneda, zona horaria, fechas de bolsa, vigencia y OHLCV. Conserva las barras intradía en almacenamiento privado. Solo los cierres confirmados alimentan `public.market_history` con `is_final=true`; este contrato conserva los charts y análisis existentes.
 
-Una actualización de 250 instrumentos requiere al menos 50 ejecuciones cortas; el intervalo de continuación suma unos 49 minutos, más red, retrasos de Google y reintentos. El presupuesto de 90 segundos evita iniciar trabajo adicional cerca del objetivo; una petición externa lenta puede excederlo. Una interrupción conserva el cursor y el upsert se puede repetir. Hay hasta tres intentos; los fallos terminan como `INCOMPLETO`, con sus símbolos, y no se cuentan como éxitos. Se solicitan tres años para la reconstrucción y se eligen las últimas 500 **sesiones**, no 500 días calendario. Una IPO con menos historia se acepta solo si Yahoo confirma su primera fecha de cotización. [Actualización de una instalación existente](docs/RENDIMIENTO_APPS_SCRIPT.md).
+Si aparecen huecos, precios anteriores corregidos, splits o cobertura insuficiente, el servidor encola una reparación. El worker privado descarga la historia de ese ticker y el servidor valida y reemplaza la serie en una transacción, conservando hasta 500 sesiones reales. Cron ejecuta las auditorías, la retención y las llamadas al worker. Las IPO mantienen su historia real, aunque tenga menos de 500 sesiones.
 
-La actualización normal solicita un mes. Si detecta un split nuevo, precios anteriores corregidos, cobertura insuficiente o sesiones faltantes, reconstruye la serie de esa empresa antes de publicar. Cada serie completa se envía en una operación de hasta 500 filas. Primero se confirma Supabase y después la hoja; la clave `(fecha,ticker)` permite repetir sin duplicar.
+`Precios` es la hoja de trabajo: una fila por instrumento con valores y estados devueltos por Supabase. La antigua pestaña `Historial` puede conservarse como archivo o exportación; este flujo no la lee, ordena ni actualiza. **No hace falta importar otro Excel para actualizar una hoja que ya funciona.**
 
-La retención es **por instrumento**. El antiguo límite global ya no recorta una parte del universo. No se borran automáticamente de Supabase instrumentos que salgan de una selección futura.
+La actualización horaria de Google se limita a lunes a viernes, entre 09 y 20 de Nueva York. El servidor aplica el calendario de bolsa y decide qué barras pueden confirmarse. La hora de descarga nunca sustituye a la fecha de la cotización.
 
-## Calidad y límites
+## Instalar o actualizar
 
-Se rechazan fechas imposibles o cerradas, identidad/moneda/zona incorrectas, valores faltantes, precios no positivos, volumen negativo/no entero y relaciones OHLC incoherentes. Se exige continuidad y el último cierre esperado. Volumen cero es válido; un dato ausente no se convierte en cero.
+Seguir [INSTALACION.md](docs/INSTALACION.md): desplegar y verificar primero el backend, detener los timers anteriores y copiar el script y manifiesto nuevos con la cuenta propietaria de Google. Las propiedades privadas `SUPABASE_URL` y `SUPABASE_WRITE_KEY` siguen siendo las mismas.
 
-La columna Supabase `is_final` empieza como `false` en datos heredados. El escritor nuevo solo la marca `true` tras validar la barra; el frontend exige esa marca. Una fotografía intradía antigua no pasa a ser un cierre por haber cambiado la hora. Ejecutar el backfill antes de desplegar el frontend nuevo.
+La arquitectura y los límites están en [ARQUITECTURA_SUPABASE.md](docs/ARQUITECTURA_SUPABASE.md). [RENDIMIENTO_APPS_SCRIPT.md](docs/RENDIMIENTO_APPS_SCRIPT.md) explica la sustitución del procesamiento histórico en Google.
 
-El calendario compartido cubre **2024–2030**, incluido el cierre especial del 09/01/2025. Revisar cierres extraordinarios y el horizonte cada año. La reconstrucción semanal corrige historia, pero no cambia automáticamente la selección de empresas.
+## Archivos
 
-Se usa el endpoint público de gráficos de Yahoo, sin contrato de disponibilidad. Puede devolver atrasos o HTTP 429; los errores se exponen y reintentan. Las cuotas y el tiempo de red de Google también se aplican; concurrencia limitada y checkpoints ayudan a trabajar dentro de ellas.
+| Ruta | Función |
+| --- | --- |
+| `index.html`, `ticker.html`, `js/` | Frontend con 250 instrumentos, filtros de acciones/ETF y lectura de cierres confirmados |
+| `data/universe.json`, `.csv`, `apps-script/Universe.gs` | Universo compartido y metadatos |
+| `data/instrument-history-starts.json` | Fechas verificadas de inicio de las tres historias de IPO cortas |
+| `apps-script/` | Descarga reciente, envío al servidor, `Precios` y temporizadores Google |
+| `supabase/` | Esquema, RPC, calidad, cola, worker y programación del servidor |
+| `tests/`, `tools/` | Pruebas y actualización reproducible de datos y universo |
+| `docs/WORKBOOK_AUDIT.md` | Auditoría de la captura Excel anterior, conservada como registro histórico |
 
 ## Verificación
 
-Desde esta carpeta, con Node.js 20+:
+Con Node.js 22 o posterior:
 
 ```powershell
 node --test tests/*.test.cjs
 node tools/update-universe.mjs --check
 node tools/build-universe.mjs
-
-# Renovar la selección cuando se decida hacerlo:
-node tools/update-universe.mjs --refresh
-node tools/build-universe.mjs
-
-# Prueba pública de Yahoo, sin escribir en Supabase:
-node tools/probe-yahoo.mjs AAPL BRK-B TSM
-
-# Descargar solo los 50 ETF y unirlos a la captura de empresas existente:
-node tools/probe-yahoo.mjs --etfs
-node tools/merge-history.mjs
+node tools/build-server-schema.mjs
 ```
 
-Tras cambiar el universo, regenerar también la plantilla. `prepararMarketScanner` rechaza una lista distinta para evitar escribir cotizaciones en filas equivocadas.
+La revisión pasó 47 pruebas JavaScript y 62 comprobaciones SQL en tres transacciones revertidas. Se verificaron reparaciones reales de AAPL, rechazo 401 de llamadas al worker sin token válido y la denegación de las RPC privadas a roles públicos. El historial confirmado conserva 124.076 barras de los 250 instrumentos; el respaldo privado conserva las 149.187 filas anteriores, incluidas las de tickers heredados. [Pruebas y programación](docs/ARQUITECTURA_SUPABASE.md).
 
-## Fuentes técnicas
+La instalación y ejecución de los timers de Google requieren verificación con la cuenta del propietario. El endpoint público de Yahoo puede devolver errores o HTTP 429; los fallos se registran y reintentan sin inventar barras.
+
+## Fuentes
 
 - [Nasdaq](https://www.nasdaq.com/market-activity/stocks/screener) y [SEC, tickers y CIK](https://www.sec.gov/files/company_tickers_exchange.json).
-- [Google: cuotas Apps Script](https://developers.google.com/apps-script/guides/services/quotas): seis minutos por ejecución y límites diarios.
-- [Google: GOOGLEFINANCE](https://support.google.com/docs/answer/3093281/googlefinance?hl=en): los históricos de esa función no se pueden leer mediante Apps Script ni Sheets API. El nuevo flujo descarga Yahoo directamente y utiliza fórmulas locales.
-- [Supabase: claves](https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys) y [upsert](https://supabase.com/docs/reference/javascript/upsert).
-- [NYSE: calendario](https://www.nyse.com/trade/hours-calendars).
+- [Google: cuotas Apps Script](https://developers.google.com/apps-script/guides/services/quotas) y [activadores de tiempo](https://developers.google.com/apps-script/reference/script/clock-trigger-builder).
+- [Supabase Cron](https://supabase.com/docs/guides/cron), [programar Edge Functions](https://supabase.com/docs/guides/functions/schedule-functions) y [autenticación de funciones](https://supabase.com/docs/guides/functions/auth).

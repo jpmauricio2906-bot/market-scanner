@@ -1,4 +1,6 @@
-# Auditoría del libro original
+# Auditoría archivada de los libros Excel
+
+Este documento registra la auditoría y las capturas del 15/10/2026. Describe los archivos históricos y el flujo anterior; no es una guía de activación del sistema actual. Desde la arquitectura con historial en Supabase, la pestaña `Historial` se conserva como archivo y Apps Script no la lee, ordena ni actualiza. Para instalar la versión vigente, seguir [INSTALACION.md](INSTALACION.md): no hace falta otro Excel.
 
 Se revisó la copia Excel `original version/MarketScanner_NASDAQ100.xlsx` sin modificarla. El archivo contiene seis hojas: una hoja vacía, una hoja de depuración, dos hojas de precios, el historial y una hoja de configuración.
 
@@ -10,7 +12,7 @@ Se revisó la copia Excel `original version/MarketScanner_NASDAQ100.xlsx` sin mo
 
 La auditoría identifica **16.630 barras diarias** utilizables de **38 empresas**, desde el **14 de enero de 2025** hasta el **14 de octubre de 2026**. Las 162 empresas restantes no tienen datos en el archivo original. Las empresas con datos utilizables tienen entre 433 y 440 sesiones; ninguna alcanza las 500 solicitadas en el archivo original.
 
-Cada fila conservada tiene una fecha válida de sesión bursátil estadounidense, cuatro precios numéricos positivos, rango OHLC coherente, volumen entero no negativo y una clave única Fecha + Ticker. Se utiliza el calendario compartido del nuevo Apps Script, incluidos feriados y cierres extraordinarios contemplados por ese calendario. No se encontraron claves duplicadas ni conflictos entre claves repetidas.
+Cada fila conservada tiene una fecha válida de sesión bursátil estadounidense, cuatro precios numéricos positivos, rango OHLC coherente, volumen entero no negativo y una clave única Fecha + Ticker. La auditoría utilizó el calendario de la versión de Apps Script de esa fecha, incluidos sus feriados y cierres extraordinarios. No se encontraron claves duplicadas ni conflictos entre claves repetidas.
 
 Las exclusiones se aplicaron en este orden y son mutuamente excluyentes:
 
@@ -34,9 +36,9 @@ El nuevo libro tiene dos hojas de trabajo: `Precios` y `Historial`. Incluye las 
 
 190 empresas disponen del cierre del 15 de octubre de 2026 y aparecen con estado `FINAL`. Yahoo no devolvió el cierre esperado para diez valores: XOM, SHEL, TTE, ACN, VLO, EQNR, LOW, SO, IBN y PNC. Se guardan sus últimas 500 sesiones hasta el 14 de octubre de 2026, se mantiene esa fecha real y se muestra estado `ATRASADO`. Las actualizaciones posteriores deben volver a consultar estos valores; no se reutiliza el cierre anterior como si fuera el actual.
 
-`Precios` muestra la última barra disponible por empresa, el cierre anterior y la hora real de la consulta. Las fórmulas de cambio absoluto y porcentual son locales y compatibles con Excel y Google Sheets. El recuento de sesiones lo mantiene el script al guardar cada empresa, evitando 200 búsquedas repetidas sobre 100.000 filas. La captura inicial utiliza los recuentos de las barras validadas.
+En aquella captura, `Precios` muestra la última barra disponible por empresa, el cierre anterior y la hora real de la consulta. Las fórmulas de cambio absoluto y porcentual son locales y compatibles con Excel y Google Sheets. La captura inicial utiliza los recuentos de las barras validadas. En el sistema actual esos recuentos proceden de Supabase.
 
-Las fórmulas no realizan consultas remotas por celda. El Apps Script centraliza las descargas, escribe los datos, valida barras, respeta lotes y sube a Supabase. El timer y las credenciales se configuran en Google Sheets siguiendo las instrucciones del proyecto.
+Las fórmulas no realizan consultas remotas por celda. La versión anterior de Apps Script centralizaba las descargas y el procesamiento histórico. La versión vigente envía únicamente datos recientes al servidor; Supabase valida y conserva la historia.
 
 La copia original se mantiene como respaldo. El informe de auditoría detallado y la cobertura por ticker se generan en el directorio local de salida; no contienen credenciales.
 
@@ -50,7 +52,7 @@ Las consultas de acciones conservan `retrievedAt=2026-10-15T22:31:06.633Z`. La c
 
 `Precios` conserva A:P y agrega Q:U: Tipo, Categoria, Emisor, Apalancamiento diario e Inverso. Los factores negativos identifican exposición inversa; el múltiplo es el objetivo diario del ETF. Las notas y las fuentes oficiales de los emisores están en W:X. MAGS representa el ETF de las siete grandes tecnológicas solicitado como “mag7”.
 
-J:K contienen 500 fórmulas de cambio, dos por instrumento. N contiene el recuento que mantiene el Apps Script. `Historial` conserva las siete columnas originales y la clave Fecha + Ticker. El verificador del archivo guardado contrastó todas las barras, los metadatos, las fechas de consulta y los resultados de las fórmulas con el JSON de Yahoo y el universo CSV/JSON. Se conservaron los paneles inmovilizados y los formatos condicionales; no hay errores de fórmulas. Las vistas de ambas hojas fueron revisadas, incluidos los ETF apalancados e inversos.
+J:K contienen 500 fórmulas de cambio, dos por instrumento. N contiene el recuento de sesiones de la captura. `Historial` conserva las siete columnas originales y la clave Fecha + Ticker. El verificador del archivo guardado contrastó todas las barras, los metadatos, las fechas de consulta y los resultados de las fórmulas con el JSON de Yahoo y el universo CSV/JSON. Se conservaron los paneles inmovilizados y los formatos condicionales; no hay errores de fórmulas. Las vistas de ambas hojas fueron revisadas, incluidos los ETF apalancados e inversos.
 
 El paso de las fechas nativas por el formato numérico de Excel produjo un redondeo máximo de un milisegundo en las horas de consulta; los segundos mostrados no cambian. El informe registra ese máximo con una tolerancia de dos milisegundos. Los precios, volúmenes y fechas de sesión conservan sus valores de origen.
 
@@ -60,6 +62,6 @@ La exportación local no activa el timer, publica en GitHub ni cambia Supabase. 
 
 El propietario comprobó que el primer Excel mostraba las fechas, pero Google Sheets dejaba vacía la columna Fecha al importarlo. Ese archivo guardaba las fechas con el tipo OOXML `d`. La plantilla corregida utiliza seriales numéricos clásicos de Excel con formato `yyyy-mm-dd` para las fechas de sesión; `Actualizado` conserva la hora UTC de la consulta original. No se deducen fechas a partir de precios ni se rellenan sesiones.
 
-Para recuperar una importación afectada, ejecutar `detenerTemporizadores`, conservar una copia y volver a importar la plantilla corregida mediante **Sustituir la hoja de cálculo** en el mismo archivo. Comprobar `Historial!A2:G5` antes de ejecutar `prepararMarketScanner`, `comprobarConexion` e `iniciarHistorial` con el script actualizado.
+La corrección del formato resolvía la importación de esos archivos, y el propietario recuperó sus fechas. Se conserva como registro del problema del Excel; no se requiere reimportar esa plantilla para actualizar el sistema actual.
 
-El lector de Apps Script acepta fechas nativas en la zona del archivo, seriales enteros y texto ISO de fecha o de medianoche UTC. Una fecha ausente detiene el proceso indicando su celda, por ejemplo `Historial!A2: Fecha vacía`; las validaciones OHLCV y de duplicados siguen siendo obligatorias. Preparar la hoja valida el historial antes de ordenar o escribir y conserva la zona horaria del archivo; las consultas Yahoo y los horarios del mercado utilizan explícitamente Nueva York.
+El procesamiento del historial local y las funciones de backfill Google fueron retirados. `prepararMarketScanner` prepara únicamente `Precios`; Supabase recibe datos recientes, valida las barras y mantiene sus propias series. Los estados `ATRASADO` descritos en esta auditoría corresponden a la captura inicial del Excel: la carga posterior en Supabase recuperó el cierre esperado de los 250 instrumentos.

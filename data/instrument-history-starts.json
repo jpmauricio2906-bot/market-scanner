@@ -1,0 +1,10 @@
+{
+  "verifiedThrough": "2026-10-15",
+  "source": "Yahoo Finance daily chart, verified initial load",
+  "purpose": "Legitimate listed histories shorter than 500 trading sessions; older companies learn firstTradeDate from fresh Yahoo metadata.",
+  "firstTradeDates": {
+    "SPCX": "2026-06-12",
+    "SKHY": "2026-07-10",
+    "SNDK": "2025-02-13"
+  }
+}

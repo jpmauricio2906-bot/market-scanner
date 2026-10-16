@@ -1,0 +1,4 @@
+# The worker authenticates X-Market-Worker-Token against a service-only SQL RPC.
+# Platform JWT validation is deliberately replaced by this mandatory private authentication.
+[functions.market-history-worker]
+verify_jwt = false

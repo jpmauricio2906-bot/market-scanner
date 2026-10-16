@@ -1,31 +1,59 @@
-# Verificación de la entrega · 15/10/2026
+# Verificación del flujo con historial en Supabase · 16/10/2026
 
-## Ejecutado
+El backend está desplegado. Google conserva la descarga reciente y `Precios`; la validación, el historial de 500 sesiones, la cola y las reparaciones se ejecutan en Supabase.
 
-- **36 pruebas aprobadas; cero fallos.** Incluyen cinco pruebas de integración para la ampliación a 250: metadatos, preparación de filas y capacidad, continuación de lotes por los 50 ETF y progreso final `250/250`.
-- Pruebas Node: calendario NYSE y zona de Nueva York, retención por empresa, rechazo de OHLCV inválido, prevención de provisionales, claves públicas/privadas, reintentos y checkpoints.
-- Regresiones de backend: interrupción superior a un mes, reparación de huecos, splits y correcciones, publicación remota antes del commit local, fallos de descarga y de Supabase, IPO con historia corta y parada de timers bajo bloqueo.
-- Frontend mediante Node/VM: 125.000 filas, 250×500 sesiones con paginación limitada por servidor, detalle y comparaciones, fechas, errores de migración, renderizado de 250 filas, filtros por tipo y escape HTML. Se verifican el contrato JSON real y las etiquetas de USD (+2×), MAGS (sin apalancamiento diario) y SOXS (−3×, inverso). Calendarios frontend/backend coinciden en todas las fechas 2024–2030.
-- Adaptador de vista previa mediante Node/VM, sin abrir sockets: TQQQ, USD, SOXS y MAGS devuelven 500 barras confirmadas cada uno, con `is_final=true` explícito en la respuesta local.
-- Universo: reproducción desde capturas oficiales y verificación de 200 tickers/CIK únicos, capitalizaciones positivas ordenadas y fecha común de las fuentes. Se preservan las 200 empresas y se añaden 50 ETF distintos, con metadatos y enlaces oficiales de emisores. Los generadores validan la composición 200+50 y el total de 250.
-- Consultas de solo lectura a Yahoo: se preserva la captura de 99.076 barras de las 200 empresas (22:31:06 UTC) y se añaden 25.000 barras de los 50 ETF (23:10:08 UTC), ambas del 15/10/2026. Cada ETF tiene 500 sesiones válidas. El libro combinado tiene 124.076 barras, con diez series de empresas atrasadas y tres historias cortas; conserva la procedencia y hora por instrumento.
-- Consulta de solo lectura a Supabase actual: 44.074 filas y 100 tickers, con 416–441 sesiones por ticker. Se observaron 8 filas con algún OHLC no positivo y 350 con rangos OHLC incoherentes. Es una captura del servicio, distinta de la copia Excel original.
+## Pruebas locales
 
-Comandos desde la raíz del proyecto:
+**47 pruebas JavaScript aprobadas, cero fallos.** Cubren el emisor Google, reanudación y límites de ejecución, transporte de valores originales de Yahoo, contratos RPC, estados devueltos por el servidor y conservación de las propiedades privadas. La preparación, actualización y consulta de progreso no acceden a `Historial`.
+
+El worker se verifica con dobles de red: autenticación previa a la cola, reclamación de hasta dos tareas, descarga completa, preservación de nulos para el validador SQL, leases, errores, limpieza y tiempos límite. No recibe tickers ni barras de su llamador y no escribe directamente las tablas.
+
+El cliente del frontend se prueba con 125.000 barras y páginas limitadas por el servidor, detalle y comparación, validación de filas, renderizado de 250 instrumentos, filtros de acciones/ETF y metadatos de exposición. La comparación de calendario usa la semilla revisada del servidor, 2024–2028; el frontend mantiene su contrato `is_final=true`.
+
+## PostgreSQL y permisos
+
+**62 comprobaciones SQL aprobadas**, distribuidas en tres transacciones `BEGIN`/`ROLLBACK` que no dejan fixtures:
+
+| Archivo | Comprobaciones |
+| --- | ---: |
+| [Permisos, calendario y parseo](../supabase/tests/server_owned_history_01_permissions_calendar_parse.sql) | 31 |
+| [Ingesta reciente, caché y splits](../supabase/tests/server_owned_history_02_recent_ingest_cache_splits.sql) | 16 |
+| [Reparación completa y leases](../supabase/tests/server_owned_history_03_full_repair_leases.sql) | 15 |
+
+Incluyen calidad OHLCV, identidad, reloj y sesiones, aislamiento de provisionales, rechazo de escrituras directas, ingesta idempotente, correcciones, sustitución transaccional y recuperación de leases. La fixture procede de las barras actuales de AAPL y conserva la precisión de transporte; no congela volúmenes que Yahoo puede revisar.
+
+Los roles `anon` y `authenticated` no pueden ejecutar las RPC privadas ni acceder a las tablas de control. Las tablas privadas tienen RLS sin políticas públicas intencionalmente. Los avisos informativos de esas tablas y de índices nuevos sin uso no equivalen a permisos públicos.
+
+## Comprobaciones reales en Supabase
+
+- Universo cargado: 250 instrumentos y 1.255 sesiones de calendario entre 2024 y 2028.
+- Respaldo privado: 149.187 filas anteriores. La tabla conserva 124.076 barras confirmadas del universo activo y las 25.111 filas heredadas de otros 57 tickers con `is_final=false`.
+- Descargas reales de Yahoo y reparaciones AAPL completadas por el worker mediante HTTP 200, sin fallos. Se conservaron las 500 filas y el volumen; las diferencias de precio frente al respaldo fueron de precisión numérica, como máximo `5e-13`.
+- Otra ejecución real reclamó y completó dos tareas sin fallos: SOXS conservó 500 cierres y SPCX sus 87 sesiones reales de IPO. La auditoría posterior no encoló reparaciones y la cola quedó vacía.
+- El endpoint del worker respondió 401 tanto sin token como con token incorrecto.
+- Los tres trabajos Cron están activos. Se observó una ejecución natural correcta del despachador de reparaciones el 16/10/2026 a las 13:29 UTC; la cola quedó sin reparaciones pendientes.
+- Una lectura REST real con la clave pública devolvió HTTP 200 y dos cierres finales de AAPL. Las RPC privadas siguen reservadas al backend.
+
+El esquema está versionado en [server_owned_history.sql](../supabase/server_owned_history.sql), el worker en [su directorio](../supabase/functions/market-history-worker/README.md) y los tres horarios en [activate_schedules.sql](../supabase/activate_schedules.sql). Los detalles operativos están en [ARQUITECTURA_SUPABASE.md](ARQUITECTURA_SUPABASE.md).
+
+## Reproducir verificaciones
+
+Con Node.js 22 o posterior, desde la raíz del proyecto:
 
 ```powershell
 node --test tests/*.test.cjs
 node tools/update-universe.mjs --check
 node tools/build-universe.mjs
+node tools/build-server-schema.mjs
 node tools/probe-yahoo.mjs AAPL BRK-B TSM
-node tools/probe-yahoo.mjs --etfs
-node tools/merge-history.mjs
 ```
 
-## Pendiente en las cuentas de producción
+La sonda Yahoo solo consulta datos recientes y comprueba el transporte. No escribe Supabase ni valida por su cuenta un historial de 500 sesiones. Las comprobaciones de negocio corresponden al servidor. Ejecutar las tres pruebas SQL por separado dentro de sus transacciones revertidas, con un rol administrativo de pruebas y el backend instalado.
 
-No se ejecutó la migración SQL ni ninguna escritura remota. Tampoco se instalaron los timers en Google ni se publicó en GitHub. Hace falta conectar el Google Sheets y aplicar la configuración de instalación con una clave privada nueva.
+El generador del esquema usa fuentes versionadas, incluido `data/instrument-history-starts.json`; no depende de capturas ignoradas del directorio `outputs/`. Las exportaciones Excel anteriores se conservan como archivo, no como entrada obligatoria para la operación.
 
-Las pruebas del backend usan dobles de los servicios Google/Supabase; las consultas públicas Yahoo sí son reales. El timer y la escritura deben verificarse en el proyecto vinculado después de configurar credenciales. El SQL se preparó para PostgreSQL/Supabase, pero no se ejecutó contra una base de pruebas en esta sesión.
+## Pendiente con la cuenta de Google
 
-La inspección visual de la web local no pudo completarse: el navegador integrado no alcanzó el servidor localhost de Windows. La verificación funcional del frontend sí se ejecutó mediante Node/VM. La herramienta opcional `node tools/preview-server.mjs --snapshot` permite revisar en un navegador local los datos descargados, sin enviar escrituras a Supabase. Utiliza `outputs/yahoo/history-250.json` si existe; de lo contrario utiliza `outputs/yahoo/history.json`, generado con `node tools/probe-yahoo.mjs --all`.
+El propietario debe detener los timers anteriores, copiar los `.gs` y el manifiesto actuales, mantener sus propiedades privadas y ejecutar la secuencia de [INSTALACION.md](INSTALACION.md). Después debe comprobar una continuación y una ronda horaria en el panel de ejecuciones de Google.
+
+La verificación del backend no confirma que esos nuevos temporizadores estén instalados o ejecutándose. No hace falta volver a importar un Excel ni reconstruir el historial desde Google.

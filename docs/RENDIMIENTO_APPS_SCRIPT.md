@@ -1,22 +1,35 @@
-# Ejecuciones cortas de Apps Script
+# Google descarga datos recientes; Supabase mantiene la historia
 
-La actualización anterior leía las 124.076 filas completas al iniciar cada ejecución y no limitaba la cantidad de tickers en modo diario. El control de 210 segundos se comprobaba antes de un grupo de cinco, por lo que después podían acumularse descargas correctivas, publicaciones y escrituras hasta superar el límite de Google.
+Estado al 16/10/2026: backend desplegado y probado, con Cron activo. Falta actualizar y probar el emisor Google con la cuenta propietaria siguiendo [INSTALACION.md](INSTALACION.md).
 
-Ahora cada ejecución procesa como máximo cinco tickers y lee solo sus bloques: hasta 2.500 filas del historial. La preparación construye el índice una vez; conserva dos hojas y reserva capacidad para las IPO. Los datos de cada bloque se validan antes de publicarse. Un índice incorrecto produce un error que pide ejecutar la preparación, sin recurrir silenciosamente a una lectura completa.
+Apps Script deja de procesar el historial local. Solicita a Yahoo `range=5d`, agrupa cinco respuestas y las envía a `market_ingest_recent`. Los estados de calidad, cierre y reparación los decide Supabase. `Precios` muestra esa respuesta.
 
-El objetivo es 90 segundos por ejecución y la continuación se registra previamente cada minuto. Se comprueba el margen antes de empezar más trabajo; una descarga correctiva puede aplazarse con su ticker y cursor guardados. Una petición externa lenta puede exceder el objetivo. Primero se publica en Supabase, después se escriben las hojas y se confirma `flush()`, y solo entonces se avanza el cursor. Un corte permite repetir ese ticker sin duplicar su clave.
+Una ejecución admite hasta cuatro grupos de cinco instrumentos, con un objetivo de unos 60 segundos y continuación automática cada minuto. Para 250 instrumentos hacen falta al menos 13 ejecuciones si todos los grupos se completan. El tiempo total depende de Yahoo, Supabase, reintentos y la programación de Google; ese recuento no es una promesa de duración.
 
-## Instalar sobre la hoja que ya funciona
+El tiempo objetivo deja de iniciar trabajo adicional cuando falta margen. Una petición externa ya iniciada puede excederlo. El cursor se conserva para repetir el grupo pendiente; la ingesta del servidor admite reintentos sin duplicar la clave `(fecha,ticker)`.
 
-1. Ejecutar `detenerTemporizadores` en el script actual.
-2. Sustituir todo el archivo `.gs` por la versión actualizada y guardar. Mantener las propiedades privadas existentes.
-3. Ejecutar `prepararMarketScanner` una vez para crear el índice y comprobar el historial existente. No hace falta reimportar el Excel si ya se recuperaron las fechas.
-4. Ejecutar `comprobarConexion` y `actualizarMarketScanner`. La primera ejecución debe procesar hasta cinco instrumentos y dejar el resto `EN CURSO`.
-5. Ejecutar `instalarTemporizadores`: mantiene la actualización horaria y reconstrucción semanal y crea la continuación cada minuto si hay trabajo pendiente.
-6. Consultar `verEstadoMarketScanner` para ver cómo aumenta `completed`; `Precios` muestra el estado de cada ticker. La consulta de progreso no lee el historial completo.
+## Trabajo que sale de Google
 
-El ciclo completo de 250 instrumentos requiere al menos 50 ejecuciones; los intervalos suman unos 49 minutos, más red, retrasos y reintentos. El cambio reduce el trabajo de cada llamada; no promete terminar los 250 en una única llamada. Las pruebas locales comprueban los límites de filas y tickers, reserva de IPO, pausas, reanudación y orden de escrituras. El tiempo real debe comprobarse en las ejecuciones del proyecto Google del propietario.
+| Responsabilidad | Lugar de ejecución |
+| --- | --- |
+| Descargar las últimas barras diarias | Apps Script, grupos de cinco |
+| Mostrar cotización y estado por ticker | `Precios` |
+| Validar identidad, mercado, fecha y OHLCV | RPC de Supabase |
+| Decidir si una barra es provisional o final | Supabase, con su reloj y calendario |
+| Revisar cobertura, continuidad y correcciones | Auditorías del servidor |
+| Descargar y sustituir 500 sesiones | Worker y transacción del servidor |
+| Mantener la cola y la retención | SQL y Cron de Supabase |
 
-No ordenar ni insertar/eliminar filas manualmente mientras los timers trabajan. Tras cambiar la estructura del historial, detener timers y ejecutar `prepararMarketScanner` de nuevo.
+La pestaña `Historial` queda como archivo opcional. No se lee al preparar, actualizar o consultar progreso; tampoco se ordena ni se construye un índice de sus filas. Los antiguos errores de importación de fechas en esa pestaña no forman parte del nuevo proceso de ingesta.
 
-Google documenta un límite de seis minutos por ejecución, además de cuotas diarias de activadores. El tiempo de espera entre activadores no equivale a tiempo de ejecución; la frecuencia de continuación no elimina la cuota diaria. [Cuotas oficiales](https://developers.google.com/apps-script/guides/services/quotas). El activador de un minuto es un intervalo admitido por [ClockTriggerBuilder](https://developers.google.com/apps-script/reference/script/clock-trigger-builder).
+## Actualizar una instalación existente
+
+1. Detener los temporizadores anteriores y esperar a que termine cualquier ejecución activa.
+2. Verificar la migración, RPC, worker y Cron del backend.
+3. Sustituir los `.gs` y el manifiesto, manteniendo `SUPABASE_URL` y `SUPABASE_WRITE_KEY` en Propiedades del script.
+4. Ejecutar `prepararMarketScanner`, `comprobarConexion` y una actualización manual.
+5. Revisar los estados devueltos por Supabase y activar los nuevos temporizadores con la cuenta propietaria.
+
+No es necesario importar otro Excel. La instalación no activa temporizadores por el hecho de copiar el código. Consultar el panel de ejecuciones de Google para comprobar el tiempo real y las continuaciones.
+
+Google conserva sus [cuotas de ejecución y activadores](https://developers.google.com/apps-script/guides/services/quotas). El [activador de un minuto](https://developers.google.com/apps-script/reference/script/clock-trigger-builder) permite continuar trabajos, pero no garantiza puntualidad ni elimina la cuota diaria. Las reparaciones históricas no consumen tiempo de Apps Script.
