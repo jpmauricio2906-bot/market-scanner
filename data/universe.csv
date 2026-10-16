@@ -1,0 +1,251 @@
+type,rank,selectionOrder,ticker,yahooTicker,name,exchange,marketCapUsd,companyKey,category,issuer,dailyLeverage,inverse,resetPeriod,sourceUrl,verifiedAt
+STOCK,1,,NVDA,NVDA,NVIDIA Corporation,NASDAQ,5333330000000,cik:0001045810,,,,,,,
+STOCK,2,,AAPL,AAPL,Apple Inc.,NASDAQ,5005219972800,cik:0000320193,,,,,,,
+STOCK,3,,GOOGL,GOOGL,Alphabet Inc.,NASDAQ,4251637200000,cik:0001652044,,,,,,,
+STOCK,4,,MSFT,MSFT,Microsoft Corporation,NASDAQ,3962939373092,cik:0000789019,,,,,,,
+STOCK,5,,AMZN,AMZN,"Amazon.com, Inc.",NASDAQ,2740586552374,cik:0001018724,,,,,,,
+STOCK,6,,TSM,TSM,Taiwan Semiconductor Manufacturing Company Ltd.,NYSE,2230197108720,cik:0001046179,,,,,,,
+STOCK,7,,SPCX,SPCX,Space Exploration Technologies Corp.,NASDAQ,2065240538460,cik:0001181412,,,,,,,
+STOCK,8,,META,META,"Meta Platforms, Inc.",NASDAQ,1878887741187,cik:0001326801,,,,,,,
+STOCK,9,,AVGO,AVGO,Broadcom Inc.,NASDAQ,1652869340756,cik:0001730168,,,,,,,
+STOCK,10,,TSLA,TSLA,"Tesla, Inc.",NASDAQ,1450115821181,cik:0001318605,,,,,,,
+STOCK,11,,BRK-B,BRK-B,Berkshire Hathaway Inc.,NYSE,1161291990126,cik:0001067983,,,,,,,
+STOCK,12,,LLY,LLY,Eli Lilly and Company,NYSE,1137855938748,cik:0000059478,,,,,,,
+STOCK,13,,SKHY,SKHY,SK hynix Inc.,NASDAQ,1075441045250,cik:0002120882,,,,,,,
+STOCK,14,,MU,MU,"Micron Technology, Inc.",NASDAQ,1034267900786,cik:0000723125,,,,,,,
+STOCK,15,,AMD,AMD,"Advanced Micro Devices, Inc.",NASDAQ,931849403474,cik:0000002488,,,,,,,
+STOCK,16,,WMT,WMT,Walmart Inc.,NASDAQ,921583963355,cik:0000104169,,,,,,,
+STOCK,17,,JPM,JPM,JP Morgan Chase & Co.,NYSE,891236667460,cik:0000019617,,,,,,,
+STOCK,18,,XOM,XOM,ExxonMobil Holdings Corporation,NYSE,727849536040,cik:0002115436,,,,,,,
+STOCK,19,,V,V,Visa Inc.,NYSE,699389597722,cik:0001403161,,,,,,,
+STOCK,20,,ASML,ASML,ASML Holding N.V.,NASDAQ,635939147250,cik:0000937966,,,,,,,
+STOCK,21,,JNJ,JNJ,Johnson & Johnson,NYSE,611897352764,cik:0000200406,,,,,,,
+STOCK,22,,MA,MA,Mastercard Incorporated,NYSE,528444236206,cik:0001141391,,,,,,,
+STOCK,23,,INTC,INTC,Intel Corporation,NASDAQ,518571020419,cik:0000050863,,,,,,,
+STOCK,24,,ABBV,ABBV,AbbVie Inc.,NYSE,500942407952,cik:0001551152,,,,,,,
+STOCK,25,,PLTR,PLTR,Palantir Technologies Inc.,NASDAQ,482740687876,cik:0001321655,,,,,,,
+STOCK,26,,CSCO,CSCO,"Cisco Systems, Inc.",NASDAQ,448035572248,cik:0000858877,,,,,,,
+STOCK,27,,CVX,CVX,Chevron Corporation,NYSE,438700253679,cik:0000093410,,,,,,,
+STOCK,28,,COST,COST,Costco Wholesale Corporation,NASDAQ,435153020718,cik:0000909832,,,,,,,
+STOCK,29,,ORCL,ORCL,Oracle Corporation,NYSE,395762475002,cik:0001341439,,,,,,,
+STOCK,30,,KO,KO,Coca-Cola Company (The),NYSE,394887969523,cik:0000021344,,,,,,,
+STOCK,31,,PG,PG,Procter & Gamble Company (The),NYSE,363843506882,cik:0000080424,,,,,,,
+STOCK,32,,MRK,MRK,"Merck & Company, Inc.",NYSE,363587084292,cik:0000310158,,,,,,,
+STOCK,33,,BAC,BAC,Bank of America Corporation,NYSE,359357338477,cik:0000070858,,,,,,,
+STOCK,34,,LRCX,LRCX,Lam Research Corporation,NASDAQ,359058677945,cik:0000707549,,,,,,,
+STOCK,35,,UNH,UNH,UnitedHealth Group Incorporated,NYSE,355106473370,cik:0000731766,,,,,,,
+STOCK,36,,AMAT,AMAT,"Applied Materials, Inc.",NASDAQ,354444425967,cik:0000006951,,,,,,,
+STOCK,37,,CAT,CAT,"Caterpillar, Inc.",NYSE,344287298363,cik:0000018230,,,,,,,
+STOCK,38,,DELL,DELL,Dell Technologies Inc.,NYSE,322948370108,cik:0001571996,,,,,,,
+STOCK,39,,HSBC,HSBC,"HSBC Holdings, plc.",NYSE,322424805106,cik:0001089113,,,,,,,
+STOCK,40,,PM,PM,Philip Morris International Inc,NYSE,320419750790,cik:0001413329,,,,,,,
+STOCK,41,,GE,GE,GE Aerospace,NYSE,318552442741,cik:0000040545,,,,,,,
+STOCK,42,,PANW,PANW,"Palo Alto Networks, Inc.",NASDAQ,306782720000,cik:0001327567,,,,,,,
+STOCK,43,,HD,HD,"Home Depot, Inc. (The)",NYSE,294827261379,cik:0000354950,,,,,,,
+STOCK,44,,NFLX,NFLX,"Netflix, Inc.",NASDAQ,293849222935,cik:0001065280,,,,,,,
+STOCK,45,,SHEL,SHEL,Shell PLC,NYSE,286509824664,cik:0001306965,,,,,,,
+STOCK,46,,MS,MS,Morgan Stanley,NYSE,285073487661,cik:0000895421,,,,,,,
+STOCK,47,,NVS,NVS,Novartis AG,NYSE,280269318612,cik:0001114448,,,,,,,
+STOCK,48,,SAP,SAP,SAP SE,NYSE,270872898114,cik:0001000184,,,,,,,
+STOCK,49,,BABA,BABA,Alibaba Group Holding Limited,NYSE,269307770621,cik:0001577552,,,,,,,
+STOCK,50,,RY,RY,Royal Bank Of Canada,NYSE,268330183642,cik:0001000275,,,,,,,
+STOCK,51,,MUFG,MUFG,"Mitsubishi UFJ Financial Group, Inc.",NYSE,259665514930,cik:0000067088,,,,,,,
+STOCK,52,,TXN,TXN,Texas Instruments Incorporated,NASDAQ,256302963076,cik:0000097476,,,,,,,
+STOCK,53,,GS,GS,"Goldman Sachs Group, Inc. (The)",NYSE,255858139638,cik:0000886982,,,,,,,
+STOCK,54,,CRWD,CRWD,"CrowdStrike Holdings, Inc.",NASDAQ,255256716762,cik:0001535527,,,,,,,
+STOCK,55,,ARM,ARM,Arm Holdings plc,NASDAQ,253255790529,cik:0001973239,,,,,,,
+STOCK,56,,RTX,RTX,RTX Corporation,NYSE,251316461112,cik:0000101829,,,,,,,
+STOCK,57,,AZN,AZN,AstraZeneca PLC,NYSE,251264112554,cik:0000901832,,,,,,,
+STOCK,58,,GEV,GEV,GE Vernova Inc.,NYSE,250827639914,cik:0001996810,,,,,,,
+STOCK,59,,TMO,TMO,Thermo Fisher Scientific Inc,NYSE,248913872935,cik:0000097745,,,,,,,
+STOCK,60,,ANET,ANET,"Arista Networks, Inc.",NYSE,246468520712,cik:0001596532,,,,,,,
+STOCK,61,,TM,TM,Toyota Motor Corporation,NYSE,245819956954,cik:0001094517,,,,,,,
+STOCK,62,,WFC,WFC,Wells Fargo & Company,NYSE,244641546282,cik:0000072971,,,,,,,
+STOCK,63,,KLAC,KLAC,KLA Corporation,NASDAQ,233348210835,cik:0000319201,,,,,,,
+STOCK,64,,AMGN,AMGN,Amgen Inc.,NASDAQ,230368703651,cik:0000318154,,,,,,,
+STOCK,65,,LIN,LIN,Linde plc,NASDAQ,227124926310,cik:0001707925,,,,,,,
+STOCK,66,,SHOP,SHOP,Shopify Inc.,NASDAQ,223527401813,cik:0001594805,,,,,,,
+STOCK,67,,MRVL,MRVL,"Marvell Technology, Inc.",NASDAQ,215086032000,cik:0001835632,,,,,,,
+STOCK,68,,IBM,IBM,International Business Machines Corporation,NYSE,214693584793,cik:0000051143,,,,,,,
+STOCK,69,,BHP,BHP,BHP Group Limited,NYSE,211654513728,cik:0000811809,,,,,,,
+STOCK,70,,AXP,AXP,American Express Company,NYSE,207286353239,cik:0000004962,,,,,,,
+STOCK,71,,C,C,"Citigroup, Inc.",NYSE,205100195457,cik:0000831001,,,,,,,
+STOCK,72,,SNDK,SNDK,Sandisk Corporation,NASDAQ,203944149258,cik:0002023554,,,,,,,
+STOCK,73,,APH,APH,Amphenol Corporation,NYSE,203910804119,cik:0000820313,,,,,,,
+STOCK,74,,TTE,TTE,TotalEnergies SE,NYSE,195582092111,cik:0000879764,,,,,,,
+STOCK,75,,ADI,ADI,"Analog Devices, Inc.",NASDAQ,195556084710,cik:0000006281,,,,,,,
+STOCK,76,,CRM,CRM,"Salesforce, Inc.",NYSE,194186850000,cik:0001108524,,,,,,,
+STOCK,77,,SAN,SAN,"Banco Santander, S.A.",NYSE,194105840113,cik:0000891478,,,,,,,
+STOCK,78,,TD,TD,Toronto Dominion Bank (The),NYSE,192105167299,cik:0000947263,,,,,,,
+STOCK,79,,GILD,GILD,"Gilead Sciences, Inc.",NASDAQ,190382714499,cik:0000882095,,,,,,,
+STOCK,80,,DIS,DIS,Walt Disney Company (The),NYSE,188191605449,cik:0001744489,,,,,,,
+STOCK,81,,VZ,VZ,Verizon Communications Inc.,NYSE,184555114473,cik:0000732712,,,,,,,
+STOCK,82,,QCOM,QCOM,QUALCOMM Incorporated,NASDAQ,181291379443,cik:0000804328,,,,,,,
+STOCK,83,,ABT,ABT,Abbott Laboratories,NYSE,178177567989,cik:0000001800,,,,,,,
+STOCK,84,,PEP,PEP,"PepsiCo, Inc.",NASDAQ,176161540963,cik:0000077476,,,,,,,
+STOCK,85,,DE,DE,Deere & Company,NYSE,175358975457,cik:0000315189,,,,,,,
+STOCK,86,,COP,COP,ConocoPhillips,NYSE,170998376761,cik:0001163165,,,,,,,
+STOCK,87,,UNP,UNP,Union Pacific Corporation,NYSE,170161044892,cik:0000100885,,,,,,,
+STOCK,88,,TMUS,TMUS,"T-Mobile US, Inc.",NASDAQ,169256853815,cik:0001283699,,,,,,,
+STOCK,89,,NVO,NVO,Novo Nordisk A/S,NYSE,168792711422,cik:0000353278,,,,,,,
+STOCK,90,,MCD,MCD,McDonald's Corporation,NYSE,168638053253,cik:0000063908,,,,,,,
+STOCK,91,,SCCO,SCCO,Southern Copper Corporation,NYSE,167433686760,cik:0001001838,,,,,,,
+STOCK,92,,SCHW,SCHW,Charles Schwab Corporation (The),NYSE,167399697115,cik:0000316709,,,,,,,
+STOCK,93,,WELL,WELL,Welltower Inc.,NYSE,167335355274,cik:0000766704,,,,,,,
+STOCK,94,,PBR,PBR,Petroleo Brasileiro S.A. Petrobras,NYSE,167166863923,cik:0001119639,,,,,,,
+STOCK,95,,PFE,PFE,"Pfizer, Inc.",NYSE,166487465535,cik:0000078003,,,,,,,
+STOCK,96,,BLK,BLK,"BlackRock, Inc.",NYSE,166297061622,cik:0002012383,,,,,,,
+STOCK,97,,NEE,NEE,"NextEra Energy, Inc.",NYSE,163478112239,cik:0000753308,,,,,,,
+STOCK,98,,STX,STX,Seagate Technology Holdings PLC,NASDAQ,163199834881,cik:0001137789,,,,,,,
+STOCK,99,,ETN,ETN,"Eaton Corporation, PLC",NYSE,158797340000,cik:0001551182,,,,,,,
+STOCK,100,,DHR,DHR,Danaher Corporation,NYSE,157953936473,cik:0000313616,,,,,,,
+STOCK,101,,SMFG,SMFG,Sumitomo Mitsui Financial Group Inc Unsponsored,NYSE,157952169095,cik:0001022837,,,,,,,
+STOCK,102,,T,T,AT&T Inc.,NYSE,157947489233,cik:0000732717,,,,,,,
+STOCK,103,,TJX,TJX,"TJX Companies, Inc. (The)",NYSE,157109295133,cik:0000109198,,,,,,,
+STOCK,104,,BUD,BUD,Anheuser-Busch Inbev SA,NYSE,156784577793,cik:0001668717,,,,,,,
+STOCK,105,,ISRG,ISRG,"Intuitive Surgical, Inc.",NASDAQ,148461562689,cik:0001035267,,,,,,,
+STOCK,106,,UBS,UBS,UBS Group AG,NYSE,146326972462,cik:0001610520,,,,,,,
+STOCK,107,,BBVA,BBVA,Banco Bilbao Vizcaya Argentaria S.A.,NYSE,146027357034,cik:0000842180,,,,,,,
+STOCK,108,,BA,BA,Boeing Company (The),NYSE,145949727893,cik:0000012927,,,,,,,
+STOCK,109,,NOW,NOW,"ServiceNow, Inc.",NYSE,144739320000,cik:0001373715,,,,,,,
+STOCK,110,,SONY,SONY,Sony Group Corporation,NYSE,143627840215,cik:0000313838,,,,,,,
+STOCK,111,,ACN,ACN,Accenture plc Class A,NYSE,143487994742,cik:0001467373,,,,,,,
+STOCK,112,,UBER,UBER,"Uber Technologies, Inc.",NYSE,141528990784,cik:0001543151,,,,,,,
+STOCK,113,,UL,UL,Unilever PLC,NYSE,137575344188,cik:0000217410,,,,,,,
+STOCK,114,,MPC,MPC,Marathon Petroleum Corporation,NYSE,136177544074,cik:0001510295,,,,,,,
+STOCK,115,,WDC,WDC,Western Digital Corporation,NASDAQ,136016101518,cik:0000106040,,,,,,,
+STOCK,116,,CB,CB,Chubb Limited,NYSE,135087820629,cik:0000896159,,,,,,,
+STOCK,117,,FTNT,FTNT,"Fortinet, Inc.",NASDAQ,135039997835,cik:0001262039,,,,,,,
+STOCK,118,,VLO,VLO,Valero Energy Corporation,NYSE,132383288019,cik:0001035002,,,,,,,
+STOCK,119,,MNST,MNST,Monster Beverage Corporation,NASDAQ,129944033469,cik:0000865752,,,,,,,
+STOCK,120,,BP,BP,BP p.l.c.,NYSE,127781182873,cik:0000313807,,,,,,,
+STOCK,121,,MFG,MFG,"Mizuho Financial Group, Inc.",NYSE,127729232872,cik:0001335730,,,,,,,
+STOCK,122,,VRTX,VRTX,Vertex Pharmaceuticals Incorporated,NASDAQ,126350270614,cik:0000875320,,,,,,,
+STOCK,123,,PGR,PGR,Progressive Corporation (The),NYSE,124099618024,cik:0000080661,,,,,,,
+STOCK,124,,PLD,PLD,"Prologis, Inc.",NYSE,123685994960,cik:0001045609,,,,,,,
+STOCK,125,,BTI,BTI,"British American Tobacco Industries, p.l.c.",NYSE,122404499226,cik:0001303523,,,,,,,
+STOCK,126,,MO,MO,"Altria Group, Inc.",NYSE,122108373308,cik:0000764180,,,,,,,
+STOCK,127,,GLW,GLW,Corning Incorporated,NYSE,121361001955,cik:0000024741,,,,,,,
+STOCK,128,,BMY,BMY,Bristol-Myers Squibb Company,NYSE,121092124808,cik:0000014272,,,,,,,
+STOCK,129,,BKNG,BKNG,Booking Holdings Inc.,NASDAQ,120731818740,cik:0001075531,,,,,,,
+STOCK,130,,PH,PH,Parker-Hannifin Corporation,NYSE,120603824713,cik:0000076334,,,,,,,
+STOCK,131,,MDT,MDT,Medtronic plc.,NYSE,120533163375,cik:0001613103,,,,,,,
+STOCK,132,,LMT,LMT,Lockheed Martin Corporation,NYSE,120525854939,cik:0000936468,,,,,,,
+STOCK,133,,SPGI,SPGI,S&P Global Inc.,NYSE,120446436000,cik:0000064040,,,,,,,
+STOCK,134,,COF,COF,Capital One Financial Corporation,NYSE,119230777877,cik:0000927628,,,,,,,
+STOCK,135,,PSX,PSX,Phillips 66,NYSE,118624928118,cik:0001534701,,,,,,,
+STOCK,136,,SNOW,SNOW,Snowflake Inc.,NYSE,118216224000,cik:0001640147,,,,,,,
+STOCK,137,,NEM,NEM,Newmont Corporation,NYSE,117549909753,cik:0001164727,,,,,,,
+STOCK,138,,HDB,HDB,HDFC Bank Limited,NYSE,116117308421,cik:0001144967,,,,,,,
+STOCK,139,,PDD,PDD,PDD Holdings Inc.,NASDAQ,115935641830,cik:0001737806,,,,,,,
+STOCK,140,,CVS,CVS,CVS Health Corporation,NYSE,115606131654,cik:0000064803,,,,,,,
+STOCK,141,,NET,NET,"Cloudflare, Inc.",NYSE,115487333966,cik:0001477333,,,,,,,
+STOCK,142,,RIO,RIO,Rio Tinto Plc,NYSE,114613520790,cik:0000863064,,,,,,,
+STOCK,143,,MCK,MCK,McKesson Corporation,NYSE,113858650795,cik:0000927653,,,,,,,
+STOCK,144,,BMO,BMO,Bank Of Montreal,NYSE,113730991818,cik:0000927971,,,,,,,
+STOCK,145,,EQNR,EQNR,Equinor ASA,NYSE,113237274949,cik:0001140625,,,,,,,
+STOCK,146,,ADP,ADP,"Automatic Data Processing, Inc.",NASDAQ,111077233935,cik:0000008670,,,,,,,
+STOCK,147,,BNS,BNS,The Bank of Nova Scotia,NYSE,110472201768,cik:0000009631,,,,,,,
+STOCK,148,,SYK,SYK,Stryker Corporation,NYSE,108021841215,cik:0000310764,,,,,,,
+STOCK,149,,SPOT,SPOT,Spotify Technology S.A.,NYSE,107848010847,cik:0001639920,,,,,,,
+STOCK,150,,CNQ,CNQ,Canadian Natural Resources Limited,NYSE,107207288800,cik:0001017413,,,,,,,
+STOCK,151,,ITUB,ITUB,Itau Unibanco Banco Holding SA,NYSE,106740093779,cik:0001132597,,,,,,,
+STOCK,152,,SBUX,SBUX,Starbucks Corporation,NASDAQ,106305000000,cik:0000829224,,,,,,,
+STOCK,153,,LOW,LOW,"Lowe's Companies, Inc.",NYSE,105652082318,cik:0000060667,,,,,,,
+STOCK,154,,TT,TT,Trane Technologies plc,NYSE,103694723088,cik:0001466258,,,,,,,
+STOCK,155,,ENB,ENB,Enbridge Inc,NYSE,103417544057,cik:0000895728,,,,,,,
+STOCK,156,,SO,SO,Southern Company (The),NYSE,102819441901,cik:0000092122,,,,,,,
+STOCK,157,,CME,CME,CME Group Inc.,NASDAQ,102692241720,cik:0001156375,,,,,,,
+STOCK,158,,HCA,HCA,"HCA Healthcare, Inc.",NYSE,101850965660,cik:0000860730,,,,,,,
+STOCK,159,,IBN,IBN,ICICI Bank Limited,NYSE,101208191177,cik:0001103838,,,,,,,
+STOCK,160,,CM,CM,Canadian Imperial Bank of Commerce,NYSE,100283755442,cik:0001045520,,,,,,,
+STOCK,161,,ABNB,ABNB,"Airbnb, Inc.",NASDAQ,100033136035,cik:0001559720,,,,,,,
+STOCK,162,,FCX,FCX,"Freeport-McMoRan, Inc.",NYSE,99975539951,cik:0000831259,,,,,,,
+STOCK,163,,CEG,CEG,Constellation Energy Corporation,NASDAQ,99043084726,cik:0001868275,,,,,,,
+STOCK,164,,ASX,ASX,"ASE Technology Holding Co., Ltd.",NYSE,98718423405,cik:0001122411,,,,,,,
+STOCK,165,,EQIX,EQIX,"Equinix, Inc.",NASDAQ,98267132087,cik:0001101239,,,,,,,
+STOCK,166,,PWR,PWR,"Quanta Services, Inc.",NYSE,97315738923,cik:0001050915,,,,,,,
+STOCK,167,,ING,ING,"ING Group, N.V.",NYSE,97115565040,cik:0001039765,,,,,,,
+STOCK,168,,SNY,SNY,Sanofi,NASDAQ,96993231216,cik:0001121404,,,,,,,
+STOCK,169,,MAR,MAR,Marriott International,NASDAQ,96958121204,cik:0001048286,,,,,,,
+STOCK,170,,GSK,GSK,GSK plc,NYSE,96826918173,cik:0001131399,,,,,,,
+STOCK,171,,DDOG,DDOG,"Datadog, Inc.",NASDAQ,96709676214,cik:0001561550,,,,,,,
+STOCK,172,,ADBE,ADBE,Adobe Inc.,NASDAQ,93672656000,cik:0000796343,,,,,,,
+STOCK,173,,BNY,BNY,The Bank of New York Mellon Corporation,NYSE,93389310105,cik:0001390777,,,,,,,
+STOCK,174,,DUK,DUK,Duke Energy Corporation (Holding Company),NYSE,93283570371,cik:0001326160,,,,,,,
+STOCK,175,,MELI,MELI,"MercadoLibre, Inc.",NASDAQ,93236995526,cik:0001099590,,,,,,,
+STOCK,176,,ELV,ELV,"Elevance Health, Inc.",NYSE,92839574356,cik:0001156039,,,,,,,
+STOCK,177,,JCI,JCI,Johnson Controls International plc,NYSE,92339229687,cik:0000833444,,,,,,,
+STOCK,178,,SNPS,SNPS,"Synopsys, Inc.",NASDAQ,91972175515,cik:0000883241,,,,,,,
+STOCK,179,,HOOD,HOOD,"Robinhood Markets, Inc.",NASDAQ,90879236155,cik:0001783879,,,,,,,
+STOCK,180,,E,E,ENI S.p.A.,NYSE,90799907364,cik:0001002242,,,,,,,
+STOCK,181,,CDNS,CDNS,"Cadence Design Systems, Inc.",NASDAQ,90730977780,cik:0000813672,,,,,,,
+STOCK,182,,RACE,RACE,Ferrari N.V. Common Shares,NYSE,90618415245,cik:0001648416,,,,,,,
+STOCK,183,,GD,GD,General Dynamics Corporation,NYSE,90544670879,cik:0000040533,,,,,,,
+STOCK,184,,MRNA,MRNA,"Moderna, Inc.",NASDAQ,90347081681,cik:0001682852,,,,,,,
+STOCK,185,,EMR,EMR,Emerson Electric Company,NYSE,89850424000,cik:0000032604,,,,,,,
+STOCK,186,,AEM,AEM,Agnico Eagle Mines Limited,NYSE,89843372256,cik:0000002809,,,,,,,
+STOCK,187,,CSX,CSX,CSX Corporation,NASDAQ,89437488993,cik:0000277948,,,,,,,
+STOCK,188,,WMB,WMB,"Williams Companies, Inc. (The)",NYSE,89046591962,cik:0000107263,,,,,,,
+STOCK,189,,SU,SU,Suncor Energy Inc.,NYSE,88763191255,cik:0000311337,,,,,,,
+STOCK,190,,BN,BN,Brookfield Corporation,NYSE,88104450457,cik:0001001085,,,,,,,
+STOCK,191,,APP,APP,Applovin Corporation,NASDAQ,87742145690,cik:0001751008,,,,,,,
+STOCK,192,,USB,USB,U.S. Bancorp,NYSE,87655974352,cik:0000036104,,,,,,,
+STOCK,193,,ICE,ICE,Intercontinental Exchange Inc.,NYSE,87077898879,cik:0001571949,,,,,,,
+STOCK,194,,HWM,HWM,Howmet Aerospace Inc.,NYSE,86755256338,cik:0000004281,,,,,,,
+STOCK,195,,WM,WM,"Waste Management, Inc.",NYSE,86238550948,cik:0000823768,,,,,,,
+STOCK,196,,PNC,PNC,"PNC Financial Services Group, Inc. (The)",NYSE,86092043339,cik:0000713676,,,,,,,
+STOCK,197,,VRT,VRT,"Vertiv Holdings, LLC",NYSE,85786914590,cik:0001674101,,,,,,,
+STOCK,198,,MRSH,MRSH,Marsh,NYSE,85134490211,cik:0000062709,,,,,,,
+STOCK,199,,MMM,MMM,3M Company,NYSE,84815708700,cik:0000066740,,,,,,,
+STOCK,200,,HPE,HPE,Hewlett Packard Enterprise Company,NYSE,83776302203,cik:0001645590,,,,,,,
+ETF,,1,SPY,SPY,State Street SPDR S&P 500 ETF Trust,NYSEARCA,,,Mercado amplio: S&P 500,State Street,1,false,,https://www.ssga.com/us/en/intermediary/etfs/state-street-spdr-sp-500-etf-trust-spy,2026-10-15
+ETF,,2,VOO,VOO,Vanguard S&P 500 ETF,NYSEARCA,,,Mercado amplio: S&P 500,Vanguard,1,false,,https://investor.vanguard.com/investment-products/etfs/profile/voo,2026-10-15
+ETF,,3,IVV,IVV,iShares Core S&P 500 ETF,NYSEARCA,,,Mercado amplio: S&P 500,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239726/ishares-core-s-p-500-etf,2026-10-15
+ETF,,4,VTI,VTI,Vanguard Morningstar Total Stock Market ETF,NYSEARCA,,,Mercado amplio: acciones de EE. UU.,Vanguard,1,false,,https://investor.vanguard.com/investment-products/etfs/profile/vti,2026-10-15
+ETF,,5,QQQ,QQQ,Invesco QQQ ETF,NASDAQ,,,Nasdaq-100,Invesco,1,false,,https://www.invesco.com/qqq-etf/en/home.html,2026-10-15
+ETF,,6,QQQM,QQQM,Invesco NASDAQ 100 ETF,NASDAQ,,,Nasdaq-100,Invesco,1,false,,https://www.invesco.com/us/en/financial-products/etfs/invesco-nasdaq-100-etf.html,2026-10-15
+ETF,,7,DIA,DIA,State Street SPDR Dow Jones Industrial Average ETF Trust,NYSEARCA,,,Mercado amplio: Dow Jones,State Street,1,false,,https://www.ssga.com/us/en/intermediary/etfs/state-street-spdr-dow-jones-industrial-average-etf-trust-dia,2026-10-15
+ETF,,8,IWM,IWM,iShares Russell 2000 ETF,NYSEARCA,,,Pequeña capitalización de EE. UU.,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239710/ishares-russell-2000-etf,2026-10-15
+ETF,,9,RSP,RSP,Invesco S&P 500 Equal Weight ETF,NYSEARCA,,,Mercado amplio: S&P 500 equiponderado,Invesco,1,false,,https://www.invesco.com/us/en/financial-products/etfs/invesco-sp-500-equal-weight-etf.html,2026-10-15
+ETF,,10,SCHD,SCHD,Schwab U.S. Dividend Equity ETF,NYSEARCA,,,Dividendos de EE. UU.,Schwab Asset Management,1,false,,https://www.schwabassetmanagement.com/products/schd,2026-10-15
+ETF,,11,VXUS,VXUS,Vanguard Total International Stock ETF,NASDAQ,,,Acciones internacionales ex EE. UU.,Vanguard,1,false,,https://investor.vanguard.com/investment-products/etfs/profile/vxus,2026-10-15
+ETF,,12,VEA,VEA,Vanguard FTSE Developed Markets ETF,NYSEARCA,,,Mercados desarrollados ex EE. UU.,Vanguard,1,false,,https://investor.vanguard.com/investment-products/etfs/profile/vea,2026-10-15
+ETF,,13,VWO,VWO,Vanguard FTSE Emerging Markets ETF,NYSEARCA,,,Mercados emergentes,Vanguard,1,false,,https://investor.vanguard.com/investment-products/etfs/profile/vwo,2026-10-15
+ETF,,14,EFA,EFA,iShares MSCI EAFE ETF,NYSEARCA,,,Mercados desarrollados ex EE. UU. y Canadá,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239623/ishares-msci-eafe-etf,2026-10-15
+ETF,,15,EEM,EEM,iShares MSCI Emerging Markets ETF,NYSEARCA,,,Mercados emergentes,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239637/ishares-msci-emerging-markets-etf,2026-10-15
+ETF,,16,XLK,XLK,State Street Technology Select Sector SPDR ETF,NYSEARCA,,,Sector: tecnología,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,17,XLF,XLF,State Street Financial Select Sector SPDR ETF,NYSEARCA,,,Sector: finanzas,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,18,XLE,XLE,State Street Energy Select Sector SPDR ETF,NYSEARCA,,,Sector: energía,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,19,XLV,XLV,State Street Health Care Select Sector SPDR ETF,NYSEARCA,,,Sector: salud,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,20,XLI,XLI,State Street Industrial Select Sector SPDR ETF,NYSEARCA,,,Sector: industria,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,21,XLP,XLP,State Street Consumer Staples Select Sector SPDR ETF,NYSEARCA,,,Sector: consumo básico,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,22,XLY,XLY,State Street Consumer Discretionary Select Sector SPDR ETF,NYSEARCA,,,Sector: consumo discrecional,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,23,XLU,XLU,State Street Utilities Select Sector SPDR ETF,NYSEARCA,,,Sector: servicios públicos,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,24,XLRE,XLRE,State Street Real Estate Select Sector SPDR ETF,NYSEARCA,,,Sector: bienes raíces,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,25,XLB,XLB,State Street Materials Select Sector SPDR ETF,NYSEARCA,,,Sector: materiales,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,26,XLC,XLC,State Street Communication Services Select Sector SPDR ETF,NYSEARCA,,,Sector: comunicación,State Street,1,false,,https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs,2026-10-15
+ETF,,27,SOXX,SOXX,iShares Semiconductor ETF,NASDAQ,,,Industria: semiconductores,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239705/ishares-semiconductor-etf,2026-10-15
+ETF,,28,SMH,SMH,VanEck Semiconductor ETF,NASDAQ,,,Industria: semiconductores,VanEck,1,false,,https://www.vaneck.com/us/en/investments/semiconductor-etf-smh/,2026-10-15
+ETF,,29,XBI,XBI,State Street SPDR S&P Biotech ETF,NYSEARCA,,,Industria: biotecnología,State Street,1,false,,https://www.ssga.com/us/en/intermediary/etfs/state-street-spdr-sp-biotech-etf-xbi,2026-10-15
+ETF,,30,IBB,IBB,iShares Biotechnology ETF,NASDAQ,,,Industria: biotecnología,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239699/ishares-biotechnology-etf,2026-10-15
+ETF,,31,ARKK,ARKK,ARK Innovation ETF,NYSEARCA,,,Temático: innovación,ARK Investment Management,1,false,,https://www.ark-funds.com/funds/arkk,2026-10-15
+ETF,,32,MAGS,MAGS,Roundhill Magnificent Seven ETF,CBOEBZX,,,Temático: Magnificent Seven,Roundhill Investments,1,false,,https://www.roundhillinvestments.com/etf/mags/,2026-10-15
+ETF,,33,TLT,TLT,iShares 20+ Year Treasury Bond ETF,NASDAQ,,,Bonos: Tesoro de largo plazo,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239454/ishares-20%20-year-treasury-bond-etf,2026-10-15
+ETF,,34,IEF,IEF,iShares 7-10 Year Treasury Bond ETF,NASDAQ,,,Bonos: Tesoro de plazo intermedio,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239456/ishares-7-10-year-treasury-bond-etf,2026-10-15
+ETF,,35,SHY,SHY,iShares 1-3 Year Treasury Bond ETF,NASDAQ,,,Bonos: Tesoro de corto plazo,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239452/ishares-1-3-year-treasury-bond-etf,2026-10-15
+ETF,,36,BND,BND,Vanguard Total Bond Market ETF,NASDAQ,,,Bonos: mercado agregado de EE. UU.,Vanguard,1,false,,https://investor.vanguard.com/investment-products/etfs/profile/bnd,2026-10-15
+ETF,,37,HYG,HYG,iShares iBoxx $ High Yield Corporate Bond ETF,NYSEARCA,,,Bonos: corporativos de alto rendimiento,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239565/ishares-iboxx-high-yield-corporate-bond-etf,2026-10-15
+ETF,,38,LQD,LQD,iShares iBoxx $ Investment Grade Corporate Bond ETF,NYSEARCA,,,Bonos: corporativos de grado de inversión,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239566/ishares-iboxx-investment-grade-corporate-bond-etf,2026-10-15
+ETF,,39,GLD,GLD,SPDR Gold Shares,NYSEARCA,,,Metales preciosos: oro,State Street / World Gold Trust Services,1,false,,https://www.ssga.com/us/en/intermediary/etfs/spdr-gold-shares-gld,2026-10-15
+ETF,,40,SLV,SLV,iShares Silver Trust,NYSEARCA,,,Metales preciosos: plata,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239855/ishares-silver-trust,2026-10-15
+ETF,,41,TQQQ,TQQQ,ProShares UltraPro QQQ,NASDAQ,,,Nasdaq-100 apalancado,ProShares,3,false,daily,https://www.proshares.com/our-etfs/leveraged-and-inverse/tqqq,2026-10-15
+ETF,,42,QLD,QLD,ProShares Ultra QQQ,NYSEARCA,,,Nasdaq-100 apalancado,ProShares,2,false,daily,https://www.proshares.com/our-etfs/leveraged-and-inverse/qld,2026-10-15
+ETF,,43,SQQQ,SQQQ,ProShares UltraPro Short QQQ,NASDAQ,,,Nasdaq-100 inverso apalancado,ProShares,-3,true,daily,https://www.proshares.com/our-etfs/leveraged-and-inverse/sqqq,2026-10-15
+ETF,,44,UPRO,UPRO,ProShares UltraPro S&P500,NYSEARCA,,,S&P 500 apalancado,ProShares,3,false,daily,https://www.proshares.com/our-etfs/leveraged-and-inverse/upro,2026-10-15
+ETF,,45,SPXU,SPXU,ProShares UltraPro Short S&P500,NYSEARCA,,,S&P 500 inverso apalancado,ProShares,-3,true,daily,https://www.proshares.com/our-etfs/leveraged-and-inverse/spxu,2026-10-15
+ETF,,46,SSO,SSO,ProShares Ultra S&P500,NYSEARCA,,,S&P 500 apalancado,ProShares,2,false,daily,https://www.proshares.com/our-etfs/leveraged-and-inverse/sso,2026-10-15
+ETF,,47,USD,USD,ProShares Ultra Semiconductors,NYSEARCA,,,Semiconductores apalancado,ProShares,2,false,daily,https://www.proshares.com/our-etfs/leveraged-and-inverse/usd,2026-10-15
+ETF,,48,SOXL,SOXL,Direxion Daily Semiconductor Bull 3X ETF,NYSEARCA,,,Semiconductores apalancado,Direxion,3,false,daily,https://www.direxion.com/product/daily-semiconductor-bull-bear-3x-etfs,2026-10-15
+ETF,,49,SOXS,SOXS,Direxion Daily Semiconductor Bear 3X ETF,NYSEARCA,,,Semiconductores inverso apalancado,Direxion,-3,true,daily,https://www.direxion.com/product/daily-semiconductor-bull-bear-3x-etfs,2026-10-15
+ETF,,50,LABU,LABU,Direxion Daily S&P Biotech Bull 3X ETF,NYSEARCA,,,Biotecnología apalancado,Direxion,3,false,daily,https://www.direxion.com/product/daily-sp-biotech-bull-bear-3x-etfs,2026-10-15
