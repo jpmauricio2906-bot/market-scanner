@@ -27,7 +27,7 @@ function makeClient({ tickers = ["AAPL", "BRK-B", "JPM"], etfs = [], fetch, key 
     MARKET_SETTINGS: { universeUrl: "data/universe.json", expectedCompanies: tickers.length, expectedETFs: etfs.length,
       expectedInstruments: tickers.length + etfs.length, historyDays: 500, minSignalDays: 50, pageSize: 1000, maxPages }
   });
-  vm.runInContext(calendarSource + "\n" + clientSource + "\nglobalThis.client = { fetchMarketData, loadMarketUniverse, normalizeMarketRows, marketQualityMessages, tickerBars, normalizeTicker, escapeHtml, instrumentTypeLabel, instrumentDescription, _publicReadHeaders, _newYorkClock };", context);
+  vm.runInContext(calendarSource + "\n" + clientSource + "\nglobalThis.client = { fetchMarketData, fetchLatestQuotes, mergeRecentMarketQuotes, marketQuoteLabel, loadMarketUniverse, normalizeMarketRows, marketQualityMessages, tickerBars, normalizeTicker, escapeHtml, instrumentTypeLabel, instrumentDescription, _publicReadHeaders, _newYorkClock };", context);
   return context.client;
 }
 
@@ -37,7 +37,7 @@ function universe(tickers = ["AAPL", "BRK-B", "JPM"], etfs = []) {
 }
 
 function bar(ticker = "AAPL", fecha = "2026-10-14", overrides = {}) {
-  return { ticker, fecha, open: 100, high: 105, low: 98, close: 103, volumen: 1000000, ...overrides };
+  return { ticker, fecha, open: 100, high: 105, low: 98, close: 103, volumen: 1000000, is_final: true, ...overrides };
 }
 
 function sessionDates(count) {
@@ -50,11 +50,18 @@ function sessionDates(count) {
   return result;
 }
 
+function recentQuote(ticker = 'AAPL', overrides = {}) {
+  return bar(ticker, '2026-10-16', {is_final:false,status:'PROVISIONAL',source:'googlefinance',
+    source_quote_at:'2026-10-16T14:00:00Z',fetched_at:'2026-10-16T14:01:00Z',
+    previous_close:103,datadelay_minutes:15,...overrides});
+}
+
 function pagedFetch(tickers, rows, cap = 1000, etfs = []) {
   const requests = [];
   const request = async (url, options) => {
     if (url === "data/universe.json") return { ok: true, json: async () => companies(tickers, etfs) };
     const parsed = new URL(url);
+    if(parsed.pathname.endsWith('/market_latest_quotes'))return {ok:true,json:async()=>[]};
     requests.push({ parsed, headers: options.headers });
     let selected = rows;
     const symbolFilter = parsed.searchParams.get("ticker");
@@ -183,7 +190,7 @@ test("invalid OHLCV, impossible dates, weekends and provisional closes are exclu
     bar("JPM", "2026-10-13", { volumen: null }),
     bar("JPM", "2026-10-12", { volumen: -1 }),
     bar("JPM", "2026-10-09", { close: Infinity }),
-    bar("AAPL", "2026-10-15"), bar("AAPL", "2026-10-16"), bar("UNKNOWN")
+    bar("AAPL", "2026-10-15", {is_final:false}), bar("AAPL", "2026-10-16"), bar("UNKNOWN")
   ];
   const result = client.normalizeMarketRows(rows, universe(), null, new Date("2026-10-15T20:59:00Z"));
   assert.equal(result.data.length, 1);
@@ -314,6 +321,27 @@ test("the dashboard renders all 250 instruments, preserves 0% days, combines typ
   context.setFilter("ALL", element("allFilter"));
   assert.equal((element("tbody").innerHTML.match(/<tr\b/g) || []).length, 1);
   assert.ok(element("tbody").innerHTML.includes("T000"));
+  const oldSignals=JSON.stringify(context.results.find(row=>row.ticker==='T000').signals);
+  const quote=recentQuote('T000',{fecha:'2026-10-15',close:104,source_quote_at:'2026-10-15T19:55:00Z',fetched_at:'2026-10-15T19:56:00Z'});
+  let activeQuote=quote;
+  context.marketQuoteLabel=client.marketQuoteLabel;
+  context.fetchMarketData=async(_,progress,options)=>client.mergeRecentMarketQuotes(result,[activeQuote],options.includeRecent,new Date('2026-10-15T20:00:00Z'));
+  await context.loadData();
+  assert.equal(context.results.find(row=>row.ticker==='T000').close,104);
+  assert.notEqual(JSON.stringify(context.results.find(row=>row.ticker==='T000').signals),oldSignals);
+  assert.match(element('tbody').innerHTML,/PROVISIONAL/);
+  assert.match(element('tbody').innerHTML,/Google · 15:55/);
+  assert.match(element('tsUpdate').textContent,/Latest confirmed close: 2026-10-14 · Provisional: 2026-10-15/);
+  activeQuote={...quote,source:'yahoo',datadelay_minutes:null};
+  await context.loadData();
+  assert.equal(context.results.find(row=>row.ticker==='T000').close,104);
+  assert.match(element('tbody').innerHTML,/Yahoo · 15:55/);
+  assert.match(element('tbody').innerHTML,/source delay unavailable/);
+  element('includeIntraday').checked=false;
+  await context.loadData(false);
+  assert.equal(context.results.find(row=>row.ticker==='T000').close,103);
+  assert.equal(JSON.stringify(context.results.find(row=>row.ticker==='T000').signals),oldSignals);
+  assert.ok(!element('tbody').innerHTML.includes('PROVISIONAL'));
 });
 
 test("both pages use the same data client and all inline scripts compile", () => {
@@ -324,4 +352,206 @@ test("both pages use the same data client and all inline scripts compile", () =>
     assert.ok(!html.includes("const SUPABASE_KEY") && !html.includes("var SUPABASE_KEY"));
     for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(match[1], { filename });
   }
+});
+
+test("today's provisional candle appends to 500 confirmed closes without mutating the history or duplicating its date", () => {
+  const client=makeClient(), now=new Date('2026-10-16T14:05:00Z');
+  const rows=sessionDates(499).concat('2026-10-15').map(date=>bar('AAPL',date));
+  const base=client.normalizeMarketRows(rows,universe(),null,now), original=JSON.stringify(base.data);
+  const result=client.mergeRecentMarketQuotes(base,[recentQuote('AAPL',{close:104}),recentQuote('AAPL',{close:105,source_quote_at:'2026-10-16T14:02:00Z'})],true,now);
+  assert.equal(result.data.length,501);
+  assert.equal(result.finalizedData.length,500);
+  assert.equal(result.latestDate,'2026-10-15');
+  assert.equal(result.latestBarDate,'2026-10-16');
+  assert.equal(result.data.at(-1)[5],105);
+  assert.deepEqual(Array.from(result.provisionalTickers),['AAPL']);
+  assert.equal(new Set(result.data.map(row=>row[1]+'|'+row[0])).size,501);
+  assert.equal(JSON.stringify(base.data),original);
+  const closed=client.mergeRecentMarketQuotes(base,[recentQuote()],false,now);
+  assert.equal(closed.data.length,500);
+  assert.equal(closed.provisionalTickers.length,0);
+  assert.ok(client.marketQualityMessages(result).some(text=>text.includes('charts and signals')));
+});
+
+test("confirmed history wins over a later provisional quote for the same day", () => {
+  const client=makeClient(), now=new Date('2026-10-16T21:05:00Z');
+  const base=client.normalizeMarketRows([bar('AAPL','2026-10-16',{close:102})],universe(),null,now);
+  const result=client.mergeRecentMarketQuotes(base,[recentQuote('AAPL',{close:104,source_quote_at:'2026-10-16T20:00:00Z',fetched_at:'2026-10-16T21:01:00Z'})],true,now);
+  assert.equal(result.data.length,1);
+  assert.equal(result.data[0][5],102);
+  assert.equal(result.provisionalTickers.length,0);
+  assert.equal(result.quoteByTicker.has('AAPL'),false);
+});
+
+test("previous-day, pending, malformed and Google-final quotes cannot become a preview candle", () => {
+  const client=makeClient(), now=new Date('2026-10-16T14:30:00Z');
+  const base=client.normalizeMarketRows([bar()],universe(),null,now);
+  for(const bad of [recentQuote('AAPL',{status:'REEMPLAZO_PENDIENTE'}),recentQuote('AAPL',{status:'RECHAZADO'}),
+    recentQuote('AAPL',{status:'PENDIENTE_DE_ACTUALIZAR'}),recentQuote('AAPL',{fecha:'2026-10-15',source_quote_at:'2026-10-15T20:00:00Z'}),
+    recentQuote('AAPL',{is_final:true}),recentQuote('AAPL',{source:'yahoo',is_final:true,status:'PROVISIONAL'}),
+    recentQuote('AAPL',{source:'yahoo',is_final:false,status:'FINAL'}),recentQuote('AAPL',{close:200}),recentQuote('AAPL',{source:'unknown'}),
+    recentQuote('AAPL',{source_quote_at:'invalid'}),recentQuote('AAPL',{datadelay_minutes:21})]) {
+    const result=client.mergeRecentMarketQuotes(base,[bad],true,now);
+    assert.equal(result.data.length,1,JSON.stringify(bad));
+    assert.equal(result.provisionalTickers.length,0);
+    assert.ok(result.quality.staleRecentTickers.length+result.quality.invalidRecentTickers.length>0);
+  }
+  const accepted=client.mergeRecentMarketQuotes(base,[recentQuote('AAPL',{datadelay_minutes:20})],true,now);
+  assert.equal(accepted.provisionalTickers.length,1,'reported20minute delay allows source quote age30minutes');
+  const yahoo=client.mergeRecentMarketQuotes(base,[recentQuote('AAPL',{source:'yahoo',datadelay_minutes:0,source_quote_at:'2026-10-16T13:59:00Z'})],true,now);
+  assert.equal(yahoo.provisionalTickers.length,1,'an approved quote remains visible when it later ages');
+  assert.equal(yahoo.quoteByTicker.get('AAPL').outdated,true,'Yahoo quote age is clearly marked');
+});
+
+test("Yahoo quotes with unknown delay are accepted without inventing a zero-minute delay", () => {
+  const client=makeClient(),now=new Date('2026-10-16T14:05:00Z');
+  const base=client.normalizeMarketRows([bar('AAPL','2026-10-15')],universe(),null,now);
+  const quote=recentQuote('AAPL',{source:'yahoo',datadelay_minutes:null,close:104});
+  const result=client.mergeRecentMarketQuotes(base,[quote],true,now);
+  assert.equal(result.provisionalTickers.length,1);
+  assert.equal(result.data.at(-1)[5],104);
+  assert.equal(result.quoteByTicker.get('AAPL').datadelay_minutes,null);
+  assert.equal(result.quoteByTicker.get('AAPL').outdated,false);
+  assert.match(client.marketQuoteLabel(result.quoteByTicker.get('AAPL')),/Yahoo Finance.*source delay unavailable/);
+  assert.doesNotMatch(client.marketQuoteLabel(result.quoteByTicker.get('AAPL')),/source delay 0/);
+  const older=client.mergeRecentMarketQuotes(base,[quote],true,new Date('2026-10-16T14:31:00Z'));
+  assert.equal(older.provisionalTickers.length,1);
+  assert.equal(older.quoteByTicker.get('AAPL').outdated,true,'unknown Yahoo delay uses30minute visual age policy');
+  const missingGoogle=client.mergeRecentMarketQuotes(base,[{...quote,source:'googlefinance'}],true,now);
+  assert.equal(missingGoogle.provisionalTickers.length,0,'Google delay remains mandatory');
+});
+
+test("an approved quote from today stays in prices and charts when it ages, with an outdated badge and original source time", () => {
+  const client=makeClient(),now=new Date('2026-10-16T16:30:00Z');
+  const base=client.normalizeMarketRows([bar('AAPL','2026-10-15')],universe(),null,now);
+  const quote=recentQuote('AAPL',{close:104});
+  const result=client.mergeRecentMarketQuotes(base,[quote],true,now);
+  assert.equal(result.data.length,2);
+  assert.equal(result.data.at(-1)[5],104);
+  assert.equal(client.tickerBars(result,'AAPL').at(-1).date,'2026-10-16');
+  assert.equal(result.quoteByTicker.get('AAPL').outdated,true);
+  assert.equal(result.quoteByTicker.get('AAPL').source_quote_at,'2026-10-16T14:00:00Z');
+  assert.match(client.marketQuoteLabel(result.quoteByTicker.get('AAPL')),/PROVISIONAL|Provisional/);
+  assert.match(client.marketQuoteLabel(result.quoteByTicker.get('AAPL')),/OUTDATED.*10:00:00 New York/);
+  assert.ok(client.marketQualityMessages(result).some(text=>text.includes('last approved values')));
+});
+
+test("after hours a quote from today remains explicitly provisional, with source time and delay", () => {
+  const client=makeClient(), now=new Date('2026-10-16T22:00:00Z');
+  const base=client.normalizeMarketRows([bar()],universe(),null,now);
+  const quote=recentQuote('AAPL',{source_quote_at:'2026-10-16T20:00:00Z',fetched_at:'2026-10-16T20:10:00Z'});
+  const result=client.mergeRecentMarketQuotes(base,[quote],true,now);
+  assert.equal(result.provisionalTickers.length,1);
+  assert.equal(result.latestDate,'2026-10-14');
+  assert.match(client.marketQuoteLabel(quote),/Provisional daily candle.*Google Finance.*16:00:00 New York.*20 min/);
+});
+
+test("fast quote refresh retains history in memory and a newly confirmed close survives subsequent missing quotes", async () => {
+  const rows=sessionDates(499).concat('2026-10-15').map(date=>bar('AAPL',date));
+  const api=pagedFetch(['AAPL'],rows), quotesRequests=[];
+  let quotes=[recentQuote('AAPL',{source_quote_at:'2026-10-16T20:00:00Z',fetched_at:'2026-10-16T21:00:00Z'})];
+  const client=makeClient({tickers:['AAPL'],fetch:async(url,options)=>{
+    if(url.includes('/market_latest_quotes?')){quotesRequests.push(options);return {ok:true,json:async()=>quotes};}
+    return api.request(url,options);
+  }});
+  const first=await client.fetchMarketData(null,null,{now:new Date('2026-10-16T21:01:00Z')});
+  assert.equal(first.data.length,501);
+  const historyRequests=api.requests.length;
+  quotes=[recentQuote('AAPL',{is_final:true,status:'FINAL',source:'yahoo',close:104,source_quote_at:'2026-10-16T20:00:00Z',fetched_at:'2026-10-16T21:02:00Z',datadelay_minutes:0})];
+  const second=await client.fetchMarketData(null,null,{now:new Date('2026-10-16T21:03:00Z')});
+  assert.equal(second.data.length,500);
+  assert.equal(second.latestDate,'2026-10-16');
+  assert.equal(second.provisionalTickers.length,0);
+  quotes=[];
+  const third=await client.fetchMarketData(null,null,{now:new Date('2026-10-16T21:04:00Z')});
+  assert.equal(third.latestDate,'2026-10-16');
+  assert.equal(third.data.at(-1)[5],104);
+  assert.equal(api.requests.length,historyRequests,'quote refresh does not download124k history rows again');
+  assert.equal(quotesRequests.length,3);
+  assert.ok(quotesRequests.every(options=>options.cache==='no-store'));
+  await client.fetchMarketData(null,null,{refreshQuotes:false,includeRecent:false,now:new Date('2026-10-16T21:05:00Z')});
+  assert.equal(quotesRequests.length,3,'display toggle reads only memory');
+});
+
+test("the history cache reloads once the expected confirmed session changes", async () => {
+  const api=pagedFetch(['AAPL'],[bar('AAPL','2026-10-15')]);
+  const client=makeClient({tickers:['AAPL'],fetch:api.request});
+  await client.fetchMarketData(null,null,{now:new Date('2026-10-16T20:59:00Z')});
+  const before=api.requests.length;
+  await client.fetchMarketData(null,null,{now:new Date('2026-10-16T21:01:00Z')});
+  assert.ok(api.requests.length>before);
+  const after=api.requests.length;
+  await client.fetchMarketData(null,null,{now:new Date('2026-10-16T21:02:00Z')});
+  assert.equal(api.requests.length,after);
+});
+
+test("a failed recent quote request preserves the last accepted candle and never advances its timestamp", async () => {
+  const api=pagedFetch(['AAPL'],[bar('AAPL','2026-10-15')]);
+  let unavailable=false;
+  const client=makeClient({tickers:['AAPL'],fetch:async(url,options)=>{
+    if(url.includes('/market_latest_quotes?')){
+      if(unavailable)throw new Error('network unavailable');
+      return {ok:true,json:async()=>[recentQuote('AAPL',{close:104})]};
+    }
+    return api.request(url,options);
+  }});
+  await client.fetchMarketData(null,null,{now:new Date('2026-10-16T14:05:00Z')});
+  unavailable=true;
+  const result=await client.fetchMarketData(null,null,{now:new Date('2026-10-16T16:05:00Z')});
+  assert.equal(result.data.at(-1)[5],104);
+  assert.equal(result.provisionalTickers.length,1);
+  assert.equal(result.quoteByTicker.get('AAPL').source_quote_at,'2026-10-16T14:00:00Z');
+  assert.equal(result.quoteByTicker.get('AAPL').outdated,true);
+  assert.match(result.quality.recentError,/network unavailable/);
+  assert.ok(client.marketQualityMessages(result).some(text=>text.includes('original source time')));
+});
+
+test("reduced sessions confirm at14 New York and confirmed rows are not discarded by the old17 rule", () => {
+  const client=makeClient();
+  const rows=[bar('AAPL','2026-11-27')];
+  const before=client.normalizeMarketRows([],universe(),null,new Date('2026-11-27T18:59:00Z'));
+  assert.equal(before.quality.expectedDate,'2026-11-25');
+  const after=client.normalizeMarketRows(rows,universe(),null,new Date('2026-11-27T19:00:00Z'));
+  assert.equal(after.data.length,1);
+  assert.equal(after.quality.expectedDate,'2026-11-27');
+  assert.equal(after.quality.laggingTickers.length,0);
+  assert.throws(()=>client.normalizeMarketRows([],universe(),null,new Date('2029-01-02T22:00:00Z')),/outside its supported range/);
+});
+
+test("ticker detail sends the provisional candle to every chart and signal and labels the unfinished result", async () => {
+  const client=makeClient(), now=new Date('2026-10-16T14:05:00Z');
+  const base=client.normalizeMarketRows(sessionDates(499).concat('2026-10-15').map(date=>bar('AAPL',date)),universe(),null,now);
+  const quote=recentQuote('AAPL',{close:104}), elements=new Map(), renders=new Map();
+  const element=id=>{
+    if(!elements.has(id))elements.set(id,{textContent:'',innerHTML:'',style:{},checked:true,className:''});
+    return elements.get(id);
+  };
+  const context=vm.createContext({
+    document:{getElementById:element},ticker:'AAPL',_mc:{compareTickers:[]},
+    fetchMarketData:async(_,__,options)=>client.mergeRecentMarketQuotes({...base,ticker:'AAPL'},[quote],options.includeRecent,now),
+    tickerBars:client.tickerBars, marketQuoteLabel:client.marketQuoteLabel, marketQualityMessages:client.marketQualityMessages,
+    instrumentDescription:client.instrumentDescription,instrumentTypeLabel:client.instrumentTypeLabel,escapeHtml:client.escapeHtml,
+    MARKET_SETTINGS:{minSignalDays:50},INDICATORS:[],computeSignals:raw=>{renders.set('signals',raw);return {};},computeScore:()=>80,
+    buildThemeSwitcher_t(){},_renderCompareTags(){},console
+  });
+  for(const name of ['renderMainChart','renderRSI','renderMACD','renderStochRSI','renderWilliams','renderVolume','renderOBV','renderROC','renderATR','renderGauge','renderStats','renderHeatmap'])
+    context[name]=(...args)=>renders.set(name,args);
+  const html=fs.readFileSync(path.join(root,'ticker.html'),'utf8');
+  const start=html.indexOf('let tickerLoading=false;'),end=html.indexOf('// ── Main candlestick + Bollinger',start);
+  vm.runInContext(html.slice(start,end),context);
+  await context.init();
+  assert.equal(renders.get('signals').length,501);
+  assert.equal(renders.get('signals').at(-1).close,104);
+  for(const name of ['renderMainChart','renderRSI','renderMACD','renderStochRSI','renderWilliams','renderVolume','renderOBV','renderROC','renderATR'])
+    assert.equal(renders.get(name)[0].length,501,name);
+  assert.equal(element('priceVal').textContent,'$104.00');
+  assert.equal(element('sigBadge').textContent,'BUY · PROVISIONAL');
+  assert.match(element('quoteStatus').textContent,/Provisional daily candle.*Google Finance.*unfinished/);
+  assert.match(element('footer').textContent,/500 confirmed daily closes \+ today's provisional candle/);
+  element('includeIntraday').checked=false;
+  await context.init(false);
+  assert.equal(renders.get('signals').length,500);
+  assert.equal(element('priceVal').textContent,'$103.00');
+  assert.equal(element('sigBadge').textContent,'BUY');
+  assert.match(element('quoteStatus').textContent,/confirmed closes/);
 });

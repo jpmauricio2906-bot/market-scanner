@@ -230,7 +230,7 @@ svg.spark{display:block}
 <header>
   <div class="logo">US Stocks + ETFs <span>/</span> Market Scanner</div>
   <div class="hdr-right">
-    <span>DAILY CLOSES</span>
+    <span>DAILY CANDLES</span>
     <span id="tsUpdate">—</span>
     <span id="tsCount">—</span>
     <span id="activePresetBadge"></span>
@@ -244,6 +244,7 @@ svg.spark{display:block}
 
 <div class="controls">
   <button class="btn" onclick="loadData()">⟳ Refresh</button>
+  <label style="font-size:12px;display:flex;align-items:center;gap:6px"><input id="includeIntraday" type="checkbox" checked onchange="loadData(false)"> Include today's provisional candle</label>
   <button class="btn btn-cfg" id="cfgToggle" onclick="toggleCfg()">⚙ Indicators</button>
   <div class="fgroup">
     <button class="fbtn on"   onclick="setFilter('ALL',this)">All</button>
@@ -390,7 +391,7 @@ var PRESETS = [
 ];
 
 var results=[], filter="ALL", sortCol="score", sortAsc=false, activePreset=null, companyUniverse=null;
-var loadingData=false;
+var loadingData=false, currentMarketResult=null;
 
 // ── Tooltip ───────────────────────────────────────────────────────────────────
 var tt=document.getElementById("tooltip"), ttT=null;
@@ -517,7 +518,7 @@ function setProgress(pct){
   bar.classList.toggle("visible",pct<100);fill.style.width=pct+"%";
 }
 
-async function loadData(){
+async function loadData(refreshQuotes=true){
   if(loadingData)return;
   loadingData=true;
   var src = "Supabase";
@@ -528,12 +529,18 @@ async function loadData(){
     var result = await fetchMarketData(null,function(count){
       show('<div class="spinner"></div>Loading finalized history · '+count.toLocaleString()+' rows…');
       setProgress(Math.min(59,30+count/(MARKET_SETTINGS.expectedInstruments*MARKET_SETTINGS.historyDays)*29));
-    });
+    },{includeRecent:document.getElementById("includeIntraday").checked!==false,refreshQuotes:refreshQuotes});
+    currentMarketResult=result;
     companyUniverse=result.universe;
     setProgress(60);
     var grouped=groupByTicker(result.data);
     setProgress(75);
     results=computeAll(grouped);
+    results.forEach(function(row){
+      row.provisional=Boolean(result.provisionalTickers&&result.provisionalTickers.includes(row.ticker));
+      var quote=result.quoteByTicker?result.quoteByTicker.get(row.ticker):null;
+      row.quote=quote&&quote.fecha===row.lastDate&&(row.provisional||quote.is_final)?quote:null;
+    });
     setProgress(90);
     buildTableHeader();
     renderTable();
@@ -541,14 +548,16 @@ async function loadData(){
     updateIndValues();
     hide();
     setProgress(100);
-    document.getElementById("tsUpdate").textContent="Latest close: "+(result.latestDate||"awaiting data");
+    document.getElementById("tsUpdate").textContent="Latest confirmed close: "+(result.latestDate||"awaiting data")+
+      (result.provisionalTickers&&result.provisionalTickers.length?" · Provisional: "+result.latestBarDate:"");
     var withData=result.coverage.filter(function(item){return item.days>0;}).length;
     document.getElementById("tsCount").textContent=withData+" / "+results.length+" instruments with data · "+result.total.toLocaleString()+" rows";
     var warnings=marketQualityMessages(result),qualityEl=document.getElementById("dataQuality");
     qualityEl.hidden=warnings.length===0;
     qualityEl.textContent=warnings.join(" · ");
     qualityEl.title="Missing: "+result.quality.missingTickers.join(", ")+". Short histories: "+result.quality.shortHistories.join(", ")+". Lagging: "+result.quality.laggingTickers.join(", ");
-    document.getElementById("footer").textContent="Source: "+result.source+" · "+result.universe.companies.length+" companies + "+result.universe.etfs.length+" ETFs · Final daily OHLCV · Universe as of "+(result.universe.asOf||"—")+" · Loaded "+new Date().toLocaleString();
+    document.getElementById("footer").textContent="Source: "+result.source+" · "+result.universe.companies.length+" companies + "+result.universe.etfs.length+" ETFs · "+
+      (result.includeRecent!==false?"Today's accepted provisional candle is included in prices and signals when available. ":"Confirmed daily closes only. ")+"Quote source and New York time appear beside each updated price. Google Finance quotes may be delayed up to 20 min. · Loaded "+new Date().toLocaleString();
   }catch(e){
     setProgress(100);
     show('<div style="color:var(--sell);font-size:15px">⚠ Connection error</div><div class="err">'+escapeHtml(e.message)+'</div><br><button class="btn" onclick="loadData()" style="margin-top:12px">Retry</button>');
@@ -611,7 +620,7 @@ function buildTableHeader(){
   var html='<tr>';
   html+='<th class="th-fixed sticky s0" onclick="sortBy(\'ticker\',this)">Ticker</th>';
   html+='<th class="th-fixed sticky s1">Spark</th>';
-  html+='<th class="th-fixed right sticky s2" onclick="sortBy(\'close\',this)">Close</th>';
+  html+='<th class="th-fixed right sticky s2" onclick="sortBy(\'close\',this)">Price</th>';
   html+='<th class="th-fixed right sticky s5" onclick="sortBy(\'chg1d\',this)">1D %</th>';
   html+='<th class="th-fixed right sticky s6" onclick="sortBy(\'chg30d\',this)">30D %</th>';
   html+='<th class="th-fixed right sticky s7" onclick="sortBy(\'chg1y\',this)">1Y %</th>';
@@ -673,7 +682,11 @@ hide();
     html+='<td class="td-fixed spark-cell sticky s1">'+sparkline(r.closes)+'</td>';
 
     // Fixed: Close
-    html+='<td class="td-fixed sticky s2">'+(r.close===null?"—":"$"+r.close.toFixed(2))+'</td>';
+    var quoteLabel=r.quote?marketQuoteLabel(r.quote):'Confirmed daily close · '+(r.lastDate||'awaiting data');
+    html+='<td class="td-fixed sticky s2" title="'+escapeHtml(quoteLabel)+'">'+(r.close===null?"—":"$"+r.close.toFixed(2))+
+      '<div style="font-size:9px;line-height:1.4;white-space:normal;max-width:80px;color:'+(r.provisional?'var(--hold)':'var(--muted)')+'">'+
+      (r.provisional?'PROVISIONAL'+(r.quote&&r.quote.outdated?'<br>OUTDATED':''):r.close===null?'AWAITING DATA':'CONFIRMED')+
+      (r.quote?'<br>'+escapeHtml((r.quote.source==='googlefinance'?'Google':'Yahoo')+' · '+new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(r.quote.source_quote_at)))+' NY':'')+'</div></td>';
 
     // Fixed: 1D %
     (function(){

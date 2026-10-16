@@ -1,20 +1,22 @@
 # Market Scanner — 200 empresas y 50 ETF
 
-Aplicación estática en GitHub Pages con barras diarias de Yahoo Finance. **Supabase mantiene y valida el historial. Google Sheets descarga datos recientes y muestra el resultado del servidor.**
+Aplicación estática con 200 empresas y 50 ETF. **Precios recupera las fórmulas GOOGLEFINANCE y un envío rápido de 250 cotizaciones. Los gráficos y análisis incorporan la vela provisional del día, identificada como tal. Supabase valida los datos y mantiene los cierres confirmados.**
 
-Estado al 16/10/2026: backend Supabase desplegado y verificado, con worker y tres trabajos Cron activos. Falta que el propietario copie esta versión del script y manifiesto, y verifique sus nuevos temporizadores de Google. Tener estos archivos no certifica que esa instalación manual ya esté hecha.
+La instalación del nuevo Apps Script y sus activadores se realiza con la cuenta propietaria. Copiar esta versión y ejecutar la preparación recupera las fórmulas en el mismo libro; no exige importar de nuevo el Excel. [Ruta rápida e intradiarios](docs/COTIZACIONES_INTRADIA.md).
 
 ```mermaid
 flowchart LR
-  Yahoo[Yahoo · últimos 5 días] --> Google[Apps Script · grupos de 5]
+  Finance[GOOGLEFINANCE · fórmulas Precios] --> Snapshot[Envío de 250 cotizaciones]
+  Snapshot --> Live[Supabase · cotizaciones aprobadas]
+  Live --> Web[GitHub Pages · precios y análisis provisionales]
+  Yahoo[Yahoo · últimos 5 días] --> Google[Sincronización de cierres]
   Google --> RPC[Supabase · recepción y validación]
-  RPC --> Precios[Google Sheets · Precios]
   RPC --> Historial[Supabase · cierres confirmados]
   RPC --> Cola[Cola de reparaciones]
   Cron[Cron de Supabase] --> Worker[Worker privado · historia Yahoo]
   Cola --> Worker
   Worker --> Historial
-  Historial --> Web[GitHub Pages · charts y análisis]
+  Historial --> Web
 ```
 
 El universo contiene **250 instrumentos: 200 compañías y 50 ETF**. La selección de empresas usa capitalización del screener oficial de Nasdaq, admite compañías extranjeras cotizadas en EE. UU. y conserva una acción por compañía identificada por CIK SEC. La captura de selección es del 15/10/2026, con precios fechados por Nasdaq al 14/10. Los ETF son una selección curada verificada con sus emisores, no un ranking por patrimonio. Criterio y lista: [data/README.md](data/README.md).
@@ -23,15 +25,17 @@ Incluye TQQQ, QQQ, LABU, XBI, SOXX, USD, SOXL, SOXS, UPRO y QLD. El ETF estadoun
 
 ## Operación
 
-Apps Script solicita a Yahoo `range=5d`, con frecuencia diaria. Agrupa cinco tickers por petición conjunta y envía sus metadatos, timestamps y valores originales a `market_ingest_recent`. Cada ejecución procesa hasta 20 tickers con un objetivo de unos 60 segundos; una continuación de un minuto conserva el avance. Google no compara ni reconstruye series de 500 sesiones.
+`actualizarCotizacionesAhora` lee de una vez las 250 filas calculadas y las envía en una solicitud a `market_ingest_sheet_quotes`. Esta ruta no espera a las continuaciones de Yahoo. Con los activadores instalados se repite cada cinco minutos. La aplicación puede refrescar su cotización sin descargar de nuevo todo el historial cuando sigue vigente.
 
-Supabase comprueba identidad, moneda, zona horaria, fechas de bolsa, vigencia y OHLCV. Conserva las barras intradía en almacenamiento privado. Solo los cierres confirmados alimentan `public.market_history` con `is_final=true`; este contrato conserva los charts y análisis existentes.
+Supabase comprueba identidad, fechas, antigüedad y OHLCV. `public.market_latest_quotes` expone solo las cotizaciones aprobadas; las tablas y eventos de control siguen privados. La web combina esas cotizaciones con `public.market_history`. Una vela provisional puede cambiar el precio y los indicadores, y nunca sustituye un cierre confirmado de su misma fecha.
+
+`actualizarMarketScanner` conserva Yahoo `range=5d` para sincronizar los cierres en segundo plano: grupos de cinco y hasta 20 tickers por ejecución, con continuación por minuto. La captura Google Finance no se convierte en cierre del historial; esa confirmación sigue bajo las reglas Yahoo del servidor.
 
 Si aparecen huecos, precios anteriores corregidos, splits o cobertura insuficiente, el servidor encola una reparación. El worker privado descarga la historia de ese ticker y el servidor valida y reemplaza la serie en una transacción, conservando hasta 500 sesiones reales. Cron ejecuta las auditorías, la retención y las llamadas al worker. Las IPO mantienen su historia real, aunque tenga menos de 500 sesiones.
 
-`Precios` es la hoja de trabajo: una fila por instrumento con valores y estados devueltos por Supabase. La antigua pestaña `Historial` puede conservarse como archivo o exportación; este flujo no la lee, ordena ni actualiza. **No hace falta importar otro Excel para actualizar una hoja que ya funciona.**
+`Precios` tiene una fila por instrumento. C:I y V contienen fórmulas nativas; L:M muestran el envío y su estado; N, el recuento de cierres; W:X, el mantenimiento histórico. La pestaña `Historial` queda como archivo. **No hace falta importar otro Excel.** La hora de cotización viene de `tradetime`, no de `NOW()`.
 
-La actualización horaria de Google se limita a lunes a viernes, entre 09 y 20 de Nueva York. El servidor aplica el calendario de bolsa y decide qué barras pueden confirmarse. La hora de descarga nunca sustituye a la fecha de la cotización.
+Las ejecuciones programadas de Google se limitan a lunes a viernes entre las horas 09 y 20 de Nueva York. Las llamadas manuales permiten solicitar un envío fuera de esa ventana. Google Finance puede retrasar sus precios hasta 20 minutos o no ofrecer atributos de ciertos símbolos; el envío rápido utiliza los datos disponibles y no fuerza al proveedor a renovarlos.
 
 ## Instalar o actualizar
 
@@ -43,7 +47,7 @@ La arquitectura y los límites están en [ARQUITECTURA_SUPABASE.md](docs/ARQUITE
 
 | Ruta | Función |
 | --- | --- |
-| `index.html`, `ticker.html`, `js/` | Frontend con 250 instrumentos, filtros de acciones/ETF y lectura de cierres confirmados |
+| `index.html`, `ticker.html`, `js/` | Frontend con 250 instrumentos, análisis provisional identificado y modo de cierres |
 | `data/universe.json`, `.csv`, `apps-script/Universe.gs` | Universo compartido y metadatos |
 | `data/instrument-history-starts.json` | Fechas verificadas de inicio de las tres historias de IPO cortas |
 | `apps-script/` | Descarga reciente, envío al servidor, `Precios` y temporizadores Google |
@@ -62,7 +66,7 @@ node tools/build-universe.mjs
 node tools/build-server-schema.mjs
 ```
 
-La revisión pasó 47 pruebas JavaScript y 62 comprobaciones SQL en tres transacciones revertidas. Se verificaron reparaciones reales de AAPL, rechazo 401 de llamadas al worker sin token válido y la denegación de las RPC privadas a roles públicos. El historial confirmado conserva 124.076 barras de los 250 instrumentos; el respaldo privado conserva las 149.187 filas anteriores, incluidas las de tickers heredados. [Pruebas y programación](docs/ARQUITECTURA_SUPABASE.md).
+La verificación distingue pruebas de Apps Script, frontend, worker y regresiones SQL revertidas. [VERIFICACION.md](docs/VERIFICACION.md) registra la evidencia y el alcance de la instalación. El conjunto inicial tiene 124.076 barras confirmadas para los 250 instrumentos, y mantiene las historias reales cortas de las IPO.
 
 La instalación y ejecución de los timers de Google requieren verificación con la cuenta del propietario. El endpoint público de Yahoo puede devolver errores o HTTP 429; los fallos se registran y reintentan sin inventar barras.
 
@@ -70,4 +74,5 @@ La instalación y ejecución de los timers de Google requieren verificación con
 
 - [Nasdaq](https://www.nasdaq.com/market-activity/stocks/screener) y [SEC, tickers y CIK](https://www.sec.gov/files/company_tickers_exchange.json).
 - [Google: cuotas Apps Script](https://developers.google.com/apps-script/guides/services/quotas) y [activadores de tiempo](https://developers.google.com/apps-script/reference/script/clock-trigger-builder).
+- [Google: GOOGLEFINANCE, atributos y retrasos](https://support.google.com/docs/answer/3093281?hl=es).
 - [Supabase Cron](https://supabase.com/docs/guides/cron), [programar Edge Functions](https://supabase.com/docs/guides/functions/schedule-functions) y [autenticación de funciones](https://supabase.com/docs/guides/functions/auth).

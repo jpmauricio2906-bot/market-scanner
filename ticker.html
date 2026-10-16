@@ -148,6 +148,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <!-- Header -->
   <div class="page-header">
     <a class="back-btn" href="index.html">← Scanner</a>
+    <button class="back-btn" type="button" onclick="init()">⟳ Refresh</button>
+    <label style="font-size:11px;display:flex;align-items:center;gap:5px"><input id="includeIntraday" type="checkbox" checked onchange="init(false)"> Today's provisional candle</label>
     <div class="ticker-hero">
       <span class="ticker-name" id="tickerName">—</span>
       <span class="company-name" id="companyName"></span>
@@ -165,6 +167,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <!-- Loading state -->
   <div id="loadState" class="state-msg"><div class="spinner"></div>Loading data…</div>
   <div id="dataQuality" role="status" style="font-size:12px;color:var(--hold);margin:0 0 12px;line-height:1.6" hidden></div>
+  <div id="quoteStatus" role="status" style="font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.6"></div>
 
   <!-- Content (hidden until loaded) -->
   <div id="content" style="display:none">
@@ -464,18 +467,23 @@ document.title = ticker + " — Market Scanner";
 document.getElementById("tickerName").textContent = ticker;
 
 // ── Fetch and render ──────────────────────────────────────────────────────────
-async function init() {
+let tickerLoading=false;
+async function init(refreshQuotes=true) {
+  if(tickerLoading)return;
+  tickerLoading=true;
   try {
+    document.getElementById("loadState").style.display="block";
     document.getElementById("loadState").innerHTML = '<div class="spinner"></div>Loading '+escapeHtml(ticker)+' from Supabase…';
 
-    const result = await fetchMarketData(ticker);
+    const includeRecent=document.getElementById("includeIntraday").checked!==false;
+    const result = await fetchMarketData(ticker,null,{includeRecent,refreshQuotes});
     const raw = tickerBars(result, ticker);
     const company = result.universe.byTicker.get(ticker);
     document.getElementById("companyName").textContent = instrumentDescription(company);
     document.getElementById("companyTickers").innerHTML = Array.from(result.universe.byTicker.values()).map(item =>
       '<option value="'+item.ticker+'">'+escapeHtml(item.name+" · "+instrumentTypeLabel(item))+'</option>'
     ).join("");
-    if (!raw.length) throw new Error("Finalized historical data for " + ticker + " is not available yet.");
+    if (!raw.length) throw new Error("Accepted daily data for " + ticker + " is not available yet.");
     const warnings = marketQualityMessages(result), qualityEl = document.getElementById("dataQuality");
     qualityEl.hidden = warnings.length === 0;
     qualityEl.textContent = warnings.join(" · ");
@@ -491,25 +499,38 @@ async function init() {
     const sigs    = enoughHistory ? computeSignals(raw) : {};
     const score   = enoughHistory ? computeScore(sigs, INDICATORS) : null;
     const signal  = !enoughHistory ? "WAIT" : score>=70?"BUY":score<=30?"SELL":"HOLD";
+    const provisional=result.provisionalTickers.includes(ticker);
+    const candidate=result.quoteByTicker.get(ticker);
+    const quote=candidate&&candidate.fecha===last.date&&(provisional||candidate.is_final)?candidate:null;
+    document.getElementById("quoteStatus").textContent=(quote?marketQuoteLabel(quote):"Confirmed daily close · "+last.date)+
+      " · Latest confirmed close: "+(result.latestDate||"awaiting data")+
+      (provisional?" · Today's candle is unfinished; all charts, indicators and signals include this provisional candle.":" · Charts, indicators and signals use confirmed closes.");
 
     document.getElementById("priceVal").textContent  = "$" + last.close.toFixed(2);
     const chgEl = document.getElementById("priceChg");
     chgEl.textContent = chgPct === null ? "—" : (chgPct>=0?"+":"")+chgPct+"%";
     chgEl.className   = "price-chg " + (chgPct === null ? "" : chgPct>=0?"up":"dn");
     const badgeEl = document.getElementById("sigBadge");
-    badgeEl.textContent = signal; badgeEl.className = "sig-badge "+signal;
+    badgeEl.textContent = signal+(provisional?" · PROVISIONAL"+(quote&&quote.outdated?" · OUTDATED":""):""); badgeEl.className = "sig-badge "+signal;
     document.getElementById("scoreVal").textContent  = "Score: " + (score === null ? "—" : score);
     document.getElementById("scoreNum").textContent  = score === null ? "—" : score;
     document.getElementById("scoreDesc").textContent = enoughHistory ? signal : "Awaiting more history";
-    document.getElementById("footer").textContent    = ticker + " · " + raw.length + " finalized daily closes · " + dates[0] + " → " + dates[dates.length-1];
+    document.getElementById("footer").textContent    = ticker + " · " + result.finalizedData.length + " confirmed daily closes"+
+      (provisional?" + today's provisional candle":"")+" · "+dates[0]+" → "+dates[dates.length-1]+" · Google Finance quotes may be delayed up to 20 min.";
 
     // Show content
     document.getElementById("loadState").style.display = "none";
     document.getElementById("content").style.display   = "block";
     buildThemeSwitcher_t();
+    await Promise.all(_mc.compareTickers.map(async comparison=>{
+      const compared=await fetchMarketData(comparison.ticker,null,{includeRecent,refreshQuotes});
+      comparison.data=tickerBars(compared,comparison.ticker);
+      comparison.provisional=compared.provisionalTickers.includes(comparison.ticker);
+    }));
 
     // Render all charts
     renderMainChart(raw, dates, closes);
+    _renderCompareTags();
     renderRSI(closes, dates);
     renderMACD(closes, dates);
     renderStochRSI(closes, dates);
@@ -526,7 +547,7 @@ async function init() {
   } catch(e) {
     document.getElementById("loadState").innerHTML =
       '<div style="color:var(--sell);font-size:15px">⚠ Error</div><div class="err">'+escapeHtml(e.message)+'</div><br><a href="index.html" class="back-btn" style="display:inline-flex;margin-top:12px">← Back to Scanner</a>';
-  }
+  } finally {tickerLoading=false;}
 }
 
 // ── Main candlestick + Bollinger ──────────────────────────────────────────────
@@ -1140,6 +1161,8 @@ function _buildMainChart() {
 }
 
 function _bindMainChartControls() {
+  if(_mc.controlsBound)return;
+  _mc.controlsBound=true;
   // Chart type
   document.getElementById("chartTypeGroup").addEventListener("click", e => {
     const btn = e.target.closest("[data-chart-type]"); if (!btn) return;
@@ -1207,10 +1230,10 @@ function _bindMainChartControls() {
     if (!t || _mc.compareTickers.find(c => c.ticker === t) || t === ticker) { cInput.value=""; return; }
     cAdd.textContent = "…";
     try {
-      const result = await fetchMarketData(t);
+      const result = await fetchMarketData(t,null,{includeRecent:document.getElementById("includeIntraday").checked!==false});
       const data = tickerBars(result, t);
-      if (data.length < 2) throw new Error("At least two finalized sessions are needed for comparison.");
-      _mc.compareTickers.push({ ticker:t, data });
+      if (data.length < 2) throw new Error("At least two accepted daily sessions are needed for comparison.");
+      _mc.compareTickers.push({ ticker:t, data, provisional:result.provisionalTickers.includes(t) });
       _renderCompareTags();
       _buildMainChart();
     } catch(err) {
@@ -1330,7 +1353,7 @@ function _renderCompareTags() {
   const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
   wrap.innerHTML = _mc.compareTickers.map((ct, i) =>
     `<span class="mc-tag" style="border-color:${COMP_COLORS[i%COMP_COLORS.length]};color:${COMP_COLORS[i%COMP_COLORS.length]}">
-      ${ct.ticker}<span class="mc-tag-x" data-remove="${ct.ticker}">&#x2715;</span>
+      ${ct.ticker}${ct.provisional?" · PROVISIONAL":""}<span class="mc-tag-x" data-remove="${ct.ticker}">&#x2715;</span>
     </span>`
   ).join("");
   wrap.querySelectorAll(".mc-tag-x").forEach(x => {
@@ -1497,7 +1520,9 @@ function renderGauge(score, signal) {
   const ctx = document.getElementById("gaugeChart").getContext("2d");
   const clr = signal==="BUY"?"#00e676":signal==="SELL"?"#ff3d57":"#ffc107";
   const pct  = score/100;
-  new Chart(ctx, {
+  if(!window._cjs)window._cjs={};
+  if(window._cjs.gaugeChart)window._cjs.gaugeChart.destroy();
+  window._cjs.gaugeChart=new Chart(ctx, {
     type:"doughnut",
     data:{
       datasets:[{

@@ -1,6 +1,6 @@
-# Instalación del flujo con historial en Supabase
+# Instalación v3: fórmulas, cotizaciones y análisis del día
 
-Estado al 16/10/2026: Supabase, el worker y los tres trabajos Cron ya están desplegados y verificados. El propietario debe actualizar y verificar Apps Script con su cuenta. Esta guía no afirma que sus nuevos temporizadores de Google estén instalados o ejecutándose.
+Estado de v3: backend desplegado, 70 pruebas JavaScript y 111 comprobaciones SQL aprobadas. La comprobación de la interfaz en producción se realiza después de publicar. El propietario debe instalar las fórmulas y comprobar su cobertura en Google; no se afirma que sus nuevos temporizadores estén ejecutándose.
 
 ## 1. Conservar datos y detener la carga anterior
 
@@ -10,18 +10,19 @@ Conservar la pestaña `Historial` como archivo. El flujo nuevo no la utiliza y n
 
 ## 2. Desplegar y verificar Supabase
 
-En el proyecto actual este paso ya se completó. Para reproducir la instalación, aplicar [server_owned_history.sql](../supabase/server_owned_history.sql), desplegar el worker, ejecutar las tres pruebas SQL de [ARQUITECTURA_SUPABASE.md](ARQUITECTURA_SUPABASE.md) y activar [activate_schedules.sql](../supabase/activate_schedules.sql), conservando la tabla `public.market_history` y su contrato de lectura. El backend contiene:
+El backend del proyecto ya está desplegado. Para reproducir la instalación se aplica [server_owned_history.sql](../supabase/server_owned_history.sql), el worker y [activate_schedules.sql](../supabase/activate_schedules.sql), seguido de [live_quotes.sql](../supabase/live_quotes.sql). La aceptación integral v3 debe quedar registrada antes de sustituir el script de Google. El conjunto contiene:
 
 - El universo de 250 instrumentos y el calendario de sesiones.
-- La RPC privada `market_ingest_recent`, que recibe respuestas recientes de Yahoo y devuelve estados por ticker.
+- La RPC privada `market_ingest_recent`, para Yahoo, y `market_ingest_sheet_quotes`, para una captura de las 250 filas calculadas en Google.
+- `market_latest_quotes`, una proyección pública de cotizaciones aprobadas, separada del historial de cierres.
 - Validación del servidor, almacenamiento privado de provisionales, auditoría, retención y cola de reparaciones.
 - El worker `market-history-worker` y los trabajos Cron que lo invocan y mantienen los datos.
 
-Los nombres y parámetros de las RPC se describen en [ARQUITECTURA_SUPABASE.md](ARQUITECTURA_SUPABASE.md). Comprobar una ingesta reciente real y una reparación completa antes del cambio en Google. Confirmar que el rol público puede leer los cierres y no puede ejecutar RPC de ingesta, reclamar reparaciones ni acceder a provisionales.
+Los contratos se describen en [ARQUITECTURA_SUPABASE.md](ARQUITECTURA_SUPABASE.md). El rol público puede leer cierres y la proyección de cotizaciones aprobadas; no puede ejecutar RPC de ingesta, reclamar reparaciones ni acceder a payloads y controles privados.
 
 El worker exige su token privado de servidor, generado y almacenado en Vault por la configuración del backend. Su autenticación se valida antes de reclamar trabajo. Ese token no se copia a Google Sheets ni a GitHub. La clave privada de plataforma que usa internamente la función permanece en el entorno de Supabase.
 
-Se verificaron reparaciones reales de AAPL y la autenticación del worker; las tres programaciones están activas. Para una instalación nueva, comprobar también sus ejecuciones y que los errores de reparación queden visibles antes de actualizar Google.
+Las pruebas v3, las regresiones históricas y la lectura pública real de 244 cotizaciones aprobadas de Yahoo están registradas en [VERIFICACION.md](VERIFICACION.md). Esa lectura no comprueba todavía la cobertura de las fórmulas Google ni la instalación del propietario.
 
 ## 3. Copiar Apps Script y su manifiesto
 
@@ -41,40 +42,67 @@ La nueva arquitectura no exige crear otra clave para una instalación que ya tie
 
 La edición de la hoja y del script debe limitarse a cuentas de confianza: las Propiedades del script no son una barrera frente a sus editores. Si alguna clave se expuso, revocarla; eliminarla de un archivo no la invalida. [Google: scripts vinculados](https://developers.google.com/apps-script/guides/bound), [Supabase: claves](https://supabase.com/docs/guides/getting-started/api-keys).
 
-## 4. Preparar únicamente Precios y probar
+## 4. Instalar las fórmulas y enviar una captura
 
-Ejecutar `prepararMarketScanner` y aceptar los permisos con la cuenta propietaria. Comprueba o crea `Precios`, coloca los 250 instrumentos y guarda la referencia al archivo. No lee ni ordena el historial local y conserva la zona horaria del archivo.
+Ejecutar esta secuencia con la cuenta propietaria:
 
-Ejecutar `comprobarConexion`. Si falla, revisar primero la migración del servidor, la URL y la clave de Propiedades del script; no reutilizar el escritor antiguo como alternativa.
+1. Detener los timers anteriores y sustituir los `.gs` y el manifiesto.
+2. Ejecutar `prepararMarketScanner`. Instala las fórmulas para los 250 instrumentos y migra `Precios` de 21 a 24 columnas sin importar otro Excel. No lee ni ordena `Historial` y conserva la zona horaria del archivo.
+3. Esperar el primer cálculo de las fórmulas. Revisar que aparezcan hora de cotización y precios numéricos; no hace falta ejecutar bucles de espera.
+4. Ejecutar `comprobarConexion`. Comprueba ambas RPC con lotes vacíos, sin cargar cotizaciones.
+5. Ejecutar `actualizarCotizacionesAhora` una vez. Lee las 250 filas en un solo rango y realiza un único envío a Supabase, sin esperar los lotes Yahoo.
+6. Revisar la columna M y el informe de aceptados, pendientes y rechazados. Después instalar los temporizadores del apartado siguiente.
 
-Ejecutar `actualizarMarketScanner`. Google consulta los últimos cinco días de Yahoo en grupos de cinco y envía cada grupo a Supabase. El servidor devuelve el estado que se muestra en `Precios`. Durante la sesión puede haber datos provisionales; su presencia en la hoja no los publica como cierres para la web.
+Las fórmulas `GOOGLEFINANCE` calculan C:I y V; J:K mantienen el cambio absoluto y porcentual. La bolsa y el símbolo son explícitos, por ejemplo `NASDAQ:AAPL` y `NYSE:BRK.B`. El script envía sus valores actuales sin convertir celdas ausentes en cero.
+
+| Columnas | Contenido |
+| --- | --- |
+| C:I | Hora del proveedor, OHLCV y cierre anterior calculados por Google |
+| L:M | Hora del envío rápido y resultado devuelto por Supabase |
+| N | Número de cierres del historial en el servidor |
+| V | Retraso declarado por Google Finance, en minutos |
+| W:X | Estado de la sincronización histórica y hora de su comprobación |
+
+Supabase valida cada captura. Una cotización Google aprobada sigue siendo provisional incluso después del cierre de mercado: no se convierte en cierre de `market_history`. La app puede usarla para la vela y los indicadores del día mientras no exista una barra confirmada de esa fecha.
 
 | Estado del servidor | Significado |
 | --- | --- |
 | `FINAL` | Cierre confirmado y aceptado |
-| `PROVISIONAL` | Cotización de una sesión sin cierre confirmado; permanece privada |
-| `PENDIENTE_DE_ACTUALIZAR` | Yahoo todavía no incluye el cierre esperado; revisar una consulta posterior |
+| `PROVISIONAL` | Cotización aprobada para el análisis del día, identificada como provisional; no es un cierre histórico |
+| `PENDIENTE_DE_ACTUALIZAR` | Faltan datos utilizables o una captura vigente; Yahoo puede seguir esperando el cierre |
 | `REEMPLAZO_PENDIENTE` | El backend ha encolado la reconstrucción de la serie |
 | `RECHAZADO` | Los datos no superan la validación; el motivo aparece en el estado |
 
-Cada ejecución procesa hasta 20 instrumentos con un objetivo de unos 60 segundos y deja una continuación de un minuto mientras haya trabajo. Consultar `verEstadoMarketScanner` y el registro de ejecuciones para ver el avance y los errores. La hoja no tiene que estar abierta.
+Google puede demorar la cotización hasta 20 minutos y no ofrece todos los atributos para todos los símbolos. El propietario debe comprobar la cobertura de las 250 fórmulas. La hora de envío en L no demuestra que el precio de C:I se haya actualizado. [Documentación de GOOGLEFINANCE](https://support.google.com/docs/answer/3093281?hl=es).
+
+`actualizarMarketScanner` conserva Yahoo como trabajo independiente en segundo plano: hasta 20 instrumentos por ejecución, en grupos de cinco, con objetivo de unos 60 segundos y continuación cada minuto. Solo actualiza N y W:X; no sustituye las fórmulas ni el estado del envío rápido. `verEstadoMarketScanner` muestra ambos resultados.
 
 Una reparación histórica pendiente se ejecuta en Supabase. No ejecutar un backfill desde Google ni volver a importar las 500 sesiones para resolverla. Comprobar el estado del servidor y el worker si esa reparación no progresa.
 
 ## 5. Activar los temporizadores de Google
 
-Después de una prueba manual correcta, ejecutar `instalarTemporizadores` con la cuenta propietaria. La actualización horaria se limita a lunes a viernes, entre 09 y 20 ET. La continuación de un minuto procesa los instrumentos pendientes. El calendario de bolsa y la confirmación de cierres pertenecen al servidor.
+Después de una prueba manual correcta, ejecutar `instalarTemporizadores` con la cuenta propietaria:
+
+| Función | Frecuencia |
+| --- | --- |
+| `actualizarCotizacionesAhora` | Cada cinco minutos |
+| `actualizarMarketScanner` | Cada hora, para Yahoo y cierres |
+| `continuarActualizacion` | Cada minuto mientras exista trabajo Yahoo pendiente |
+
+Los disparos programados se limitan a lunes a viernes, entre 09 y 20 de Nueva York. Una petición manual puede ejecutarse fuera de esa ventana. El calendario de bolsa, la vigencia de cotizaciones y la confirmación de cierres pertenecen al servidor.
 
 No se instala una reconstrucción semanal en Google. Las funciones antiguas `iniciarHistorial`, `continuarHistorial` e `iniciarHistorialSemanal` se retiran; las reconstrucciones y auditorías pasan al backend.
 
 `detenerTemporizadores` detiene el emisor Google y conserva su avance. No desactiva los trabajos Cron independientes de Supabase. Para una pausa completa de mantenimiento, detener ambos componentes de forma explícita.
 
-Verificar en el panel de ejecuciones de Google que la primera continuación se completó y que la siguiente ronda horaria se inicia. No considerar activado el sistema únicamente porque se hayan copiado los archivos.
+Verificar en el panel de ejecuciones de Google el envío de cinco minutos, la sincronización horaria y una continuación cuando haya trabajo pendiente. No considerar activado el sistema únicamente porque se hayan copiado los archivos.
 
 ## 6. Comprobar la aplicación
 
-El frontend mantiene su configuración y lee `market_history` con `is_final=true`. Comprobar 250 instrumentos, los filtros de acciones/ETF, una empresa NYSE, una IPO con historia corta y los ETF TQQQ, SOXS, USD y MAGS.
+La aplicación carga cierres de `market_history` con `is_final=true` y consulta las cotizaciones aprobadas de `market_latest_quotes`. La opción intradiaria está activada por defecto: añade la vela provisional de hoy a gráficos e indicadores, hasta 501 barras contando los 500 cierres. Si ya existe un cierre confirmado de esa fecha, lo conserva.
 
-Confirmar que las barras de la sesión abierta no aparecen como cierres en los charts. Si Yahoo falla o una reparación está pendiente, conservar el último cierre válido y revisar el estado del servidor.
+Comprobar los distintivos `PROVISIONAL`, `CONFIRMED` y `OUTDATED`, la fuente y hora disponibles, y la opción de usar solo cierres. `Refresh` consulta las cotizaciones y reutiliza el historial en memoria mientras siga vigente; no ejecuta Apps Script ni fuerza el recálculo de Google Finance. Desmarcar la opción intradiaria usa los cierres ya cargados.
+
+Comprobar 250 instrumentos, filtros de acciones/ETF, una empresa NYSE, una IPO corta y TQQQ, SOXS, USD y MAGS. La hora real del proveedor y la antigüedad deben ser visibles. Las comprobaciones del navegador y de cobertura Google siguen pendientes hasta registrarlas en [VERIFICACION.md](VERIFICACION.md).
 
 La selección de instrumentos debe mantenerse sincronizada entre `data/universe.json`, `Universe.gs` y el universo del servidor. Los cambios de selección no se hacen editando manualmente una fila de `Precios`.

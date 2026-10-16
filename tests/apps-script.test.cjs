@@ -21,15 +21,16 @@ function serverResult(ticker,status='FINAL',extra={}) {
 }
 
 function harness(options={}) {
-  const base = Date.parse(options.now || '2026-10-15T22:00:00Z'); let elapsed=0, locked=true, failWrite=false;
+  const base = Date.parse(options.now || '2026-10-15T22:00:00Z'); let elapsed=0, locked=true, quickLocked=true, failWrite=false;
   const props = new Map([['SUPABASE_URL','https://example.supabase.co'],['SUPABASE_WRITE_KEY','sb_secret_TEST_ONLY']]);
   const events=[],logs=[],triggers=[],cells=new Map(),formulas=new Map(),menus=[];
-  let rows=200, exists=false, ctx;
+  let rows=200, columns=options.columns||21, exists=false, ctx;
   const record = (op,extra={}) => events.push({op,at:elapsed,...extra});
   class Clock extends Date { constructor(...args){super(...(args.length?args:[base+elapsed]));} static now(){return base+elapsed;} }
   const key=(row,col)=>row+','+col;
-  const sheet={getMaxRows:()=>rows,getLastRow:()=>Math.max(0,...[...cells.entries()].filter(([,v])=>v!=='').map(([k])=>Number(k.split(',')[0]))),
+  const sheet={getMaxRows:()=>rows,getMaxColumns:()=>columns,getLastRow:()=>Math.max(0,...[...cells.entries()].filter(([,v])=>v!=='').map(([k])=>Number(k.split(',')[0]))),
     insertRowsAfter(after,count){assert.equal(after,rows);rows+=count;record('expand',{rows});},setFrozenRows(n){record('freeze',{n});},
+    insertColumnsAfter(after,count){assert.equal(after,columns);columns+=count;record('expand-columns',{columns});},
     getRange(row,col=1,height=1,width=1){
       if(typeof row==='string'){
         const match=/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(row);assert.ok(match);
@@ -37,12 +38,13 @@ function harness(options={}) {
         col=column(match[1]);width=column(match[3])-col+1;row=Number(match[2]);height=Number(match[4])-row+1;
       }
       assert.ok(row+height-1<=rows,'Precios range stays bounded');
+      assert.ok(col+width-1<=columns,'Precios columns stay bounded');
       const details={row,col,height,width};
       return {getValues(){record('read',details);return Array.from({length:height},(_,y)=>Array.from({length:width},(_,x)=>cells.get(key(row+y,col+x))??''));},
         setValues(values){
           if(failWrite){failWrite=false;throw new Error('simulated hard interruption');}
           record('write',details);assert.equal(values.length,height);
-          values.forEach((line,y)=>{assert.equal(line.length,width);line.forEach((value,x)=>cells.set(key(row+y,col+x),value));});return this;
+          values.forEach((line,y)=>{assert.equal(line.length,width);line.forEach((value,x)=>{cells.set(key(row+y,col+x),value);formulas.delete(key(row+y,col+x));});});return this;
         },
         setValue(value){return this.setValues([[value]]);},setFormulas(values){record('formulas',details);values.forEach((line,y)=>line.forEach((v,x)=>formulas.set(key(row+y,col+x),v)));return this;},
         setNumberFormat(){return this;},setBackground(){return this;},setFontColor(){return this;},setFontWeight(){return this;}};
@@ -52,7 +54,9 @@ function harness(options={}) {
   let yahooGroups=0,rpcGroups=0;
   const properties={getProperty:k=>props.get(k)??null,setProperty(k,v){props.set(k,v);if(k==='MS_JOB_RECENT_V2')record('checkpoint',{saved:JSON.parse(v)});}};
   ctx=vm.createContext({Date:Clock,console:{log:v=>logs.push(v)},PropertiesService:{getScriptProperties:()=>properties},
-    LockService:{getScriptLock:()=>({tryLock:()=>locked,releaseLock(){}})},
+    LockService:{getScriptLock:()=>({tryLock:()=>locked,releaseLock(){}}),
+      getDocumentLock:()=>options.documentLockNull?null:({tryLock:()=>quickLocked,releaseLock(){record('quick-unlock');}}),
+      getUserLock:()=>({tryLock:()=>quickLocked,releaseLock(){record('user-unlock');}})},
     SpreadsheetApp:{getActiveSpreadsheet:()=>book,openById:id=>{assert.equal(id,book.getId());record('open');return book;},flush(){record('flush');},
       getUi:()=>({createMenu:()=>({addItem(label,fn){menus.push({label,fn});return this;},addSeparator(){return this;},addToUi(){}})})},
     Utilities:{formatDate(date,timeZone,pattern){const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).formatToParts(date).map(x=>[x.type,x.value]));return pattern==='HH'?p.hour:`${p.year}-${p.month}-${p.day}`;}},
@@ -63,14 +67,17 @@ function harness(options={}) {
       if(options.yahooThrow)throw new Error('external transport internals');
       return requests.map((request,n)=>options.yahooResponse?options.yahooResponse(request,n,yahooGroups):response(yahoo(decodeURIComponent(/chart\/([^?]+)/.exec(request.url)[1]))));},
       fetch(url,opts){rpcGroups++;const payload=JSON.parse(opts.payload);record('rpc',{url,payload,headers:plain(opts.headers)});elapsed+=options.rpcCost||0;
-        if(options.rpcResponse)return options.rpcResponse(payload.p_batch,rpcGroups,{ctx,props});
-        return response({version:2,results:payload.p_batch.map(item=>serverResult(item.ticker))});}}
+        if(options.rpcResponse)return options.rpcResponse(payload.p_batch,rpcGroups,{ctx,props,url});
+        const isSheet=url.endsWith('/market_ingest_sheet_quotes');
+        return response({version:isSheet?3:2,results:payload.p_batch.map(item=>serverResult(item.ticker,isSheet?'PROVISIONAL':'FINAL'))});}}
   });
   for(const file of ['Universe.gs','Yahoo.gs','Storage.gs','Code.gs'])vm.runInContext(fs.readFileSync(path.join(root,'apps-script',file),'utf8'),ctx,{filename:file});
   return {ctx,props,events,logs,triggers,menus,cells,formulas,sheet,book,
     prepare(){ctx.prepararMarketScanner();events.length=0;},
-    reset(){events.length=0;},setLocked(value){locked=value;},interruptNextWrite(){failWrite=true;},
+    reset(){events.length=0;},setLocked(value){locked=value;},setQuickLocked(value){quickLocked=value;},interruptNextWrite(){failWrite=true;},
     cell:(row,col)=>cells.get(key(row,col))??'',putCell:(row,col,value)=>cells.set(key(row,col),value),
+    seedQuotes(){for(let n=0;n<250;n++){const row=n+2;cells.set(key(row,3),new Clock('2026-10-15T19:59:00Z'));for(const [col,value] of [[4,101],[5,106],[6,99],[7,104],[8,1100],[9,103],[22,15]])cells.set(key(row,col),value);}},
+    legacy(){exists=true;rows=251;columns=21;const headers=plain(vm.runInContext('MS_HEADERS.Precios.slice(0,21)',ctx));headers[11]='Actualizado';headers.forEach((v,n)=>cells.set(key(1,n+1),v));ctx.msUniverse_().forEach((c,n)=>cells.set(key(n+2,1),c.ticker));},
     tailJob(count=5){const job=ctx.msNewJob_();job.cursor=250-count;job.completed=250-count;ctx.msPutJob_(job);return job;},
     get elapsed(){return elapsed;}};
 }
@@ -88,6 +95,10 @@ test('preparation writes only 251 Precios rows, formulas and metadata; it never 
   assert.equal(h.props.get('SPREADSHEET_ID'),'test-sheet-v2');
   assert.equal(h.sheet.getMaxRows(),251);assert.equal(h.cell(251,1),h.ctx.msUniverse_()[249].ticker);
   assert.ok(h.formulas.get('251,10').includes('G251-I251'));
+  assert.equal(h.sheet.getMaxColumns(),24);assert.equal(h.cell(1,12),'Enviado');
+  assert.equal(h.formulas.get('2,3'),'=IFERROR(GOOGLEFINANCE("NASDAQ:NVDA","tradetime"),"")');
+  assert.equal([...h.formulas.values()].filter(formula=>formula.includes('GOOGLEFINANCE')).length,2000);
+  assert.ok([...h.formulas.values()].every(formula=>!formula.includes('NOW(')));
   assert.deepEqual(h.sheet.getRange(1,17,1,5).getValues()[0],['Tipo','Categoria','Emisor','Apalancamiento diario','Inverso']);
   assert.ok(h.events.filter(e=>e.op==='read').every(e=>e.height<=250));
   assert.ok(h.events.filter(e=>e.op==='sheet').every(e=>e.name==='Precios'));
@@ -142,7 +153,7 @@ test('a slow download stops after its current group and leaves the next cursor r
 test('server FINAL and PROVISIONAL statuses are displayed without Google recomputing finality',()=>{
   for(const [now,status] of [['2026-10-15T14:00:00Z','FINAL'],['2026-10-15T23:00:00Z','PROVISIONAL']]){
     const h=harness({now,rpcResponse:payload=>response({version:2,results:payload.map(p=>serverResult(p.ticker,status))})});h.prepare();h.tailJob();h.ctx.actualizarMarketScanner();
-    assert.equal(h.cell(247,13),status);assert.equal(h.ctx.msGetJob_().status,'COMPLETADO');
+    assert.equal(h.cell(247,23),status);assert.equal(h.ctx.msGetJob_().status,'COMPLETADO');
   }
 });
 
@@ -151,7 +162,7 @@ test('all server decisions and reasons survive transport; rejected/pending value
   const h=harness({rpcResponse:payload=>response({version:2,results:payload.map((p,n)=>serverResult(p.ticker,statuses[n],{reason:'decisión SQL',current:n<2?serverResult(p.ticker).current:null}))})});
   h.prepare();h.tailJob();for(let row=247;row<=251;row++){h.putCell(row,7,777);h.putCell(row,12,'earlier');}
   h.ctx.actualizarMarketScanner();
-  statuses.forEach((status,n)=>assert.equal(h.cell(n+247,13),status+' · decisión SQL'));
+  statuses.forEach((status,n)=>assert.equal(h.cell(n+247,23),status+' · decisión SQL'));
   for(let row=249;row<=251;row++){assert.equal(h.cell(row,7),777);assert.equal(h.cell(row,12),'earlier');}
   const job=h.ctx.msGetJob_();assert.equal(job.completed,247);assert.equal(job.rejected.length,1);assert.equal(job.pending.length,2);assert.equal(job.status,'COMPLETADO CON RECHAZOS');
   assert.equal(h.events.filter(e=>e.op==='rpc').length,1);
@@ -161,7 +172,7 @@ test('Yahoo failure keeps ticker positions while successful payloads and out-of-
   const h=harness({yahooResponse:(request,n,group)=>group===1&&n===1?response({},429):response(yahoo(decodeURIComponent(/chart\/([^?]+)/.exec(request.url)[1]))),
     rpcResponse:payload=>response({version:2,results:payload.map(p=>serverResult(p.ticker)).reverse()})});
   h.prepare();const job=h.tailJob(),failed=h.ctx.msUniverse_()[246].ticker;h.ctx.actualizarMarketScanner();
-  assert.equal(h.ctx.msGetJob_().round,1);assert.deepEqual(plain(h.ctx.msGetJob_().work),[failed]);assert.equal(h.cell(248,13),'ERROR: Yahoo HTTP 429');
+  assert.equal(h.ctx.msGetJob_().round,1);assert.deepEqual(plain(h.ctx.msGetJob_().work),[failed]);assert.equal(h.cell(248,23),'ERROR: Yahoo HTTP 429');
   assert.equal(h.events.find(e=>e.op==='rpc').payload.p_batch.length,4);
   h.ctx.continuarActualizacion();assert.equal(h.ctx.msGetJob_().completed,250);assert.equal(h.ctx.msGetJob_().status,'COMPLETADO');
 });
@@ -169,9 +180,9 @@ test('Yahoo failure keeps ticker positions while successful payloads and out-of-
 test('RPC transport failures preserve old values, retry twice, then report incomplete without exposing response bodies',()=>{
   const h=harness({rpcResponse:()=>response('sb_secret_MUST_NOT_APPEAR',503)});h.prepare();h.tailJob();h.putCell(247,7,777);h.putCell(247,12,'earlier');
   h.ctx.actualizarMarketScanner();h.ctx.continuarActualizacion();h.ctx.continuarActualizacion();
-  assert.equal(h.cell(247,7),777);assert.equal(h.cell(247,12),'earlier');assert.match(h.cell(247,13),/ERROR: Supabase RPC HTTP 503/);
+  assert.equal(h.cell(247,7),777);assert.equal(h.cell(247,12),'earlier');assert.match(h.cell(247,23),/ERROR: Supabase RPC HTTP 503/);
   const job=h.ctx.msGetJob_();assert.equal(job.status,'INCOMPLETO');assert.equal(job.failed.length,5);assert.equal(job.completed,245);
-  assert.ok(!JSON.stringify([h.logs,h.cell(247,13),job]).includes('MUST_NOT_APPEAR'));assert.ok(!h.triggers.some(t=>t.handler==='continuarActualizacion'));
+  assert.ok(!JSON.stringify([h.logs,h.cell(247,23),job]).includes('MUST_NOT_APPEAR'));assert.ok(!h.triggers.some(t=>t.handler==='continuarActualizacion'));
 });
 
 test('a Sheets interruption leaves the group checkpoint unchanged and its RPC safe to replay',()=>{
@@ -192,16 +203,16 @@ test('pause finishes only the active group, then a manual restart resumes the sa
 
 test('stop works while a downloader owns the lock and removes only scanner/retired timers',()=>{
   const h=harness();h.prepare();
-  for(const handler of ['actualizarMarketScanner','continuarActualizacion','continuarHistorial','iniciarHistorialSemanal','_procesarLote','unrelated'])h.triggers.push({handler,getHandlerFunction:()=>handler});
+  for(const handler of ['actualizarCotizacionesAhora','actualizarMarketScanner','continuarActualizacion','continuarHistorial','iniciarHistorialSemanal','_procesarLote','unrelated'])h.triggers.push({handler,getHandlerFunction:()=>handler});
   h.setLocked(false);h.ctx.detenerTemporizadores();
   assert.equal(h.props.get('MS_PAUSED'),'true');assert.deepEqual(h.triggers.map(t=>t.handler),['unrelated']);
 });
 
-test('install replaces old timers with hourly downloads and one-minute continuation, without a weekly history timer',()=>{
+test('install replaces duplicate timers with five-minute snapshots, hourly Yahoo and one-minute continuation',()=>{
   const h=harness();h.prepare();h.tailJob();
-  for(const handler of ['actualizarMarketScanner','continuarActualizacion','continuarHistorial','iniciarHistorialSemanal','guardarSnapshotDiario'])h.triggers.push({handler,getHandlerFunction:()=>handler});
-  h.ctx.instalarTemporizadores();
-  assert.deepEqual(h.triggers.map(t=>[t.handler,t.hours??null,t.minutes??null]),[['actualizarMarketScanner',1,null],['continuarActualizacion',null,1]]);
+  for(const handler of ['actualizarCotizacionesAhora','actualizarCotizacionesAhora','actualizarMarketScanner','continuarActualizacion','continuarHistorial','iniciarHistorialSemanal','guardarSnapshotDiario'])h.triggers.push({handler,getHandlerFunction:()=>handler});
+  h.ctx.instalarTemporizadores();h.ctx.instalarTemporizadores();
+  assert.deepEqual(h.triggers.map(t=>[t.handler,t.hours??null,t.minutes??null]),[['actualizarCotizacionesAhora',null,5],['actualizarMarketScanner',1,null],['continuarActualizacion',null,1]]);
 });
 
 test('timer window is only a weekday/hour filter; manual requests still run on weekends',()=>{
@@ -210,9 +221,10 @@ test('timer window is only a weekday/hour filter; manual requests still run on w
   assert.equal(h.ctx.msTimerWindow_(new Date('2026-12-25T15:00:00Z')),true,'exchange holidays are decided by Supabase');
 });
 
-test('connection probe sends an empty authenticated RPC and rejects incompatible server envelopes',()=>{
+test('connection probe sends both empty authenticated RPCs and rejects incompatible server envelopes',()=>{
   const h=harness();h.ctx.comprobarConexion();const request=h.events.find(e=>e.op==='rpc');
   assert.deepEqual(request.payload,{p_batch:[]});assert.equal(request.headers.apikey,'sb_secret_TEST_ONLY');assert.equal(request.headers.Authorization,undefined);
+  assert.deepEqual(h.events.filter(e=>e.op==='rpc').map(e=>e.url.split('/').at(-1)),['market_ingest_recent','market_ingest_sheet_quotes']);
   assert.equal(h.events.filter(e=>e.op==='yahoo'||e.op==='write').length,0);
   const bad=harness({rpcResponse:()=>response({version:1,results:[]})});assert.throws(()=>bad.ctx.comprobarConexion(),/incompatible/);
   h.props.set('SUPABASE_WRITE_KEY','sb_publishable_READ_ONLY');assert.throws(()=>h.ctx.comprobarConexion(),/privada/);
@@ -228,6 +240,116 @@ test('RPC protocol errors cannot mix, duplicate or silently omit ticker results'
 
 test('progress reads the small Precios table and reports server-owned validation',()=>{
   const h=harness();h.prepare();const coverage=h.ctx.verEstadoMarketScanner();assert.equal(coverage.length,250);
-  assert.deepEqual(h.events.filter(e=>e.op==='read').map(e=>[e.height,e.width]),[[250,14]]);
+  assert.deepEqual(h.events.filter(e=>e.op==='read').map(e=>[e.height,e.width]),[[250,24]]);
   assert.match(h.logs.at(-1),/"validacion":"Supabase"/);
+});
+
+test('preparation migrates the existing 21 columns without reimporting or reading history',()=>{
+  const h=harness();h.legacy();h.putCell(2,12,'2026-10-15T22:00:00Z');h.putCell(2,13,'FINAL');h.putCell(2,14,500);
+  h.ctx.prepararMarketScanner();
+  assert.equal(h.sheet.getMaxColumns(),24);assert.equal(h.cell(2,23),'FINAL');assert.equal(h.cell(2,24),'2026-10-15T22:00:00Z');
+  assert.equal(h.cell(2,12),'');assert.equal(h.cell(2,13),'PENDIENTE DE SUBIR');assert.equal(h.cell(2,14),500);
+  assert.equal(h.formulas.get('2,7'),'=IFERROR(GOOGLEFINANCE("NASDAQ:NVDA","price"),"")');
+  h.putCell(2,12,'quick time');h.putCell(2,13,'PROVISIONAL');h.ctx.prepararMarketScanner();
+  assert.equal(h.cell(2,12),'quick time');assert.equal(h.cell(2,13),'PROVISIONAL');assert.equal(h.cell(2,23),'FINAL');
+  assert.equal(h.events.filter(e=>e.op==='yahoo'||e.op==='rpc').length,0);
+});
+
+test('Google Finance identifiers disambiguate all exchanges, Berkshire class and the USD ETF',()=>{
+  const h=harness();h.prepare();const companies=h.ctx.msUniverse_();
+  assert.equal(h.ctx.msGoogleSymbol_(companies.find(c=>c.ticker==='BRK-B')),'NYSE:BRK.B');
+  assert.equal(h.ctx.msGoogleSymbol_(companies.find(c=>c.ticker==='USD')),'NYSEARCA:USD');
+  assert.match(h.ctx.msGoogleSymbol_(companies.find(c=>c.exchange==='CBOEBZX')),/^BATS:/);
+  assert.equal(h.ctx.msGoogleSymbol_({ticker:'QQQ',exchange:'NASDAQ'}),'NASDAQ:QQQ');
+  assert.throws(()=>h.ctx.msGoogleSymbol_({ticker:'X',exchange:'UNKNOWN'}),/equivalencia/);
+  const usd=companies.findIndex(c=>c.ticker==='USD')+2;
+  assert.equal(h.formulas.get(usd+',22'),'=IFERROR(GOOGLEFINANCE("NYSEARCA:USD","datadelay"),"")');
+});
+
+test('the primary menu action uploads all 250 native quotes with one read and one RPC',()=>{
+  const h=harness({rpcCost:250});h.prepare();h.seedQuotes();h.ctx.onOpen();
+  assert.equal(h.menus.find(item=>item.label.includes('aplicación ahora')).fn,'actualizarCotizacionesAhora');
+  const before=[...h.formulas.entries()],report=h.ctx.actualizarCotizacionesAhora();
+  assert.equal(report.instrumentos,250);assert.equal(report.aceptados,250);assert.equal(report.pendientes,0);assert.equal(report.segundos,0.25);
+  assert.equal(h.events.filter(e=>e.op==='yahoo').length,0);
+  const reads=h.events.filter(e=>e.op==='read');assert.deepEqual(reads.map(e=>[e.row,e.col,e.height,e.width]),[[2,1,250,24]]);
+  const requests=h.events.filter(e=>e.op==='rpc');assert.equal(requests.length,1);
+  assert.equal(requests[0].url,'https://example.supabase.co/rest/v1/rpc/market_ingest_sheet_quotes');
+  assert.equal(requests[0].payload.p_batch.length,250);
+  assert.deepEqual(requests[0].payload.p_batch[0],{ticker:'NVDA',source:'googlefinance',symbol:'NASDAQ:NVDA',currency:'USD',
+    source_quote_at:'2026-10-15T19:59:00.000Z',open:101,high:106,low:99,close:104,volume:1100,previous_close:103,datadelay_minutes:15,fetched_at:'2026-10-15T22:00:00.000Z'});
+  assert.deepEqual([...h.formulas.entries()],before,'snapshot uploads never replace native formulas');
+  assert.deepEqual(h.events.filter(e=>e.op==='write').map(e=>[e.row,e.col,e.height,e.width]),[[2,12,250,3]]);
+  assert.equal(h.ctx.msGetJob_(),null);assert.equal(h.triggers.length,0);
+});
+
+test('formula errors, missing fields, zero and malformed values reach SQL without client replacements',()=>{
+  const h=harness();h.prepare();h.seedQuotes();h.putCell(2,3,'#N/A');h.putCell(2,4,'');h.putCell(2,5,'invalid');h.putCell(2,7,'');h.putCell(2,8,0);h.putCell(2,22,'#ERROR!');
+  h.ctx.actualizarCotizacionesAhora();const first=h.events.find(e=>e.op==='rpc').payload.p_batch[0];
+  assert.equal(first.source_quote_at,'#N/A');assert.equal(first.open,'');assert.equal(first.high,'invalid');assert.equal(first.close,'');assert.equal(first.volume,0);assert.equal(first.datadelay_minutes,'#ERROR!');
+});
+
+test('quick results map by ticker and preserve background details unless a repair is queued',()=>{
+  const h=harness({rpcResponse:payload=>response({version:3,results:payload.map((p,n)=>serverResult(p.ticker,n===0?'PENDIENTE_DE_ACTUALIZAR':n===1?'RECHAZADO':'PROVISIONAL',
+    {reason:n<2?'FALTAN_DATOS_PROVEEDOR':null,needs_replacement:n===2,history_count:500-n})).reverse()})});
+  h.prepare();h.seedQuotes();for(let n=2;n<=251;n++){h.putCell(n,23,'FINAL');h.putCell(n,24,'history time');}
+  const before=[...h.formulas.entries()],report=h.ctx.actualizarCotizacionesAhora();
+  assert.equal(report.aceptados,248);assert.equal(report.pendientes,1);assert.equal(report.rechazados,1);
+  assert.equal(h.cell(2,13),'PENDIENTE_DE_ACTUALIZAR · FALTAN_DATOS_PROVEEDOR');assert.equal(h.cell(2,14),500);assert.equal(h.cell(3,14),499);
+  assert.equal(h.cell(2,23),'FINAL');assert.equal(h.cell(2,24),'history time');assert.equal(h.cell(4,23),'REEMPLAZO_PENDIENTE');assert.equal(h.cell(4,24),'2026-10-15T22:00:00.000Z');
+  assert.deepEqual([...h.formulas.entries()],before);
+  assert.deepEqual(h.events.filter(e=>e.op==='write').map(e=>[e.row,e.col,e.height,e.width]),[[2,12,250,3],[2,23,250,2]]);
+});
+
+test('Yahoo background updates history status and count without modifying formulas or the quick-upload result',()=>{
+  const h=harness();h.prepare();h.seedQuotes();const before=[...h.formulas.entries()];h.putCell(247,12,'quick sent');h.putCell(247,13,'PROVISIONAL');h.tailJob();h.ctx.actualizarMarketScanner();
+  assert.equal(h.cell(247,12),'quick sent');assert.equal(h.cell(247,13),'PROVISIONAL');assert.equal(h.cell(247,14),500);
+  assert.equal(h.cell(247,23),'FINAL');assert.equal(h.cell(247,24),'2026-10-15T22:00:00.000Z');assert.deepEqual([...h.formulas.entries()],before);
+  assert.ok(h.events.filter(e=>e.op==='write').every(e=>e.col===14||e.col===23));
+});
+
+test('quick transport failures mark every row and retain previous upload times and history details',()=>{
+  const h=harness({rpcResponse:()=>response('sb_secret_MUST_NOT_APPEAR',503)});h.prepare();h.seedQuotes();h.putCell(2,12,'last sent');h.putCell(2,14,500);h.putCell(2,23,'FINAL');h.putCell(2,24,'history time');
+  const before=[...h.formulas.entries()];assert.throws(()=>h.ctx.actualizarCotizacionesAhora(),/Supabase RPC HTTP 503/);
+  assert.equal(h.cell(2,12),'last sent');assert.equal(h.cell(2,14),500);assert.equal(h.cell(2,23),'FINAL');assert.equal(h.cell(2,24),'history time');
+  assert.match(h.cell(2,13),/^ERROR: Supabase RPC HTTP 503/);assert.match(h.cell(251,13),/^ERROR: Supabase RPC HTTP 503/);
+  assert.deepEqual([...h.formulas.entries()],before);assert.ok(!JSON.stringify([h.logs,h.cell(2,13)]).includes('MUST_NOT_APPEAR'));
+});
+
+test('quick timer respects pause and New York hours while manual uploads remain available',()=>{
+  const h=harness({now:'2026-10-17T16:00:00Z'});h.prepare();h.seedQuotes();h.ctx.actualizarCotizacionesAhora({triggerUid:'timer'});
+  assert.equal(h.events.filter(e=>e.op==='rpc').length,0);
+  h.ctx.instalarTemporizadores();h.ctx.detenerTemporizadores();h.ctx.actualizarCotizacionesAhora({triggerUid:'timer'});
+  assert.equal(h.events.filter(e=>e.op==='rpc').length,0);assert.equal(h.triggers.length,0);
+  h.ctx.actualizarCotizacionesAhora();assert.equal(h.events.filter(e=>e.op==='rpc').length,1);assert.equal(h.props.get('MS_PAUSED'),'true');
+  for(const [instant,expected] of [['2026-10-16T12:59:00Z',false],['2026-10-16T13:00:00Z',true],['2026-10-17T00:59:00Z',true],['2026-10-17T01:00:00Z',false]])assert.equal(h.ctx.msTimerWindow_(new Date(instant)),expected);
+});
+
+test('quick snapshot detects changed ordering before posting and requires prepared columns',()=>{
+  const h=harness();h.legacy();h.props.set('SPREADSHEET_ID',h.book.getId());assert.throws(()=>h.ctx.actualizarCotizacionesAhora(),/prepararMarketScanner/);
+  h.prepare();h.putCell(2,1,'WRONG');h.reset();assert.throws(()=>h.ctx.actualizarCotizacionesAhora(),/Precios cambió/);
+  assert.equal(h.events.filter(e=>e.op==='rpc'||e.op==='yahoo'||e.op==='write').length,0);
+});
+
+test('the v3 endpoint enforces a complete unique response before writing any success state',()=>{
+  for(const envelope of [{version:2,results:[serverResult('AAPL')]},{version:3,results:[serverResult('WRONG')]},{version:3,results:[serverResult('AAPL','UNKNOWN')]}]){
+    const h=harness({rpcResponse:()=>response(envelope)});assert.throws(()=>h.ctx.msIngestSheetQuotes_([{ticker:'AAPL'}]),/Supabase:/);
+  }
+  const h=harness({rpcResponse:()=>response({version:3,results:[serverResult('AAPL'),serverResult('AAPL')]})});
+  assert.throws(()=>h.ctx.msIngestSheetQuotes_([{ticker:'AAPL'},{ticker:'MSFT'}]),/inconsistentes/);
+});
+
+test('quick uploads remain available while Yahoo owns ScriptLock and serialize only other quick uploads',()=>{
+  const h=harness();h.prepare();h.seedQuotes();h.tailJob();const savedJob=h.props.get('MS_JOB_RECENT_V2');h.setLocked(false);
+  assert.equal(h.ctx.actualizarCotizacionesAhora().aceptados,250);assert.equal(h.props.get('MS_JOB_RECENT_V2'),savedJob);
+  assert.equal(h.events.filter(e=>e.op==='rpc').length,1);assert.equal(h.events.filter(e=>e.op==='quick-unlock').length,1);
+  h.reset();h.setQuickLocked(false);
+  assert.throws(()=>h.ctx.actualizarCotizacionesAhora(),/Ya hay un envío de cotizaciones en curso; espera a que termine/);
+  assert.equal(h.events.filter(e=>e.op==='rpc'||e.op==='read'||e.op==='write').length,0);
+});
+
+test('quick uploads fall back to UserLock when a document lock is unavailable and release it on errors',()=>{
+  const h=harness({documentLockNull:true,rpcResponse:()=>response({},503)});h.prepare();h.seedQuotes();
+  assert.throws(()=>h.ctx.actualizarCotizacionesAhora(),/Supabase RPC HTTP 503/);
+  assert.equal(h.events.filter(e=>e.op==='user-unlock').length,1);
 });

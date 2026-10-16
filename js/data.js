@@ -1,8 +1,11 @@
 // Shared, read-only data client for the scanner and ticker charts.
-// The database contract is one finalized OHLCV row per (ticker, fecha).
+// Confirmed daily history and today's explicitly provisional quote stay separate.
 "use strict";
 
 let _universePromise;
+const _marketHistoryCache = new Map();
+let _recentMarketQuotes = [];
+const _marketHistoryCacheMs = 60 * 60 * 1000;
 
 function normalizeTicker(value) {
   const ticker = String(value || "").trim().toUpperCase();
@@ -111,10 +114,10 @@ function _publicReadHeaders() {
 function _newYorkClock(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", hourCycle: "h23"
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23"
   }).formatToParts(now);
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return { today: values.year + "-" + values.month + "-" + values.day, hour: Number(values.hour) };
+  return { today: values.year + "-" + values.month + "-" + values.day, hour: Number(values.hour), minute: Number(values.minute) };
 }
 
 function _validSessionDate(value) {
@@ -132,9 +135,9 @@ function _normalizeBar(row, allowedTickers, clock) {
   try { ticker = normalizeTicker(row.ticker); } catch (_) { return { reason: "invalid" }; }
   if (!allowedTickers.has(ticker)) return { reason: "outsideUniverse" };
   if (row.fecha > clock.today) return { reason: "invalid" };
-  // The original pipeline stored intraday snapshots in market_history. Do not
-  // label today's legacy snapshot a finalized close before the closing buffer.
-  if (row.fecha === clock.today && clock.hour < 17) return { reason: "provisional" };
+  // Supabase decides finality, including reduced sessions. A browser clock must
+  // never demote an already confirmed close or promote an unconfirmed row.
+  if (row.is_final !== true) return { reason: row.is_final === false ? "provisional" : "invalid" };
   const values = [row.open, row.high, row.low, row.close, row.volumen].map(_number);
   const [open, high, low, close, volume] = values;
   if (!values.every(Number.isFinite) || Math.min(open, high, low, close) <= 0 ||
@@ -183,17 +186,14 @@ function normalizeMarketRows(rows, universe, ticker = null, now = new Date()) {
   return { data, total: data.length, source: "supabase", latestDate, coverage, quality, universe };
 }
 
-async function fetchMarketData(ticker = null, onProgress = null) {
-  const universe = await loadMarketUniverse();
-  ticker = ticker ? normalizeTicker(ticker) : null;
-  if (ticker && !universe.byTicker.has(ticker)) throw new Error("Ticker is outside the selected market universe.");
+async function _fetchFinalHistory(ticker, universe, onProgress) {
   const headers = _publicReadHeaders();
   const rows = [];
   let cursor = null;
   let finished = false;
   for (let page = 0; page < MARKET_SETTINGS.maxPages; page++) {
     const params = new URLSearchParams({
-      select: "fecha,ticker,open,high,low,close,volumen",
+      select: "fecha,ticker,open,high,low,close,volumen,is_final",
       order: "ticker.asc,fecha.asc", limit: String(MARKET_SETTINGS.pageSize),
       is_final: "eq.true"
     });
@@ -220,7 +220,128 @@ async function fetchMarketData(ticker = null, onProgress = null) {
     if (onProgress) onProgress(rows.length);
   }
   if (!finished) throw new Error("History exceeds the pagination safety limit. Check data retention.");
-  return normalizeMarketRows(rows, universe, ticker);
+  return rows;
+}
+
+async function fetchLatestQuotes(ticker = null, universe = null) {
+  universe = universe || await loadMarketUniverse();
+  const params = new URLSearchParams({
+    select: "ticker,fecha,open,high,low,close,volumen,is_final,status,source,source_quote_at,fetched_at,previous_close,datadelay_minutes",
+    order: "ticker.asc", limit: String(MARKET_SETTINGS.expectedInstruments)
+  });
+  params.set("ticker", ticker ? "eq." + normalizeTicker(ticker) : "in.(" + [...universe.byTicker.keys()].join(",") + ")");
+  const rows = await _requestJson(SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/market_latest_quotes?" + params,
+    { headers: _publicReadHeaders(), cache: "no-store" });
+  if (!Array.isArray(rows)) throw new Error("Invalid recent quote response from Supabase.");
+  return rows;
+}
+
+function mergeRecentMarketQuotes(base, quotes, includeRecent = true, now = new Date()) {
+  const clock = _newYorkClock(now), allowed = new Set(base.coverage.map(item => item.ticker));
+  const finalByTicker = new Map();
+  base.data.forEach(row => { if (!finalByTicker.has(row[1])) finalByTicker.set(row[1], []); finalByTicker.get(row[1]).push(row); });
+  const quoteByTicker = new Map(), stale = new Set(), invalid = new Set();
+  quotes.forEach(quote => {
+    if (!quote || !allowed.has(quote.ticker)) return;
+    if (!['FINAL', 'PROVISIONAL'].includes(quote.status) || !['yahoo', 'googlefinance'].includes(quote.source) ||
+        typeof quote.is_final !== 'boolean' || (quote.status === 'FINAL') !== quote.is_final ||
+        (quote.source === 'googlefinance' && quote.is_final)) { invalid.add(quote.ticker); return; }
+    // A previous day's quote is useful provenance, never today's extra candle.
+    const normalized = _normalizeBar({ ...quote, is_final: true }, allowed, clock);
+    const sourceTime = Date.parse(quote.source_quote_at), fetchedTime = Date.parse(quote.fetched_at);
+    const delay = quote.datadelay_minutes === null ? null : _number(quote.datadelay_minutes);
+    const validDelay = Number.isInteger(delay) && delay >= 0 && delay <= 20;
+    if (!normalized.bar || !Number.isFinite(sourceTime) || !Number.isFinite(fetchedTime) ||
+        sourceTime > now.getTime() + 120000 || fetchedTime > now.getTime() + 120000 ||
+        !(validDelay || (quote.source === 'yahoo' && delay === null)) ||
+        _newYorkClock(new Date(sourceTime)).today !== quote.fecha) { invalid.add(quote.ticker); return; }
+    const timing = marketSessionTiming(clock.today), minute = clock.hour * 60 + clock.minute;
+    const maxAge = (quote.source === 'googlefinance' ? Math.min(30, delay + 10) : 30) * 60000;
+    const outdated = now.getTime() - sourceTime > maxAge || now.getTime() - fetchedTime > maxAge;
+    if (quote.fecha !== clock.today || (timing && minute < timing.opens)) {
+      stale.add(quote.ticker); return;
+    }
+    // The server validates freshness at ingestion. Later reads keep today's last
+    // approved quote visible and identify its age, rather than reverting prices.
+    if(outdated)stale.add(quote.ticker);
+    const prior = quoteByTicker.get(quote.ticker);
+    if (!prior || sourceTime >= Date.parse(prior.source_quote_at)) quoteByTicker.set(quote.ticker, { ...quote, outdated, bar: normalized.bar });
+  });
+  const provisionalTickers = [], finalRows = [], data = [];
+  allowed.forEach(ticker => {
+    let finals = [...(finalByTicker.get(ticker) || [])];
+    const quote = quoteByTicker.get(ticker), last = finals[finals.length - 1];
+    // Same-day confirmed history always wins, even if a quote was fetched later.
+    if (quote && quote.is_final && (!last || quote.fecha > last[0])) finals.push(quote.bar);
+    finals = finals.slice(-MARKET_SETTINGS.historyDays);
+    finalRows.push(...finals); data.push(...finals);
+    const lastFinal = finals[finals.length - 1];
+    if (quote && !quote.is_final && lastFinal && quote.fecha <= lastFinal[0]) quoteByTicker.delete(ticker);
+    if (includeRecent && quote && !quote.is_final && (!lastFinal || quote.fecha > lastFinal[0])) {
+      data.push(quote.bar); provisionalTickers.push(ticker);
+    }
+  });
+  // Coverage and freshness refer to confirmed history, independently of preview.
+  const finalResult = normalizeMarketRows(finalRows.map(row => ({fecha:row[0],ticker:row[1],open:row[2],high:row[3],low:row[4],close:row[5],volumen:row[6],is_final:true})), base.universe, base.ticker || null, now);
+  const latestBarDate = data.reduce((latest, row) => row[0] > latest ? row[0] : latest, "") || null;
+  const timing = marketSessionTiming(clock.today);
+  const expectsToday = includeRecent && timing && clock.hour * 60 + clock.minute >= timing.opens;
+  const confirmedToday = new Set(finalRows.filter(row => row[0] === clock.today).map(row => row[1]));
+  const missingRecentTickers = expectsToday ? [...allowed].filter(ticker => !quoteByTicker.has(ticker) &&
+    !confirmedToday.has(ticker)) : [];
+  return { ...finalResult, data, total: data.length, finalizedData: finalRows, ticker: base.ticker || null,
+    latestBarDate, quoteByTicker, includeRecent, provisionalTickers,
+    quoteRows: quotes, quality: { ...finalResult.quality, invalidRows: base.quality.invalidRows,
+      provisionalRows: base.quality.provisionalRows, duplicateRows: base.quality.duplicateRows,
+      outsideUniverseRows: base.quality.outsideUniverseRows,
+      provisionalTickers, staleRecentTickers: [...stale],
+      invalidRecentTickers: [...invalid], missingRecentTickers, acceptedRecentQuotes: quoteByTicker.size }, historyLoadedAt: base.historyLoadedAt };
+}
+
+async function fetchMarketData(ticker = null, onProgress = null, options = {}) {
+  const universe = await loadMarketUniverse();
+  ticker = ticker ? normalizeTicker(ticker) : null;
+  if (ticker && !universe.byTicker.has(ticker)) throw new Error("Ticker is outside the selected market universe.");
+  const now = options.now || new Date(), key = ticker || '*', expected = lastCompletedMarketSession(_newYorkClock(now));
+  let cached = _marketHistoryCache.get(key) || (ticker ? _marketHistoryCache.get('*') : null);
+  if (options.forceHistory || !cached || now.getTime() - cached.loadedAt > _marketHistoryCacheMs || cached.expected !== expected) cached = null;
+  const historyPromise = cached ? Promise.resolve(cached) : _fetchFinalHistory(ticker, universe, onProgress).then(rows => {
+    const value = { rows, loadedAt: now.getTime(), expected };
+    _marketHistoryCache.set(key, value); return value;
+  });
+  let recentError = null;
+  const quotesPromise = options.refreshQuotes === false ? Promise.resolve(_recentMarketQuotes.filter(row => !ticker || row.ticker === ticker)) :
+    fetchLatestQuotes(ticker, universe).then(rows => {
+      _recentMarketQuotes = ticker ? _recentMarketQuotes.filter(row => row.ticker !== ticker).concat(rows) : rows;
+      return rows;
+    }).catch(error => {
+      recentError = error.message;
+      return _recentMarketQuotes.filter(row => !ticker || row.ticker === ticker);
+    });
+  const [history, quotes] = await Promise.all([historyPromise, quotesPromise]);
+  const rows = ticker ? history.rows.filter(row => row.ticker === ticker) : history.rows;
+  const base = { ...normalizeMarketRows(rows, universe, ticker, now), ticker, historyLoadedAt: new Date(history.loadedAt).toISOString() };
+  const result = mergeRecentMarketQuotes(base, quotes, options.includeRecent !== false, now);
+  // Keep newly confirmed rows between fast refreshes without reloading all history.
+  const knownKeys = new Set(rows.map(row => row.ticker + '|' + row.fecha));
+  const newFinals = result.finalizedData.filter(row => !knownKeys.has(row[1] + '|' + row[0]));
+  if (newFinals.length) {
+    const promoted = newFinals.map(row => ({fecha:row[0],ticker:row[1],open:row[2],high:row[3],low:row[4],close:row[5],volumen:row[6],is_final:true}));
+    const changed = new Set(promoted.map(row => row.ticker));
+    const retained = new Set(result.finalizedData.map(row => row[1] + '|' + row[0]));
+    history.rows = history.rows.filter(row => !changed.has(row.ticker) || retained.has(row.ticker + '|' + row.fecha)).concat(promoted);
+  }
+  result.quality.recentError = recentError;
+  return result;
+}
+
+function marketQuoteLabel(quote) {
+  if (!quote) return "Confirmed daily close";
+  const source = quote.source === 'googlefinance' ? 'Google Finance' : 'Yahoo Finance';
+  const time = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(quote.source_quote_at));
+  return (quote.is_final ? 'Confirmed daily close' : 'Provisional daily candle') + (quote.outdated&&!quote.is_final?' · OUTDATED':'') + ' · ' + source + ' · ' + time + ' New York' +
+    (quote.source === 'googlefinance' ? ' · quotes may be delayed up to 20 min' :
+      quote.datadelay_minutes === null ? ' · source delay unavailable' : ' · source delay ' + quote.datadelay_minutes + ' min');
 }
 
 function marketQualityMessages(result) {
@@ -231,7 +352,12 @@ function marketQualityMessages(result) {
   if (quality.insufficientSignals.length) messages.push(quality.insufficientSignals.length + " have too few sessions for signals");
   if (quality.laggingTickers.length) messages.push(quality.laggingTickers.length + " histories await the expected close of " + quality.expectedDate);
   if (quality.invalidRows) messages.push(quality.invalidRows + " invalid OHLCV rows excluded");
-  if (quality.provisionalRows) messages.push(quality.provisionalRows + " provisional rows excluded before 17:00 New York");
+  if (quality.provisionalRows) messages.push(quality.provisionalRows + " unconfirmed historical rows excluded");
+  if (quality.provisionalTickers && quality.provisionalTickers.length) messages.push(quality.provisionalTickers.length + " instruments include today's provisional daily candle in prices, charts and signals");
+  if (quality.staleRecentTickers && quality.staleRecentTickers.length) messages.push(quality.staleRecentTickers.length + " recent quotes are outdated; today's last approved values keep their source timestamps");
+  if (quality.invalidRecentTickers && quality.invalidRecentTickers.length) messages.push(quality.invalidRecentTickers.length + " recent quotes unavailable or rejected; confirmed history retained");
+  if (quality.missingRecentTickers && quality.missingRecentTickers.length) messages.push(quality.missingRecentTickers.length + " instruments await an accepted quote for today; confirmed history retained");
+  if (quality.recentError) messages.push("Recent quotes could not be refreshed; last available accepted data shown with its original source time");
   if (quality.duplicateRows) messages.push(quality.duplicateRows + " duplicate rows consolidated");
   if (quality.oldLatestDate) messages.push("latest stored close is over 5 calendar days old; check synchronization");
   return messages;

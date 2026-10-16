@@ -1,4 +1,4 @@
-/** Recent quotes enter one server RPC. No history is read, merged or published here. */
+/** Sheets submits snapshots; both server RPCs validate their own data source. */
 function msProperties_() { return PropertiesService.getScriptProperties(); }
 
 function msBook_() {
@@ -7,18 +7,24 @@ function msBook_() {
   return SpreadsheetApp.openById(id);
 }
 
-function msSupaConfig_() {
+function msSupaConfig_(rpcName) {
   const props = msProperties_(), url = (props.getProperty('SUPABASE_URL') || '').replace(/\/+$/, '');
   const key = props.getProperty('SUPABASE_WRITE_KEY') || '';
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url)) throw new Error('Configurar SUPABASE_URL en Propiedades del script.');
   if (!key || key.startsWith('sb_publishable_')) throw new Error('Configurar SUPABASE_WRITE_KEY privada en Propiedades del script.');
   const headers = {apikey: key};
   if (key.startsWith('eyJ')) headers.Authorization = 'Bearer ' + key;
-  return {url: url + '/rest/v1/rpc/market_ingest_recent', headers: headers};
+  return {url: url + '/rest/v1/rpc/' + (rpcName || 'market_ingest_recent'), headers: headers};
 }
 
 function msIngestRecent_(payloads) {
-  const config = msSupaConfig_();
+  return msRpc_(payloads, 'market_ingest_recent', 2);
+}
+function msIngestSheetQuotes_(payloads) {
+  return msRpc_(payloads, 'market_ingest_sheet_quotes', 3);
+}
+function msRpc_(payloads, rpcName, version) {
+  const config = msSupaConfig_(rpcName);
   let response;
   try {
     response = UrlFetchApp.fetch(config.url, {method: 'post', headers: config.headers,
@@ -29,8 +35,8 @@ function msIngestRecent_(payloads) {
   if (code < 200 || code >= 300) throw new Error('Supabase RPC HTTP ' + code + ': revisar conexión, clave y despliegue SQL.');
   let body;
   try { body = JSON.parse(response.getContentText()); } catch (error) { throw new Error('Supabase: respuesta JSON no válida.'); }
-  if (!body || body.version !== 2 || !Array.isArray(body.results) || body.results.length !== payloads.length)
-    throw new Error('Supabase: respuesta RPC incompatible con la versión 2.');
+  if (!body || body.version !== version || !Array.isArray(body.results) || body.results.length !== payloads.length)
+    throw new Error('Supabase: respuesta RPC incompatible con la versión ' + version + '.');
   const expected = new Set(payloads.map(item => item.ticker)), received = new Set();
   body.results.forEach(function(result) {
     if (!result || !expected.has(result.ticker) || received.has(result.ticker) || !MS_SERVER_STATUSES.includes(result.status) ||
@@ -46,19 +52,15 @@ function msIngestRecent_(payloads) {
 
 function comprobarConexion() {
   msIngestRecent_([]);
-  console.log('Conexión RPC correcta. No se cargaron cotizaciones.');
+  msIngestSheetQuotes_([]);
+  console.log('Conexiones Yahoo v2 y GOOGLEFINANCE v3 correctas. No se cargaron cotizaciones.');
 }
 
 function msCell_(value) { return value === null || value === undefined ? '' : value; }
+function msStatus_(result) { return result.status + (result.reason ? ' · ' + result.reason : ''); }
 function msWritePrice_(sheet, company, result, now, rowNumber) {
-  if (result.error) { sheet.getRange(rowNumber, 13).setValue('ERROR: ' + result.error); return; }
-  const status = result.status + (result.reason ? ' · ' + result.reason : '');
-  if (result.current) {
-    const r = result.current;
-    sheet.getRange(rowNumber, 1, 1, 9).setValues([[company.ticker, company.name, r.fecha, r.open, r.high, r.low, r.close, r.volumen, result.previous_close].map(msCell_)]);
-    sheet.getRange(rowNumber, 12, 1, 3).setValues([[now.toISOString(), status, msCell_(result.history_count)]]);
-  } else {
-    // Rejected/pending quotes preserve the last displayed prices and their timestamp.
-    sheet.getRange(rowNumber, 13, 1, 2).setValues([[status, msCell_(result.history_count)]]);
-  }
+  // Yahoo's slow history synchronization must never replace native quote formulas
+  // or the time/status of the independent whole-sheet upload in columns L:M.
+  if (!result.error) sheet.getRange(rowNumber, 14).setValue(msCell_(result.history_count));
+  sheet.getRange(rowNumber, 23, 1, 2).setValues([[result.error ? 'ERROR: ' + result.error : msStatus_(result), now.toISOString()]]);
 }
