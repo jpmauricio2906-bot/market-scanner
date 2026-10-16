@@ -1,10 +1,10 @@
 # Verificación de v3: cotizaciones y vela del día
 
-Verificación previa a publicación: backend v3 desplegado, **72 pruebas JavaScript y 111 comprobaciones SQL aprobadas**. La comprobación del navegador en producción se realiza después de publicar. La cobertura y el recálculo real de las 250 fórmulas requieren la cuenta del propietario. No se declara activada esa instalación de Google.
+Verificación previa a publicación: backend v3 desplegado, **74 pruebas JavaScript y 111 comprobaciones SQL aprobadas**. La comprobación del navegador en producción se realiza después de publicar. La cobertura y el recálculo real de las 250 fórmulas requieren la cuenta del propietario. No se declara activada esa instalación de Google.
 
 ## Apps Script local
 
-Las 31 pruebas verifican la instalación de fórmulas con bolsa y símbolo explícitos, migración de 21 a 24 columnas y conservación de `Historial`. C:I y V contienen datos del proveedor; J:K calculan cambios; L:M corresponden al envío rápido; N y W:X conservan la información del historial.
+Las 33 pruebas verifican la instalación de fórmulas con bolsa y símbolo explícitos, migración de 21 a 24 columnas y conservación de `Historial`. Dos regresiones cubren la plantilla real con instrucciones en W:X: se preservan en Z:AA, una segunda preparación no vuelve a moverlas y una lista incompatible se rechaza antes de insertar columnas. C:I y V contienen datos del proveedor; J:K calculan cambios; L:M corresponden al envío rápido; N y W:X conservan la información del historial.
 
 El envío rápido lee las 250 filas en un rango y realiza una sola RPC `market_ingest_sheet_quotes`. Sus pruebas comprueban que funciona con un bloqueo independiente de Yahoo, conserva datos ausentes para el validador, interpreta respuestas por ticker y no espera al recálculo en un bucle.
 
@@ -12,7 +12,7 @@ El trabajo Yahoo mantiene grupos de cinco, hasta 20 tickers por ejecución y con
 
 Estas pruebas usan dobles de servicios; no demuestran que Google Finance cubra todos los atributos de los 250 símbolos ni que un activador del propietario se haya ejecutado.
 
-Las otras pruebas JavaScript son 26 de frontend y 15 de worker, para un total de 72 y cero fallos. Cubren la vela provisional en gráficos e indicadores, modo solo cierres, caché de 60 minutos, refresco de cotizaciones, estado `OUTDATED`, retraso Yahoo desconocido, calendario de cierres reducidos y los controles del worker.
+Las otras pruebas JavaScript son 26 de frontend y 15 de worker, para un total de 74 y cero fallos. Cubren la vela provisional en gráficos e indicadores, modo solo cierres, caché de 60 minutos, refresco de cotizaciones, estado `OUTDATED`, retraso Yahoo desconocido, calendario de cierres reducidos y los controles del worker.
 
 Dos regresiones adicionales verifican la coherencia de escala tras una reparación: una cotización cuyo cierre previo canónico ya no coincide con el historial en memoria provoca una sola recarga y elimina las referencias de caché anteriores. Si la discrepancia persiste, la vela provisional queda bloqueada sin un bucle de recargas; el modo solo cierres no vuelve a consultar por esa discrepancia.
 

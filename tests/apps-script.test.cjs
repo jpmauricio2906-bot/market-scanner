@@ -30,7 +30,14 @@ function harness(options={}) {
   const key=(row,col)=>row+','+col;
   const sheet={getMaxRows:()=>rows,getMaxColumns:()=>columns,getLastRow:()=>Math.max(0,...[...cells.entries()].filter(([,v])=>v!=='').map(([k])=>Number(k.split(',')[0]))),
     insertRowsAfter(after,count){assert.equal(after,rows);rows+=count;record('expand',{rows});},setFrozenRows(n){record('freeze',{n});},
-    insertColumnsAfter(after,count){assert.equal(after,columns);columns+=count;record('expand-columns',{columns});},
+    insertColumnsAfter(after,count){
+      assert.ok(after>=1&&after<=columns);
+      for(const map of [cells,formulas]){
+        const entries=[...map];map.clear();
+        for(const [address,value] of entries){const [row,col]=address.split(',').map(Number);map.set(key(row,col>after?col+count:col),value);}
+      }
+      columns+=count;record('expand-columns',{columns,after,count});
+    },
     getRange(row,col=1,height=1,width=1){
       if(typeof row==='string'){
         const match=/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(row);assert.ok(match);
@@ -77,7 +84,7 @@ function harness(options={}) {
     reset(){events.length=0;},setLocked(value){locked=value;},setQuickLocked(value){quickLocked=value;},interruptNextWrite(){failWrite=true;},
     cell:(row,col)=>cells.get(key(row,col))??'',putCell:(row,col,value)=>cells.set(key(row,col),value),
     seedQuotes(){for(let n=0;n<250;n++){const row=n+2;cells.set(key(row,3),new Clock('2026-10-15T19:59:00Z'));for(const [col,value] of [[4,101],[5,106],[6,99],[7,104],[8,1100],[9,103],[22,15]])cells.set(key(row,col),value);}},
-    legacy(){exists=true;rows=251;columns=21;const headers=plain(vm.runInContext('MS_HEADERS.Precios.slice(0,21)',ctx));headers[11]='Actualizado';headers.forEach((v,n)=>cells.set(key(1,n+1),v));ctx.msUniverse_().forEach((c,n)=>cells.set(key(n+2,1),c.ticker));},
+    legacy(width=21){exists=true;rows=251;columns=width;const headers=plain(vm.runInContext('MS_HEADERS.Precios.slice(0,21)',ctx));headers[11]='Actualizado';headers.forEach((v,n)=>cells.set(key(1,n+1),v));ctx.msUniverse_().forEach((c,n)=>cells.set(key(n+2,1),c.ticker));},
     tailJob(count=5){const job=ctx.msNewJob_();job.cursor=250-count;job.completed=250-count;ctx.msPutJob_(job);return job;},
     get elapsed(){return elapsed;}};
 }
@@ -253,6 +260,40 @@ test('preparation migrates the existing 21 columns without reimporting or readin
   h.putCell(2,12,'quick time');h.putCell(2,13,'PROVISIONAL');h.ctx.prepararMarketScanner();
   assert.equal(h.cell(2,12),'quick time');assert.equal(h.cell(2,13),'PROVISIONAL');assert.equal(h.cell(2,23),'FINAL');
   assert.equal(h.events.filter(e=>e.op==='yahoo'||e.op==='rpc').length,0);
+});
+
+test('preparation migrates the shipped template with its W:X guide and preserves the guide on repeated runs',()=>{
+  for(const width of [24,26]){
+    const h=harness();h.legacy(width);
+    h.putCell(1,23,'Market Scanner');h.putCell(2,23,'Uso');h.putCell(2,24,'Instrucciones originales');
+    h.putCell(74,23,'Fuente ETF LABU');h.putCell(74,24,'https://example.com/original-source');
+    h.putCell(2,12,'2026-10-16T16:29:48Z');h.putCell(2,13,'PROVISIONAL');h.putCell(2,14,500);
+    if(width===26)h.putCell(90,26,'Preservar contenido a la derecha');
+    h.ctx.prepararMarketScanner();
+    assert.equal(h.sheet.getMaxColumns(),width+3);assert.equal(h.cell(1,26),'Market Scanner');
+    assert.equal(h.cell(2,26),'Uso');assert.equal(h.cell(2,27),'Instrucciones originales');
+    assert.equal(h.cell(74,26),'Fuente ETF LABU');assert.equal(h.cell(74,27),'https://example.com/original-source');
+    if(width===26)assert.equal(h.cell(90,29),'Preservar contenido a la derecha');
+    assert.equal(h.cell(1,23),'Estado historial');assert.equal(h.cell(1,24),'Historial comprobado');
+    assert.equal(h.cell(2,23),'PROVISIONAL');assert.equal(h.cell(2,24),'2026-10-16T16:29:48Z');assert.equal(h.cell(2,14),500);
+    assert.equal(h.formulas.get('2,7'),'=IFERROR(GOOGLEFINANCE("NASDAQ:NVDA","price"),"")');
+    h.putCell(2,12,'quick upload');h.putCell(2,13,'PROVISIONAL');h.reset();h.ctx.prepararMarketScanner();
+    assert.equal(h.events.filter(e=>e.op==='expand-columns').length,0);assert.equal(h.cell(1,26),'Market Scanner');
+    assert.equal(h.cell(2,12),'quick upload');assert.equal(h.cell(2,24),'2026-10-16T16:29:48Z');
+    assert.equal(h.events.filter(e=>e.op==='rpc'||e.op==='yahoo').length,0);
+  }
+});
+
+test('template migration still rejects unknown headers and mismatched tickers before shifting columns',()=>{
+  for(const invalid of ['unknown-guide','wrong-header','wrong-ticker']){
+    const h=harness();h.legacy(26);h.putCell(1,23,'Market Scanner');
+    if(invalid==='unknown-guide')h.putCell(1,23,'Contenido ajeno');
+    if(invalid==='wrong-header')h.putCell(1,7,'Otra columna');
+    if(invalid==='wrong-ticker')h.putCell(2,1,'WRONG');
+    h.reset();assert.throws(()=>h.ctx.prepararMarketScanner(),/Precios:/);
+    assert.equal(h.events.filter(e=>['write','formulas','expand-columns','rpc','yahoo'].includes(e.op)).length,0);
+    assert.equal(h.sheet.getMaxColumns(),26);
+  }
 });
 
 test('Google Finance identifiers disambiguate all exchanges, Berkshire class and the USD ETF',()=>{

@@ -47,7 +47,7 @@ La edición de la hoja y del script debe limitarse a cuentas de confianza: las P
 Ejecutar esta secuencia con la cuenta propietaria:
 
 1. Detener los timers anteriores y sustituir los `.gs` y el manifiesto.
-2. Ejecutar `prepararMarketScanner`. Instala las fórmulas para los 250 instrumentos y migra `Precios` de 21 a 24 columnas sin importar otro Excel. No lee ni ordena `Historial` y conserva la zona horaria del archivo.
+2. Ejecutar `prepararMarketScanner`. Instala las fórmulas para los 250 instrumentos y migra `Precios` de 21 a 24 columnas sin importar otro Excel. Si la plantilla conserva las instrucciones en W:X, inserta tres columnas tras V para preservarlas en Z:AA y reservar W:X para los estados; repetir la preparación no vuelve a desplazarlas. No lee ni ordena `Historial` y conserva la zona horaria del archivo.
 3. Esperar el primer cálculo de las fórmulas. Revisar que aparezcan hora de cotización y precios numéricos; no hace falta ejecutar bucles de espera.
 4. Ejecutar `comprobarConexion`. Comprueba ambas RPC con lotes vacíos, sin cargar cotizaciones.
 5. Ejecutar `actualizarCotizacionesAhora` una vez. Lee las 250 filas en un solo rango y realiza un único envío a Supabase, sin esperar los lotes Yahoo.

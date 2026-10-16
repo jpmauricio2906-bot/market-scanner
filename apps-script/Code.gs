@@ -52,13 +52,17 @@ function prepararMarketScanner() {
       const headers = sheet.getRange(1, 1, 1, width).getValues()[0];
       const legacy = headers.slice(0, 21), extras = headers.slice(21);
       const oldHeaders = MS_HEADERS.Precios.slice(0, 21); oldHeaders[11] = 'Actualizado';
-      migrate = JSON.stringify(legacy) === JSON.stringify(oldHeaders) && extras.every(value => value === '');
+      // The shipped Excel template has its instructions in W:X. Reserve those
+      // columns for runtime status by shifting the guide intact to Z:AA.
+      const templateGuide = extras.length === 3 && extras[0] === '' && extras[1] === 'Market Scanner' && extras[2] === '';
+      migrate = JSON.stringify(legacy) === JSON.stringify(oldHeaders) && (extras.every(value => value === '') || templateGuide);
       if (headers.some(value => value !== '') &&
           !migrate && JSON.stringify(headers) !== JSON.stringify(MS_HEADERS.Precios))
         throw new Error('Precios: encabezados incompatibles. Usar la plantilla de 250 tickers.');
       const old = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, Math.min(count, sheet.getLastRow() - 1), 1).getValues() : [];
       if (old.some((row, n) => row[0] && row[0] !== companies[n].ticker)) throw new Error('Precios: lista distinta a Universe.gs. Revisar antes de preparar.');
       if (migrate && old.length) previous = sheet.getRange(2, 12, old.length, 2).getValues();
+      if (migrate && templateGuide) sheet.insertColumnsAfter(22, 3);
     } else sheet = ss.insertSheet('Precios');
     if (sheet.getMaxRows() < last) sheet.insertRowsAfter(sheet.getMaxRows(), last - sheet.getMaxRows());
     if (sheet.getMaxColumns() < MS_HEADERS.Precios.length)
