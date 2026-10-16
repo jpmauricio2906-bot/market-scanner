@@ -4,6 +4,7 @@ const MS_HEADERS = {
   Historial: ['Fecha','Ticker','Open','High','Low','Close','Volumen']
 };
 const MS_JOB_HANDLERS = ['actualizarMarketScanner','continuarActualizacion','continuarHistorial','iniciarHistorialSemanal'];
+const MS_RUN_LIMITS = {tickers: 5, targetMs: 90000, reserveMs: 15000, continuationMinutes: 1};
 
 function msUniverse_() {
   if (typeof MS_UNIVERSE === 'undefined' || MS_UNIVERSE.length !== 250 ||
@@ -44,8 +45,13 @@ function prepararMarketScanner() {
     });
     const importedHistory = ss.getSheetByName('Historial'), importedPrices = ss.getSheetByName('Precios');
     const cache = importedHistory ? msLoadHistory_(importedHistory) : {byTicker: {}};
+    const knownTickers = new Set(companies.map(c => c.ticker));
+    Object.keys(cache.byTicker).forEach(function(ticker) {
+      if (!knownTickers.has(ticker) || cache.byTicker[ticker].length > 500) throw new Error('Historial: ticker fuera del universo o con más de 500 sesiones: ' + ticker + '. Revisar antes de preparar.');
+    });
     const old = importedPrices && importedPrices.getLastRow() > 1 ? importedPrices.getRange(2, 1, Math.min(count, importedPrices.getLastRow() - 1), 1).getValues().map(r => r[0]) : [];
     if (old.some((t, i) => t && t !== companies[i].ticker)) throw new Error('Lista distinta a Universe.gs; importar plantilla regenerada para cambiar el universo.');
+    msInvalidateHistoryIndex_();
     msProperties_().setProperty('SPREADSHEET_ID', ss.getId());
     Object.keys(MS_HEADERS).forEach(function(name) {
       const headers = MS_HEADERS[name], sheet = ss.getSheetByName(name) || ss.insertSheet(name);
@@ -57,6 +63,7 @@ function prepararMarketScanner() {
     // Contiguous ticker blocks let a corrected 500-day series be written in a few ranges.
     if (historySheet.getLastRow() > 1) historySheet.getRange(2, 1, historySheet.getLastRow() - 1, 7)
       .sort([{column: 2, ascending: true}, {column: 1, ascending: true}]);
+    msBuildHistoryIndex_(ss, cache);
     const sheet = ss.getSheetByName('Precios');
     if (sheet.getMaxRows() < lastRow) sheet.insertRowsAfter(sheet.getMaxRows(), lastRow - sheet.getMaxRows());
     sheet.getRange(2, 1, count, 2).setValues(companies.map(c => [c.ticker, c.name]));
@@ -70,7 +77,8 @@ function prepararMarketScanner() {
     sheet.getRange(2, 17, count, 5).setValues(companies.map(c => [c.type, c.category || '', c.issuer || '', c.dailyLeverage ?? 1, Boolean(c.inverse)]));
     sheet.getRange('D2:G' + lastRow).setNumberFormat('0.00'); sheet.getRange('I2:J' + lastRow).setNumberFormat('0.00');
     sheet.getRange('K2:K' + lastRow).setNumberFormat('0.00%'); sheet.getRange('H2:H' + lastRow).setNumberFormat('#,##0');
-    console.log('Hojas listas; Historial conservado. Configurar propiedades privadas antes de cargar.');
+    sheet.getRange('L2:M' + lastRow).setNumberFormat('@'); sheet.getRange('N2:N' + lastRow).setNumberFormat('0');
+    console.log('Hojas e índice listas; Historial conservado. Las actualizaciones procesan como máximo cinco tickers por ejecución.');
   });
 }
 
@@ -82,53 +90,65 @@ function msPutJob_(kind, job) { msProperties_().setProperty('MS_JOB_' + kind, JS
 function msNewJob_() { return {cursor: 0, round: 0, retry: [], failed: [], shortHistory: [], completed: 0, started: new Date().toISOString(), status: 'EN CURSO'}; }
 
 function actualizarMarketScanner(e) {
+  const started = Date.now();
   return msLocked_(function() {
     if (e && e.triggerUid && msProperties_().getProperty('MS_PAUSED') === 'true') return;
     if (!e || !e.triggerUid) msProperties_().setProperty('MS_PAUSED', 'false');
     const now = new Date(), today = msDate_(now), hour = Number(Utilities.formatDate(now, 'America/New_York', 'HH'));
     if (e && e.triggerUid && (!msIsSession_(today) || hour < 9 || hour > 20)) return;
-    msSupaConfig_(); msBook_();
+    msSupaConfig_();
     let job = msGetJob_('daily');
     if (!job || job.status !== 'EN CURSO') { job = msNewJob_(); msPutJob_('daily', job); }
-    msRunJob_('daily', job);
+    msRunJob_('daily', job, started);
   });
 }
 
 function iniciarHistorial() {
+  const started = Date.now();
   return msLocked_(function() {
     msProperties_().setProperty('MS_PAUSED', 'false');
-    msSupaConfig_(); msBook_();
+    msSupaConfig_();
     const old = msGetJob_('history');
     const job = old && old.status === 'EN CURSO' ? old : msNewJob_();
     msPutJob_('history', job);
-    msEnsureRecurring_('continuarHistorial', 5);
-    msRunJob_('history', job);
+    msRunJob_('history', job, started);
   });
 }
 function iniciarHistorialSemanal() { if (msProperties_().getProperty('MS_PAUSED') !== 'true') iniciarHistorial(); }
 function continuarHistorial() { return msLocked_(function() { const job = msGetJob_('history'); if (job && job.status === 'EN CURSO') msRunJob_('history', job); }); }
 function continuarActualizacion() { return msLocked_(function() { const job = msGetJob_('daily'); if (job && job.status === 'EN CURSO') msRunJob_('daily', job); }); }
 
-function msRunJob_(kind, job) {
+function msRunJob_(kind, job, started) {
   if (msProperties_().getProperty('MS_PAUSED') === 'true') return;
-  const start = Date.now(), history = kind === 'history', ss = msBook_(), companies = msUniverse_();
+  const start = started === undefined ? Date.now() : started, deadline = start + MS_RUN_LIMITS.targetMs;
+  const history = kind === 'history', companies = msUniverse_();
   const handler = history ? 'continuarHistorial' : 'continuarActualizacion';
   // Recurring continuation is installed BEFORE I/O: a hard Google timeout cannot strand a job.
-  msEnsureRecurring_(handler, 5);
-  const cache = msLoadHistory_(ss.getSheetByName('Historial'));
+  msEnsureRecurring_(handler, MS_RUN_LIMITS.continuationMinutes);
+  const ss = msBook_(), index = msAssertHistoryIndex_(ss), prices = ss.getSheetByName('Precios');
+  const priceTickers = prices.getRange(2, 1, companies.length, 1).getValues();
+  if (priceTickers.some((row, n) => row[0] !== companies[n].ticker)) throw new Error('Precios cambió: ejecutar prepararMarketScanner.');
   const work = job.round === 0 ? companies.map(c => c.ticker) : job.work;
-  let processed = 0;
-  while (job.cursor < work.length && Date.now() - start < 210000 && (!history || processed < 20) && msProperties_().getProperty('MS_PAUSED') !== 'true') {
-    const symbols = work.slice(job.cursor, job.cursor + 5);
+  const repair = !history && job.repairTicker === work[job.cursor];
+  if (job.cursor < work.length && Date.now() + MS_RUN_LIMITS.reserveMs < deadline && msProperties_().getProperty('MS_PAUSED') !== 'true') {
+    const symbols = work.slice(job.cursor, job.cursor + (repair ? 1 : MS_RUN_LIMITS.tickers));
     const batch = symbols.map(t => companies.find(c => c.ticker === t));
-    const now = new Date(), results = msFetchYahooBatch_(batch, history, now);
+    const now = new Date(), results = msFetchYahooBatch_(batch, history || repair, now);
     for (let i = 0; i < batch.length; i++) {
+      // One slow network request can exceed the target. Do not start another ticker then.
+      if ((i > 0 && Date.now() + MS_RUN_LIMITS.reserveMs >= deadline) || msProperties_().getProperty('MS_PAUSED') === 'true') break;
       const company = batch[i]; let result = results[i];
+      const priceRow = companies.findIndex(c => c.ticker === company.ticker) + 2;
       try {
         if (result.error) throw new Error(result.error);
+        const cache = msLoadTickerHistory_(ss, company.ticker, index);
         const old = (cache.byTicker[company.ticker] || []).map(item => item.row);
-        let replace = history, merged = msMergeRows_(old, result.rows, replace);
-        if (!history && msNeedsFull_(old, result, merged, msExpectedSession_(now))) {
+        let replace = history || repair, merged = msMergeRows_(old, result.rows, replace);
+        if (!replace && msNeedsFull_(old, result, merged, msExpectedSession_(now))) {
+          // A corrective 3-year download can run in its own continuation, never stranded.
+          if (Date.now() + MS_RUN_LIMITS.reserveMs >= deadline) {
+            job.repairTicker = company.ticker; msPutJob_(kind, job); break;
+          }
           result = msFetchYahooBatch_([company], true, now)[0];
           if (result.error) throw new Error(result.error);
           replace = true; merged = msMergeRows_(old, result.rows, true);
@@ -142,20 +162,21 @@ function msRunJob_(kind, job) {
         msSaveTicker_(cache, company.ticker, merged);
         msFlushHistory_(cache);
         result.historyCount = merged.length;
-        msWritePrice_(ss.getSheetByName('Precios'), company, result, now);
+        msWritePrice_(prices, company, result, now, priceRow);
+        SpreadsheetApp.flush(); // durable sheet writes before the cursor advances
         if (result.shortHistory) job.shortHistory.push(company.ticker);
         job.completed++;
       } catch (error) {
         job.retry.push(company.ticker);
         job.lastError = company.ticker + ': ' + error.message;
-        msWritePrice_(ss.getSheetByName('Precios'), company, {error: error.message}, now);
+        msWritePrice_(prices, company, {error: error.message}, now, priceRow);
         console.log(job.lastError);
       }
+      if (job.repairTicker === company.ticker) delete job.repairTicker;
       job.cursor++;
       job.updated = new Date().toISOString();
       msPutJob_(kind, job); // checkpoint every ticker, including failed requests
     }
-    processed += batch.length;
   }
   if (job.cursor >= work.length) {
     if (job.retry.length && job.round < 2) {
@@ -166,7 +187,7 @@ function msRunJob_(kind, job) {
     }
     msPutJob_(kind, job);
   }
-  console.log(kind + ': ' + job.status + ' | correctos ' + job.completed + '/' + companies.length + ' | intento ' + (job.round + 1));
+  console.log(kind + ': ' + job.status + ' | correctos ' + job.completed + '/' + companies.length + ' | intento ' + (job.round + 1) + ' | siguiente lote automático cada minuto');
 }
 
 function msRemoveHandler_(handler) {
@@ -177,14 +198,14 @@ function msEnsureRecurring_(handler, minutes) {
 }
 function instalarTemporizadores() {
   return msLocked_(function() {
-    msSupaConfig_(); msBook_();
+    msSupaConfig_(); msAssertHistoryIndex_(msBook_());
     msProperties_().setProperty('MS_PAUSED', 'false');
     // Remove only known scanner timers, including retired handlers from the old project.
     const legacy = ['guardarSnapshotDiario','guardarSnapshotDiarioReemplazar','_procesarLote','syncDailySnapshot'];
     MS_JOB_HANDLERS.concat(legacy).forEach(msRemoveHandler_);
     ScriptApp.newTrigger('actualizarMarketScanner').timeBased().everyHours(1).create();
     ScriptApp.newTrigger('iniciarHistorialSemanal').timeBased().onWeekDay(ScriptApp.WeekDay.SATURDAY).atHour(2).everyWeeks(1).inTimezone('America/New_York').create();
-    ['daily','history'].forEach(function(kind) { const job = msGetJob_(kind); if (job && job.status === 'EN CURSO') msEnsureRecurring_(kind === 'daily' ? 'continuarActualizacion' : 'continuarHistorial', 5); });
+    ['daily','history'].forEach(function(kind) { const job = msGetJob_(kind); if (job && job.status === 'EN CURSO') msEnsureRecurring_(kind === 'daily' ? 'continuarActualizacion' : 'continuarHistorial', MS_RUN_LIMITS.continuationMinutes); });
     console.log('Timer cada hora (09–20 ET días de sesión) y reconstrucción semanal.');
   });
 }
@@ -195,12 +216,16 @@ function detenerTemporizadores() {
   console.log('Timers detenidos; el lote activo termina y conserva datos y puntos de reanudación.');
 }
 function verEstadoMarketScanner() {
-  const ss = msBook_(), cache = msLoadHistory_(ss.getSheetByName('Historial')), expected = msExpectedSession_(new Date());
-  const coverage = msUniverse_().map(function(c) {
-    const rows = (cache.byTicker[c.ticker] || []).map(x => x.row).sort((a, b) => a.fecha.localeCompare(b.fecha));
-    return {ticker: c.ticker, sesiones: rows.length, ultima: rows.length ? rows[rows.length - 1].fecha : null,
-      listo: rows.length === 500 && msContinuous_(rows, expected)};
+  const ss = msBook_(), expected = msExpectedSession_(new Date()), companies = msUniverse_();
+  const values = ss.getSheetByName('Precios').getRange(2, 1, companies.length, 14).getValues();
+  const coverage = companies.map(function(c, n) {
+    if (values[n][0] !== c.ticker) throw new Error('Precios cambió: ejecutar prepararMarketScanner.');
+    return {ticker: c.ticker, sesiones: values[n][13], estado: values[n][12]};
   });
-  console.log(JSON.stringify({cierreEsperado: expected, daily: msGetJob_('daily'), history: msGetJob_('history'), coverage: coverage}));
+  console.log(JSON.stringify({cierreEsperado: expected, daily: msGetJob_('daily'), history: msGetJob_('history'),
+    instrumentos: companies.length, con500Sesiones: coverage.filter(c => c.sesiones === 500).length,
+    historiaCorta: coverage.filter(c => c.sesiones > 0 && c.sesiones < 500).map(c => c.ticker),
+    errores: coverage.filter(c => String(c.estado).startsWith('ERROR:')),
+    validacion: 'Calidad comprobada al descargar cada ticker; esta consulta de progreso solo lee Precios.'}));
   return coverage;
 }

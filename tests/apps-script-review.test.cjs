@@ -14,7 +14,7 @@ class FixedDate extends Date {
 function context() {
   const props = new Map(), triggers = [];
   const ctx = vm.createContext({
-    console: {log() {}}, Date: FixedDate,
+    console: {log() {}}, Date: FixedDate, SpreadsheetApp: {flush() {}},
     Utilities: {formatDate(date, timezone, pattern) {
       const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
         timeZone: timezone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', hourCycle:'h23',
@@ -98,9 +98,10 @@ test('a newly reported split requests full history even if overlapping prices ha
 
 function jobContext(old, dailyResult, fullResult, failPublication = false) {
   const ctx = context(), events = [];
-  ctx.msBook_ = () => ({getSheetByName: () => ({})});
+  ctx.msBook_ = () => ({getSheetByName: () => ({getRange: () => ({getValues: () => [['AAPL']]})})});
   ctx.msUniverse_ = () => [{ticker: 'AAPL'}];
-  ctx.msLoadHistory_ = () => ({byTicker: {AAPL: old.map((row, index) => ({row, index}))}});
+  ctx.msAssertHistoryIndex_ = () => ({});
+  ctx.msLoadTickerHistory_ = () => ({byTicker: {AAPL: old.map((row, index) => ({row, index}))}});
   ctx.msFetchYahooBatch_ = (companies, history) => {
     events.push({type: 'fetch', history, tickers: companies.map(company => company.ticker)});
     return [history ? fullResult : dailyResult];

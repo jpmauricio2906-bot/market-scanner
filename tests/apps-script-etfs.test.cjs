@@ -24,9 +24,11 @@ function context(extra = {}) {
     } },
     PropertiesService: { getScriptProperties: () => ({
       getProperty: key => props.get(key) ?? null,
-      setProperty: (key, value) => props.set(key, value)
+      setProperty: (key, value) => props.set(key, value),
+      setProperties: values => Object.entries(values).forEach(([key, value]) => props.set(key, value))
     }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
+    SpreadsheetApp: {flush() {}},
     ScriptApp: {
       getProjectTriggers: () => triggers,
       deleteTrigger: trigger => triggers.splice(triggers.indexOf(trigger), 1),
@@ -37,6 +39,7 @@ function context(extra = {}) {
   for (const filename of ['Universe.gs', 'Yahoo.gs', 'Storage.gs', 'Code.gs']) {
     vm.runInContext(fs.readFileSync(path.join(root, 'apps-script', filename), 'utf8'), ctx, { filename });
   }
+  if (ctx.SpreadsheetApp && !ctx.SpreadsheetApp.flush) ctx.SpreadsheetApp.flush = () => {};
   return { ctx, props, triggers, logs };
 }
 
@@ -45,6 +48,7 @@ class Sheet {
   key(row, col) { return row + ',' + col; }
   cell(row, col) { return this.cells.get(this.key(row, col)) ?? ''; }
   getMaxRows() { return this.rows; }
+  getSheetId() { return this.name === 'Historial' ? 2 : 1; }
   getParent() { return this.book; }
   insertRowsAfter(after, count) { assert.equal(after, this.rows); this.rows += count; }
   getLastRow() { return Math.max(0, ...[...this.cells.keys(), ...this.formulas.keys()].map(key => Number(key.split(',')[0]))); }
@@ -212,7 +216,8 @@ function jobHarness() {
     cache.byTicker[item.ticker] = rows.map((row, index) => ({ row, index }));
   }
   ctx.msBook_ = () => book;
-  ctx.msLoadHistory_ = () => cache;
+  ctx.msAssertHistoryIndex_ = () => ({});
+  ctx.msLoadTickerHistory_ = () => cache;
   ctx.msFetchYahooBatch_ = (batch, history) => {
     fetched.push({ history, tickers: batch.map(item => item.ticker) });
     return batch.map(item => {
@@ -231,10 +236,14 @@ function jobHarness() {
   return { ...built, book, fetched, published, saved, instruments };
 }
 
-test('daily continuation crosses the former 200-company boundary, updates all 50 ETF rows and completes at 250', () => {
+test('short daily continuations cross the 200-company boundary and update every ETF before completing', () => {
   const { ctx, book, instruments, fetched, published, saved, logs, triggers } = jobHarness();
   const job = ctx.msNewJob_(); job.cursor = 195; job.completed = 195;
   ctx.msRunJob_('daily', job);
+  assert.equal(job.cursor, 200);
+  assert.equal(job.completed, 200);
+  assert.equal(job.status, 'EN CURSO');
+  for (let run = 0; run < 10; run++) ctx.msRunJob_('daily', job);
   const expected = instruments.slice(195).map(item => item.ticker);
   assert.deepEqual(fetched.flatMap(batch => clone(batch.tickers)), clone(expected));
   assert.ok(fetched.every(batch => batch.history === false));
@@ -259,19 +268,16 @@ test('daily continuation crosses the former 200-company boundary, updates all 50
   }
 });
 
-test('history continuation preserves the 20-ticker batch limit through ETF rows and completes all 250', () => {
+test('history continuation limits each invocation to five tickers through ETF rows and completes at 250', () => {
   const { ctx, instruments, fetched, published, logs, triggers } = jobHarness();
   const job = ctx.msNewJob_(); job.cursor = 195; job.completed = 195;
   ctx.msRunJob_('history', job);
-  assert.equal(job.cursor, 215);
-  assert.equal(job.completed, 215);
+  assert.equal(job.cursor, 200);
+  assert.equal(job.completed, 200);
   assert.equal(job.status, 'EN CURSO');
   assert.equal(triggers[0].getHandlerFunction(), 'continuarHistorial');
-  assert.equal(ctx.msGetJob_('history').cursor, 215);
-  ctx.msRunJob_('history', job);
-  assert.equal(job.cursor, 235);
-  assert.equal(job.status, 'EN CURSO');
-  ctx.msRunJob_('history', job);
+  assert.equal(ctx.msGetJob_('history').cursor, 200);
+  for (let run = 0; run < 10; run++) ctx.msRunJob_('history', job);
   assert.equal(job.cursor, 250);
   assert.equal(job.completed, 250);
   assert.equal(job.status, 'COMPLETADO');

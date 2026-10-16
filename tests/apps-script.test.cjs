@@ -11,7 +11,7 @@ function formatDate(date, timezone, pattern) {
 }
 function context(extra={}) {
   const props = new Map(), triggers = [];
-  const ctx = vm.createContext({console, Date, Utilities:{formatDate},
+  const ctx = vm.createContext({console, Date, Utilities:{formatDate}, SpreadsheetApp:{flush() {}},
     PropertiesService:{getScriptProperties:()=>({getProperty:k=>props.get(k)||null, setProperty:(k,v)=>props.set(k,v)})},
     ScriptApp:{getProjectTriggers:()=>triggers,deleteTrigger:t=>triggers.splice(triggers.indexOf(t),1),newTrigger:handler=>({timeBased(){return this},everyMinutes(){return this},create(){triggers.push({getHandlerFunction:()=>handler});}})},
     ...extra});
@@ -80,17 +80,18 @@ test('secret API keys do not become bearer JWTs; upsert conflict and scoped rete
 });
 test('failed tickers retry and never silently count as completed; final failed queue persists',()=>{
   const c=context();
-  c.msBook_=()=>({getSheetByName:()=>({})}); c.msUniverse_=()=>Array.from({length:200},(_,i)=>({ticker:'T'+i}));
-  c.msLoadHistory_=()=>({byTicker:{}});c.msFetchYahooBatch_=batch=>batch.map(()=>({error:'HTTP 429'}));c.msWritePrice_=()=>{};
+  c.msUniverse_=()=>Array.from({length:200},(_,i)=>({ticker:'T'+i}));
+  c.msBook_=()=>({getSheetByName:()=>({getRange:()=>({getValues:()=>c.msUniverse_().map(item=>[item.ticker])})})});
+  c.msAssertHistoryIndex_=()=>({});c.msLoadTickerHistory_=()=>({byTicker:{}});c.msFetchYahooBatch_=batch=>batch.map(()=>({error:'HTTP 429'}));c.msWritePrice_=()=>{};
   const job=c.msNewJob_();job.cursor=195;c.msRunJob_('history',job);
   assert.equal(job.completed,0);assert.equal(job.round,1);assert.equal(job.cursor,0);assert.equal(job.work.length,5);
   c.msRunJob_('history',job);assert.equal(job.round,2);
   c.msRunJob_('history',job);assert.equal(job.status,'INCOMPLETO');assert.equal(job.failed.length,5);
   assert.equal(c.msGetJob_('history').status,'INCOMPLETO');
 });
-test('a process crash during publish leaves cursor retryable and continuation already installed',()=>{
+test('a process crash while opening the index leaves its cursor retryable and continuation installed',()=>{
   const c=context(); c.msBook_=()=>({getSheetByName:()=>({})}); c.msUniverse_=()=>[{ticker:'AAPL'}];
-  c.msLoadHistory_=()=>{throw new Error('unexpected termination')};
+  c.msAssertHistoryIndex_=()=>{throw new Error('unexpected termination')};
   const job=c.msNewJob_();c.msPutJob_('daily',job);
   assert.throws(()=>c.msRunJob_('daily',job),/unexpected termination/);
   assert.equal(c.msGetJob_('daily').cursor,0);

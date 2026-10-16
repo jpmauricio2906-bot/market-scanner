@@ -37,6 +37,8 @@ En **Propiedades del script**, configurar:
 
 Ejecutar `prepararMarketScanner` y aceptar los permisos de Google. Guarda `SPREADSHEET_ID`, comprueba encabezados y lista, conserva Historial y escribe las fórmulas. Amplía Historial a 125.001 filas para 250×500 sesiones más encabezados. La plantilla anterior de 16 columnas requiere importar esta nueva versión; no mezclarla con los scripts de 250.
 
+Esta preparación es la única lectura completa habitual del historial. Construye un índice de bloques de hasta 500 filas por ticker, reservando espacios para las IPO. Las actualizaciones posteriores solo leen los tickers de su lote. Tras ordenar, insertar/eliminar filas o volver a importar Historial, ejecutar la preparación de nuevo antes de actualizar. Si las fechas ya están reparadas, no hace falta importar otro Excel para instalar la mejora de rendimiento.
+
 La preparación valida todo el historial antes de modificarlo. Acepta fechas de celda, fechas `YYYY-MM-DD`, seriales enteros de Excel/Sheets e ISO de medianoche UTC. Conserva la zona horaria del archivo para mantener el día de las fechas importadas; las consultas y los timers utilizan Nueva York explícitamente. Los precios y el volumen deben ser números, sin convertir texto según una configuración regional supuesta.
 
 Si aparece `Historial!A2: Fecha vacía`, la importación perdió la fecha de esa fila. Revisar la columna A y volver a importar la plantilla corregida usando **Sustituir la hoja de cálculo**. El script no inventa fechas ni omite filas incompletas. Los demás errores identifican la celda y el requisito incumplido; los duplicados indican ambas filas. No se modifica el historial cuando falla esta validación.
@@ -47,9 +49,10 @@ Mantener el orden y tickers de `Precios`. Los cambios de universo deben aplicars
 
 Ejecutar `comprobarConexion` (solo lectura) y `iniciarHistorial`. El Excel trae datos para revisar desde el principio, pero **Supabase se alimenta de una nueva consulta Yahoo**, no de confiar en las filas importadas.
 
-Se procesan hasta 20 tickers por ejecución, descargando cinco a la vez, y se continúa cada cinco minutos. Son trece ejecuciones base si no se alcanza antes el límite de 210 segundos: aproximadamente 60–65 minutos, más descargas, retrasos de Google y reintentos. La hoja no tiene que permanecer abierta.
+Se procesan como máximo cinco tickers por ejecución tanto en precios diarios como en reconstrucción histórica. La continuación se instala antes de la descarga y actúa cada minuto. Cada llamada intenta mantenerse dentro de 90 segundos y deja de iniciar tickers adicionales cuando queda poco margen; una petición externa lenta puede exceder ese objetivo. Los 250 instrumentos requieren al menos 50 ejecuciones cortas: unos 49 minutos de intervalos, más red, retrasos de Google y reintentos. La hoja no tiene que permanecer abierta.
 
 Consultar `verEstadoMarketScanner` y el registro de ejecución. Muestra cierre esperado, cobertura por ticker y fallos:
+La consulta de progreso usa los recuentos y estados de `Precios`, sin volver a auditar las 124.076 barras. La calidad se comprueba al cargar los datos de cada ticker.
 
 - `COMPLETADO`: sin fallos ni historia corta.
 - `COMPLETADO CON HISTORIA CORTA`: toda la historia real de cotizaciones recientes, inferior a 500 sesiones.
