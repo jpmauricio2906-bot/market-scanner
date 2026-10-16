@@ -17,9 +17,22 @@ create table if not exists public.market_history (
 -- Legacy snapshots have no proof of a final close. Only the new validated writer sets true.
 alter table public.market_history add column if not exists is_final boolean not null default false;
 
--- Required by REST ?on_conflict=fecha,ticker even when an existing table has an id PK.
-create unique index if not exists market_history_fecha_ticker_uq
-  on public.market_history (fecha, ticker);
+-- REST on_conflict needs a unique key. Reuse an existing PK/unique index.
+do $$ begin
+  if not exists (
+    select 1 from pg_index i
+    where i.indrelid='public.market_history'::regclass
+      and i.indisunique and i.indisvalid and i.indpred is null
+      and i.indexprs is null and i.indnkeyatts=2
+      and (select array_agg(a.attname::text order by a.attname)
+           from unnest(i.indkey) with ordinality k(attnum,position)
+           join pg_attribute a on a.attrelid=i.indrelid and a.attnum=k.attnum
+           where k.position<=i.indnkeyatts)=array['fecha','ticker']
+  ) then
+    create unique index if not exists market_history_fecha_ticker_uq
+      on public.market_history (fecha, ticker);
+  end if;
+end $$;
 create index if not exists market_history_ticker_fecha_idx
   on public.market_history (ticker, fecha desc);
 
@@ -44,6 +57,8 @@ revoke all on public.market_history from anon, authenticated;
 grant usage on schema public to anon, authenticated;
 grant select on public.market_history to anon, authenticated;
 grant all on public.market_history to service_role;
+-- Replace the old SELECT policy rather than evaluating two equivalent ones.
+drop policy if exists public_read on public.market_history;
 drop policy if exists market_history_public_read_v2 on public.market_history;
 create policy market_history_public_read_v2 on public.market_history
   for select to anon, authenticated using (true);
