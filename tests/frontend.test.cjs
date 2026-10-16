@@ -349,7 +349,7 @@ test("both pages use the same data client and all inline scripts compile", () =>
     const html = fs.readFileSync(path.join(root, filename), "utf8");
     assert.ok(html.includes('<script src="js/config.js"></script>'));
     assert.ok(html.includes('<script src="js/market-calendar.js?v=3"></script>'));
-    assert.ok(html.includes('<script src="js/data.js?v=3"></script>'));
+    assert.ok(html.includes('<script src="js/data.js?v=3.1"></script>'));
     assert.ok(!html.includes("const SUPABASE_KEY") && !html.includes("var SUPABASE_KEY"));
     for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(match[1], { filename });
   }
@@ -555,4 +555,73 @@ test("ticker detail sends the provisional candle to every chart and signal and l
   assert.equal(element('priceVal').textContent,'$103.00');
   assert.equal(element('sigBadge').textContent,'BUY');
   assert.match(element('quoteStatus').textContent,/confirmed closes/);
+});
+
+test("a repaired price scale refreshes the shared history cache once and invalidates older ticker references", async () => {
+  const tickers=['AAPL','JPM'],oldRows=[bar('AAPL','2026-10-15',{close:100}),bar('JPM','2026-10-15',{open:200,high:205,low:198,close:200})];
+  const newRows=[bar('AAPL','2026-10-15',{open:50,high:55,low:48,close:50}),bar('JPM','2026-10-15',{open:200,high:205,low:198,close:201})];
+  const before=pagedFetch(tickers,oldRows),after=pagedFetch(tickers,newRows),now=new Date('2026-10-16T14:05:00Z');
+  let repaired=false;
+  const oldQuote=recentQuote('AAPL',{close:101,previous_close:100});
+  const newQuote=recentQuote('AAPL',{open:50,high:55,low:48,close:51,previous_close:50});
+  const client=makeClient({tickers,fetch:async(url,options)=>{
+    if(url.includes('/market_latest_quotes?')){
+      const filter=new URL(url).searchParams.get('ticker'),quote=repaired?newQuote:oldQuote;
+      return {ok:true,json:async()=>filter==='eq.JPM'?[]:[quote]};
+    }
+    return (repaired?after:before).request(url,options);
+  }});
+  const directBase=client.normalizeMarketRows(oldRows,universe(tickers),null,now);
+  const direct=client.mergeRecentMarketQuotes(directBase,[newQuote],true,now);
+  assert.equal(direct.provisionalTickers.length,0,'the standalone merge also refuses mixed historical scales');
+  assert.deepEqual(Array.from(direct.quality.incompatibleRecentTickers),['AAPL']);
+  assert.equal(direct.quoteByTicker.has('AAPL'),false);
+  await client.fetchMarketData('JPM',null,{now});
+  await client.fetchMarketData(null,null,{now});
+  repaired=true;
+  const result=await client.fetchMarketData('AAPL',null,{now});
+  assert.equal(result.quality.historyReloadedForQuote,true);
+  assert.equal(result.quality.incompatibleRecentTickers.length,0);
+  assert.equal(result.data.length,2);
+  assert.equal(result.data[0][5],50);
+  assert.equal(result.data[1][5],51);
+  assert.equal(result.provisionalTickers.length,1);
+  assert.equal(after.requests.length,2,'one full-history reload, including its empty cursor page');
+  assert.ok(after.requests.every(request=>request.parsed.searchParams.get('ticker').startsWith('in.(')),'refreshes the all-ticker scope that supplied the stale cache');
+  const jpm=await client.fetchMarketData('JPM',null,{now});
+  assert.equal(jpm.data[0][5],201,'the old per-ticker cache was removed');
+  assert.equal(after.requests.length,2,'the refreshed shared history is reused');
+});
+
+test("an incompatible quote stays blocked after one reload and historical-only mode never refetches for that quote", async () => {
+  const now=new Date('2026-10-16T14:05:00Z'),rows=[bar('AAPL','2026-10-15',{close:100})],api=pagedFetch(['AAPL'],rows);
+  let badBaseline=false,quoteRequests=0;
+  const client=makeClient({tickers:['AAPL'],fetch:async(url,options)=>{
+    if(url.includes('/market_latest_quotes?')){
+      quoteRequests++;
+      return {ok:true,json:async()=>[recentQuote('AAPL',{close:101,previous_close:badBaseline?50:100})]};
+    }
+    return api.request(url,options);
+  }});
+  await client.fetchMarketData(null,null,{now});
+  const before=api.requests.length;
+  badBaseline=true;
+  const result=await client.fetchMarketData(null,null,{now});
+  assert.equal(api.requests.length-before,2,'reloads once; never loops on a persistent mismatch');
+  assert.equal(result.quality.historyReloadedForQuote,true);
+  assert.deepEqual(Array.from(result.quality.incompatibleRecentTickers),['AAPL']);
+  assert.equal(result.provisionalTickers.length,0);
+  assert.equal(result.data.length,1);
+  assert.equal(result.data[0][5],100);
+  assert.ok(client.marketQualityMessages(result).some(text=>text.includes('compatible historical series')));
+  const requestCount=api.requests.length,quoteCount=quoteRequests;
+  const closed=await client.fetchMarketData(null,null,{includeRecent:false,refreshQuotes:false,now});
+  assert.equal(api.requests.length,requestCount,'historical-only mode does not reload due to a provisional baseline');
+  assert.equal(quoteRequests,quoteCount,'the display toggle makes no quote request');
+  assert.equal(closed.data.length,1);
+  const finalBase=client.normalizeMarketRows([rows[0],bar('AAPL','2026-10-16',{close:102})],universe(['AAPL']),null,now);
+  const alreadyFinal=client.mergeRecentMarketQuotes(finalBase,[recentQuote('AAPL',{previous_close:50})],true,now);
+  assert.equal(alreadyFinal.quality.incompatibleRecentTickers.length,0,'an already confirmed day ignores the provisional quote before the baseline guard');
+  assert.equal(alreadyFinal.provisionalTickers.length,0);
+  assert.equal(alreadyFinal.data.at(-1)[5],102);
 });

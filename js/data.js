@@ -267,10 +267,21 @@ function mergeRecentMarketQuotes(base, quotes, includeRecent = true, now = new D
     const prior = quoteByTicker.get(quote.ticker);
     if (!prior || sourceTime >= Date.parse(prior.source_quote_at)) quoteByTicker.set(quote.ticker, { ...quote, outdated, bar: normalized.bar });
   });
-  const provisionalTickers = [], finalRows = [], data = [];
+  const provisionalTickers = [], finalRows = [], data = [], incompatible = [];
   allowed.forEach(ticker => {
     let finals = [...(finalByTicker.get(ticker) || [])];
-    const quote = quoteByTicker.get(ticker), last = finals[finals.length - 1];
+    let quote = quoteByTicker.get(ticker);
+    const last = finals[finals.length - 1];
+    const previousFinal = quote ? finals.filter(row => row[0] < quote.fecha).at(-1) : null;
+    if (quote && !quote.is_final && previousFinal && (!last || quote.fecha > last[0])) {
+      const canonicalPrevious = _number(quote.previous_close);
+      if (!Number.isFinite(canonicalPrevious) || canonicalPrevious <= 0 ||
+          Math.abs(canonicalPrevious - previousFinal[5]) > Math.max(0.02, Math.abs(canonicalPrevious) * 0.005)) {
+        // A split/rebuild may change historical scale while the tab's cache is
+        // still valid by age. Never join that cache to a different price scale.
+        incompatible.push(ticker); quoteByTicker.delete(ticker); quote = null;
+      }
+    }
     // Same-day confirmed history always wins, even if a quote was fetched later.
     if (quote && quote.is_final && (!last || quote.fecha > last[0])) finals.push(quote.bar);
     finals = finals.slice(-MARKET_SETTINGS.historyDays);
@@ -295,7 +306,8 @@ function mergeRecentMarketQuotes(base, quotes, includeRecent = true, now = new D
       provisionalRows: base.quality.provisionalRows, duplicateRows: base.quality.duplicateRows,
       outsideUniverseRows: base.quality.outsideUniverseRows,
       provisionalTickers, staleRecentTickers: [...stale],
-      invalidRecentTickers: [...invalid], missingRecentTickers, acceptedRecentQuotes: quoteByTicker.size }, historyLoadedAt: base.historyLoadedAt };
+      invalidRecentTickers: [...invalid], incompatibleRecentTickers: incompatible,
+      missingRecentTickers, acceptedRecentQuotes: quoteByTicker.size }, historyLoadedAt: base.historyLoadedAt };
 }
 
 async function fetchMarketData(ticker = null, onProgress = null, options = {}) {
@@ -306,7 +318,7 @@ async function fetchMarketData(ticker = null, onProgress = null, options = {}) {
   let cached = _marketHistoryCache.get(key) || (ticker ? _marketHistoryCache.get('*') : null);
   if (options.forceHistory || !cached || now.getTime() - cached.loadedAt > _marketHistoryCacheMs || cached.expected !== expected) cached = null;
   const historyPromise = cached ? Promise.resolve(cached) : _fetchFinalHistory(ticker, universe, onProgress).then(rows => {
-    const value = { rows, loadedAt: now.getTime(), expected };
+    const value = { rows, loadedAt: now.getTime(), expected, cacheKey: key };
     _marketHistoryCache.set(key, value); return value;
   });
   let recentError = null;
@@ -318,10 +330,23 @@ async function fetchMarketData(ticker = null, onProgress = null, options = {}) {
       recentError = error.message;
       return _recentMarketQuotes.filter(row => !ticker || row.ticker === ticker);
     });
-  const [history, quotes] = await Promise.all([historyPromise, quotesPromise]);
-  const rows = ticker ? history.rows.filter(row => row.ticker === ticker) : history.rows;
-  const base = { ...normalizeMarketRows(rows, universe, ticker, now), ticker, historyLoadedAt: new Date(history.loadedAt).toISOString() };
-  const result = mergeRecentMarketQuotes(base, quotes, options.includeRecent !== false, now);
+  let [history, quotes] = await Promise.all([historyPromise, quotesPromise]);
+  let rows = ticker ? history.rows.filter(row => row.ticker === ticker) : history.rows;
+  let base = { ...normalizeMarketRows(rows, universe, ticker, now), ticker, historyLoadedAt: new Date(history.loadedAt).toISOString() };
+  let result = mergeRecentMarketQuotes(base, quotes, options.includeRecent !== false, now);
+  if (options.includeRecent !== false && result.quality.incompatibleRecentTickers.length) {
+    // Refresh the same scope as the stale cache, once. Clear ticker references
+    // too, so another view cannot borrow an older version of the repaired series.
+    const reloadTicker = history.cacheKey === '*' ? null : ticker;
+    _marketHistoryCache.clear();
+    const freshRows = await _fetchFinalHistory(reloadTicker, universe, onProgress);
+    history = { rows: freshRows, loadedAt: now.getTime(), expected, cacheKey: reloadTicker || '*' };
+    _marketHistoryCache.set(history.cacheKey, history);
+    rows = ticker ? freshRows.filter(row => row.ticker === ticker) : freshRows;
+    base = { ...normalizeMarketRows(rows, universe, ticker, now), ticker, historyLoadedAt: new Date(history.loadedAt).toISOString() };
+    result = mergeRecentMarketQuotes(base, quotes, options.includeRecent !== false, now);
+    result.quality.historyReloadedForQuote = true;
+  }
   // Keep newly confirmed rows between fast refreshes without reloading all history.
   const knownKeys = new Set(rows.map(row => row.ticker + '|' + row.fecha));
   const newFinals = result.finalizedData.filter(row => !knownKeys.has(row[1] + '|' + row[0]));
@@ -356,6 +381,7 @@ function marketQualityMessages(result) {
   if (quality.provisionalTickers && quality.provisionalTickers.length) messages.push(quality.provisionalTickers.length + " instruments include today's provisional daily candle in prices, charts and signals");
   if (quality.staleRecentTickers && quality.staleRecentTickers.length) messages.push(quality.staleRecentTickers.length + " recent quotes are outdated; today's last approved values keep their source timestamps");
   if (quality.invalidRecentTickers && quality.invalidRecentTickers.length) messages.push(quality.invalidRecentTickers.length + " recent quotes unavailable or rejected; confirmed history retained");
+  if (quality.incompatibleRecentTickers && quality.incompatibleRecentTickers.length) messages.push(quality.incompatibleRecentTickers.length + " recent quotes await a compatible historical series; confirmed closes shown");
   if (quality.missingRecentTickers && quality.missingRecentTickers.length) messages.push(quality.missingRecentTickers.length + " instruments await an accepted quote for today; confirmed history retained");
   if (quality.recentError) messages.push("Recent quotes could not be refreshed; last available accepted data shown with its original source time");
   if (quality.duplicateRows) messages.push(quality.duplicateRows + " duplicate rows consolidated");

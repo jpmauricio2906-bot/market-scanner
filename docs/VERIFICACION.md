@@ -1,6 +1,6 @@
 # Verificación de v3: cotizaciones y vela del día
 
-Verificación previa a publicación: backend v3 desplegado, **70 pruebas JavaScript y 111 comprobaciones SQL aprobadas**. La comprobación del navegador en producción se realiza después de publicar. La cobertura y el recálculo real de las 250 fórmulas requieren la cuenta del propietario. No se declara activada esa instalación de Google.
+Verificación previa a publicación: backend v3 desplegado, **72 pruebas JavaScript y 111 comprobaciones SQL aprobadas**. La comprobación del navegador en producción se realiza después de publicar. La cobertura y el recálculo real de las 250 fórmulas requieren la cuenta del propietario. No se declara activada esa instalación de Google.
 
 ## Apps Script local
 
@@ -12,7 +12,9 @@ El trabajo Yahoo mantiene grupos de cinco, hasta 20 tickers por ejecución y con
 
 Estas pruebas usan dobles de servicios; no demuestran que Google Finance cubra todos los atributos de los 250 símbolos ni que un activador del propietario se haya ejecutado.
 
-Las otras pruebas JavaScript son 24 de frontend y 15 de worker, para un total de 70 y cero fallos. Cubren la vela provisional en gráficos e indicadores, modo solo cierres, caché de 60 minutos, refresco de cotizaciones, estado `OUTDATED`, retraso Yahoo desconocido, calendario de cierres reducidos y los controles del worker.
+Las otras pruebas JavaScript son 26 de frontend y 15 de worker, para un total de 72 y cero fallos. Cubren la vela provisional en gráficos e indicadores, modo solo cierres, caché de 60 minutos, refresco de cotizaciones, estado `OUTDATED`, retraso Yahoo desconocido, calendario de cierres reducidos y los controles del worker.
+
+Dos regresiones adicionales verifican la coherencia de escala tras una reparación: una cotización cuyo cierre previo canónico ya no coincide con el historial en memoria provoca una sola recarga y elimina las referencias de caché anteriores. Si la discrepancia persiste, la vela provisional queda bloqueada sin un bucle de recargas; el modo solo cierres no vuelve a consultar por esa discrepancia.
 
 ## SQL v3: 111 comprobaciones aprobadas
 

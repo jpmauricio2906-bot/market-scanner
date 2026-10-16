@@ -35,6 +35,8 @@ El refresco rápido de la web consulta las cotizaciones publicadas y reutiliza l
 
 Una cotización provisional no sobrescribe una barra confirmada de la misma fecha. Si hay una revisión de escala o un split por reparar, esa cotización no se mezcla con un historial incompatible. Una reconstrucción histórica tampoco debe hacer retroceder la cotización del día a la fecha anterior.
 
+La aplicación también comprueba que su historial en memoria corresponda a la escala del cierre previo canónico que devuelve el servidor. Si la diferencia supera la tolerancia —el mayor valor entre 0,02 USD y el 0,5 % del cierre canónico—, renueva el historial una vez antes de combinar la cotización provisional. Si la discrepancia persiste, mantiene los cierres sin añadir esa vela y muestra el aviso correspondiente.
+
 ## Límites del proveedor
 
 La rapidez del envío no garantiza una cotización bursátil instantánea. Google documenta retrasos de hasta 20 minutos y atributos no disponibles para algunos símbolos. La interfaz conserva información de antigüedad/fuente; los símbolos sin datos utilizables continúan dependiendo de la captura Yahoo aprobada cuando existe. La cobertura real de las 250 fórmulas debe comprobarse en la hoja del propietario.
