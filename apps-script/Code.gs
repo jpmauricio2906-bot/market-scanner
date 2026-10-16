@@ -34,12 +34,21 @@ function prepararMarketScanner() {
     const ss = SpreadsheetApp.getActiveSpreadsheet(), companies = msUniverse_();
     const count = companies.length, lastRow = count + 1, historyCapacity = count * 500 + 1;
     if (!ss) throw new Error('Vincular este proyecto a Google Sheets.');
-    ss.setSpreadsheetTimeZone('America/New_York');
+    // Validate the imported data before changing headers, sorting rows or writing formulas.
+    // Preserve the sheet timezone: changing it can move imported date cells to the previous day.
+    Object.keys(MS_HEADERS).forEach(function(name) {
+      const headers = MS_HEADERS[name], sheet = ss.getSheetByName(name);
+      if (!sheet) return;
+      const old = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+      if (old.some(x => x !== '') && JSON.stringify(old) !== JSON.stringify(headers)) throw new Error(name + ': encabezados incompatibles. Importar plantilla limpia.');
+    });
+    const importedHistory = ss.getSheetByName('Historial'), importedPrices = ss.getSheetByName('Precios');
+    const cache = importedHistory ? msLoadHistory_(importedHistory) : {byTicker: {}};
+    const old = importedPrices && importedPrices.getLastRow() > 1 ? importedPrices.getRange(2, 1, Math.min(count, importedPrices.getLastRow() - 1), 1).getValues().map(r => r[0]) : [];
+    if (old.some((t, i) => t && t !== companies[i].ticker)) throw new Error('Lista distinta a Universe.gs; importar plantilla regenerada para cambiar el universo.');
     msProperties_().setProperty('SPREADSHEET_ID', ss.getId());
     Object.keys(MS_HEADERS).forEach(function(name) {
       const headers = MS_HEADERS[name], sheet = ss.getSheetByName(name) || ss.insertSheet(name);
-      const old = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
-      if (old.some(x => x !== '') && JSON.stringify(old) !== JSON.stringify(headers)) throw new Error(name + ': encabezados incompatibles. Importar plantilla limpia.');
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setBackground('#16324f').setFontColor('#ffffff').setFontWeight('bold');
       sheet.setFrozenRows(1);
     });
@@ -50,15 +59,12 @@ function prepararMarketScanner() {
       .sort([{column: 2, ascending: true}, {column: 1, ascending: true}]);
     const sheet = ss.getSheetByName('Precios');
     if (sheet.getMaxRows() < lastRow) sheet.insertRowsAfter(sheet.getMaxRows(), lastRow - sheet.getMaxRows());
-    const old = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, Math.min(count, sheet.getLastRow() - 1), 1).getValues().map(r => r[0]) : [];
-    if (old.some((t, i) => t && t !== companies[i].ticker)) throw new Error('Lista distinta a Universe.gs; importar plantilla regenerada para cambiar el universo.');
     sheet.getRange(2, 1, count, 2).setValues(companies.map(c => [c.ticker, c.name]));
     sheet.getRange(2, 10, count, 2).setFormulas(companies.map(function(company, i) {
       const r = i + 2;
       return ['=IF(AND(ISNUMBER(G' + r + '),ISNUMBER(I' + r + ')),G' + r + '-I' + r + ',"")',
         '=IF(AND(ISNUMBER(J' + r + '),ISNUMBER(I' + r + '),I' + r + '>0),J' + r + '/I' + r + ',"")'];
     }));
-    const cache = msLoadHistory_(historySheet);
     sheet.getRange(2, 14, count, 1).setValues(companies.map(c => [(cache.byTicker[c.ticker] || []).length]));
     sheet.getRange(2, 15, count, 2).setValues(companies.map(c => [c.yahooTicker || c.ticker, c.exchange]));
     sheet.getRange(2, 17, count, 5).setValues(companies.map(c => [c.type, c.category || '', c.issuer || '', c.dailyLeverage ?? 1, Boolean(c.inverse)]));

@@ -43,22 +43,60 @@ function msPublish_(rows, cutoff, ticker) {
 }
 
 function msArray_(r) { return [r.fecha, r.ticker, r.open, r.high, r.low, r.close, r.volumen]; }
-function msObject_(r) {
-  let date = r[0];
-  if (date instanceof Date) date = msDate_(date);
-  return {fecha: String(date), ticker: String(r[1]), open: r[2], high: r[3], low: r[4], close: r[5], volumen: r[6]};
+function msHistoryDate_(value, timeZone) {
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ?
+    Utilities.formatDate(value, timeZone, 'yyyy-MM-dd') : null;
+  // An imported spreadsheet serial denotes a day, not a UTC timestamp to convert to New York.
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value)) return null;
+    const date = new Date(Date.UTC(1899, 11, 30) + value * 86400000);
+    return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : null;
+  }
+  if (typeof value !== 'string') return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const midnight = /^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.000)?Z$/.exec(value);
+  return midnight ? midnight[1] : null;
+}
+
+function msObject_(r, timeZone) {
+  return {fecha: msHistoryDate_(r[0], timeZone), ticker: String(r[1]), open: r[2], high: r[3], low: r[4], close: r[5], volumen: r[6]};
+}
+
+function msHistoryIssue_(row, array) {
+  if (array[0] === '' || array[0] === null || array[0] === undefined)
+    return {column: 'A', message: 'Fecha vacía. Revisar la importación; no se puede deducir la fecha.'};
+  if (!row.fecha) return {column: 'A', message: 'Fecha inválida. Usar fecha de celda, YYYY-MM-DD, serial entero o ISO de medianoche UTC.'};
+  if (!msIsSession_(row.fecha)) return {column: 'A', message: 'Fecha fuera de una sesión de bolsa válida del calendario 2024–2030.'};
+  if (!/^[A-Z][A-Z0-9-]{0,9}$/.test(row.ticker || '')) return {column: 'B', message: 'Ticker vacío o inválido.'};
+  const prices = [['open','C','Open'], ['high','D','High'], ['low','E','Low'], ['close','F','Close']];
+  for (let i = 0; i < prices.length; i++) {
+    const field = prices[i], value = row[field[0]];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0)
+      return {column: field[1], message: field[2] + ' debe ser un número positivo, no texto ni una celda vacía.'};
+  }
+  if (row.low > Math.min(row.open, row.close)) return {column: 'E', message: 'Low supera Open o Close; OHLC incoherente.'};
+  if (row.high < Math.max(row.open, row.close)) return {column: 'D', message: 'High es inferior a Open o Close; OHLC incoherente.'};
+  if (row.low > row.high) return {column: 'E', message: 'Low supera High; OHLC incoherente.'};
+  if (!Number.isSafeInteger(row.volumen) || row.volumen < 0) return {column: 'G', message: 'Volumen debe ser un número entero no negativo.'};
+  return null;
 }
 
 function msLoadHistory_(sheet) {
+  const timeZone = sheet.getParent().getSpreadsheetTimeZone();
   const values = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues() : [];
   const byTicker = {}, free = [], keys = {}, dirty = {};
   values.forEach(function(array, n) {
     if (array.every(x => x === '')) { free.push(n); return; }
-    const row = msObject_(array), key = row.ticker + '|' + row.fecha;
-    if (!msValidBar_(row) || keys[key]) throw new Error('Historial existente inválido o duplicado, fila ' + (n + 2) + '. Usar la plantilla limpia.');
+    const row = msObject_(array, timeZone), line = n + 2;
+    if (!msValidBar_(row)) {
+      const issue = msHistoryIssue_(row, array);
+      throw new Error('Historial!' + (issue ? issue.column : 'A') + line + ': ' + (issue ? issue.message : 'OHLCV inválido.') + ' No se modificó el historial.');
+    }
+    const key = row.ticker + '|' + row.fecha;
+    if (keys[key]) throw new Error('Historial!B' + line + ': Fecha + Ticker duplicados con la fila ' + keys[key] + '. No se modificó el historial.');
     // Sheets returns date cells as Date; compare canonical dates to avoid rewriting unchanged bars.
     values[n] = msArray_(row);
-    keys[key] = true;
+    keys[key] = line;
     (byTicker[row.ticker] || (byTicker[row.ticker] = [])).push({index: n, row: row});
   });
   return {sheet: sheet, values: values, byTicker: byTicker, free: free, dirty: dirty};

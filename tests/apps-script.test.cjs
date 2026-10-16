@@ -106,9 +106,55 @@ test('stopping timers records intent even while another process owns the lock',(
   c.msRunJob_('daily',c.msNewJob_());
 });
 test('imported Sheets dates do not force unchanged 500-day histories to be rewritten',()=>{
-  const c=context(),sheet={getLastRow:()=>2,getRange:()=>({getValues:()=>[[new Date('2026-10-15T04:00:00Z'),'AAPL',100,110,90,105,1000]]})};
+  const c=context(),sheet={getParent:()=>({getSpreadsheetTimeZone:()=> 'America/New_York'}),getLastRow:()=>2,getRange:()=>({getValues:()=>[[new Date('2026-10-15T04:00:00Z'),'AAPL',100,110,90,105,1000]]})};
   const cache=c.msLoadHistory_(sheet);
   assert.equal(cache.values[0][0],'2026-10-15');
   c.msSaveTicker_(cache,'AAPL',[{fecha:'2026-10-15',ticker:'AAPL',open:100,high:110,low:90,close:105,volumen:1000}]);
   assert.equal(Object.keys(cache.dirty).length,0);
+});
+
+// A real Yahoo bar from the delivered workbook, including full price precision.
+const importedBar = ['2024-10-16','ACN',365.69000244140625,372.8699951171875,364.8800048828125,372.260009765625,2110700];
+function importedSheet(rows, timeZone = 'UTC') {
+  return {getParent:()=>({getSpreadsheetTimeZone:()=>timeZone}),getLastRow:()=>rows.length+1,
+    getRange:()=>({getValues:()=>rows.map(row=>row.slice())})};
+}
+test('Excel serials and strict midnight ISO dates preserve the imported daily bar without coercing OHLCV',()=>{
+  const c=context();
+  for(const date of [45581,'2024-10-16','2024-10-16T00:00:00Z','2024-10-16T00:00:00.000Z',new Date('2024-10-16T00:00:00Z')]) {
+    const cache=c.msLoadHistory_(importedSheet([[date,...importedBar.slice(1)]]));
+    assert.deepEqual(plain(cache.values[0]),importedBar);
+    assert.equal(Object.keys(cache.dirty).length,0);
+  }
+});
+test('native Sheets dates use the file timezone across standard time and daylight saving time',()=>{
+  const c=context();
+  for(const [instant,timeZone,date] of [
+    ['2026-01-02T00:00:00Z','UTC','2026-01-02'],
+    ['2026-01-02T05:00:00Z','America/New_York','2026-01-02'],
+    ['2026-03-09T04:00:00Z','America/New_York','2026-03-09'],
+    ['2026-11-02T05:00:00Z','America/New_York','2026-11-02']
+  ]) {
+    const cache=c.msLoadHistory_(importedSheet([[new Date(instant),...importedBar.slice(1)]],timeZone));
+    assert.equal(cache.values[0][0],date);
+  }
+});
+test('a lost import date identifies A2 and never infers a day from the valid prices',()=>{
+  const c=context(), rows=[['',...importedBar.slice(1)]];
+  assert.throws(()=>c.msLoadHistory_(importedSheet(rows)),/Historial!A2: Fecha vacía/);
+  assert.equal(rows[0][0],'');
+});
+test('ambiguous dates, numeric price text and invalid OHLCV remain rejected with their cell',()=>{
+  const c=context();
+  for(const date of [45581.5,'45581','16/10/2024','2024-10-16T01:00:00Z','2026-02-30','2026-10-17',new Date(NaN)])
+    assert.throws(()=>c.msLoadHistory_(importedSheet([[date,...importedBar.slice(1)]])),/Historial!A2:/);
+  for(const [index,value,cell] of [[2,'365.69','C2'],[2,0,'C2'],[3,360,'D2'],[4,370,'E2'],[5,null,'F2'],[6,1.5,'G2'],[6,-1,'G2']]) {
+    const row=importedBar.slice(); row[index]=value;
+    assert.throws(()=>c.msLoadHistory_(importedSheet([row])),new RegExp('Historial!'+cell+':'));
+  }
+});
+test('duplicate dates represented as serial and ISO report both conflicting rows',()=>{
+  const c=context(),rows=[[45581,...importedBar.slice(1)],importedBar.slice()];
+  assert.throws(()=>c.msLoadHistory_(importedSheet(rows)),/Historial!B3: Fecha \+ Ticker duplicados con la fila 2/);
+  assert.equal(rows[0][0],45581);
 });

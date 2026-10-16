@@ -55,3 +55,11 @@ J:K contienen 500 fórmulas de cambio, dos por instrumento. N contiene el recuen
 El paso de las fechas nativas por el formato numérico de Excel produjo un redondeo máximo de un milisegundo en las horas de consulta; los segundos mostrados no cambian. El informe registra ese máximo con una tolerancia de dos milisegundos. Los precios, volúmenes y fechas de sesión conservan sus valores de origen.
 
 La exportación local no activa el timer, publica en GitHub ni cambia Supabase. El libro inicial de 200 empresas sigue disponible como respaldo.
+
+## Corrección de la importación en Google Sheets
+
+El propietario comprobó que el primer Excel mostraba las fechas, pero Google Sheets dejaba vacía la columna Fecha al importarlo. Ese archivo guardaba las fechas con el tipo OOXML `d`. La plantilla corregida utiliza seriales numéricos clásicos de Excel con formato `yyyy-mm-dd` para las fechas de sesión; `Actualizado` conserva la hora UTC de la consulta original. No se deducen fechas a partir de precios ni se rellenan sesiones.
+
+Para recuperar una importación afectada, ejecutar `detenerTemporizadores`, conservar una copia y volver a importar la plantilla corregida mediante **Sustituir la hoja de cálculo** en el mismo archivo. Comprobar `Historial!A2:G5` antes de ejecutar `prepararMarketScanner`, `comprobarConexion` e `iniciarHistorial` con el script actualizado.
+
+El lector de Apps Script acepta fechas nativas en la zona del archivo, seriales enteros y texto ISO de fecha o de medianoche UTC. Una fecha ausente detiene el proceso indicando su celda, por ejemplo `Historial!A2: Fecha vacía`; las validaciones OHLCV y de duplicados siguen siendo obligatorias. Preparar la hoja valida el historial antes de ordenar o escribir y conserva la zona horaria del archivo; las consultas Yahoo y los horarios del mercado utilizan explícitamente Nueva York.

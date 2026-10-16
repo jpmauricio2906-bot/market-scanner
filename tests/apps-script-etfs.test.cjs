@@ -45,6 +45,7 @@ class Sheet {
   key(row, col) { return row + ',' + col; }
   cell(row, col) { return this.cells.get(this.key(row, col)) ?? ''; }
   getMaxRows() { return this.rows; }
+  getParent() { return this.book; }
   insertRowsAfter(after, count) { assert.equal(after, this.rows); this.rows += count; }
   getLastRow() { return Math.max(0, ...[...this.cells.keys(), ...this.formulas.keys()].map(key => Number(key.split(',')[0]))); }
   setFrozenRows(rows) { this.frozenRows = rows; }
@@ -92,9 +93,11 @@ function workbook() {
   const sheets = new Map();
   return {
     getId: () => 'test-sheet-250',
+    timezone: 'UTC',
+    getSpreadsheetTimeZone() { return this.timezone; },
     setSpreadsheetTimeZone(timezone) { this.timezone = timezone; },
     getSheetByName: name => sheets.get(name) || null,
-    insertSheet(name) { const sheet = new Sheet(name, name === 'Precios' ? 200 : 1000); sheets.set(name, sheet); return sheet; }
+    insertSheet(name) { const sheet = new Sheet(name, name === 'Precios' ? 200 : 1000); sheet.book = this; sheets.set(name, sheet); return sheet; }
   };
 }
 
@@ -148,7 +151,7 @@ test('clean sheet setup reaches row 251, allocates 125,000 history slots and wri
   const { ctx, props } = context({ SpreadsheetApp: { getActiveSpreadsheet: () => book } });
   ctx.prepararMarketScanner();
   const prices = book.getSheetByName('Precios'), instruments = ctx.msUniverse_();
-  assert.equal(book.timezone, 'America/New_York');
+  assert.equal(book.timezone, 'UTC', 'imported dates keep the file timezone');
   assert.equal(props.get('SPREADSHEET_ID'), 'test-sheet-250');
   assert.equal(prices.getMaxRows(), 251);
   assert.equal(history.getMaxRows(), 125001);
@@ -167,6 +170,30 @@ test('clean sheet setup reaches row 251, allocates 125,000 history slots and wri
   assert.equal(prices.cell(usdRow, 14), 1);
   assert.ok(prices.formats.some(format => format.col === 11 && format.row + format.height - 1 === 251));
   assert.deepEqual(history.getRange(2, 1, 2, 7).getValues(), [...oldBars].sort((a, b) => a[1].localeCompare(b[1])));
+});
+
+test('preparation validates a missing date before sorting, expanding or writing to the workbook', () => {
+  const book = workbook(), history = book.insertSheet('Historial');
+  history.getRange(2, 1, 1, 7).setValues([['', 'ACN', 365.69000244140625, 372.8699951171875, 364.8800048828125, 372.260009765625, 2110700]]);
+  const before = [...history.cells], { ctx, props } = context({ SpreadsheetApp: { getActiveSpreadsheet: () => book } });
+  assert.throws(() => ctx.prepararMarketScanner(), /Historial!A2: Fecha vacía/);
+  assert.deepEqual([...history.cells], before);
+  assert.equal(history.getMaxRows(), 1000);
+  assert.equal(history.frozenRows, undefined);
+  assert.equal(book.getSheetByName('Precios'), null);
+  assert.equal(book.timezone, 'UTC');
+  assert.equal(props.has('SPREADSHEET_ID'), false);
+});
+
+test('preparation preserves a UTC date cell and accepts its existing valid history', () => {
+  const book = workbook(), history = book.insertSheet('Historial');
+  const { ctx } = context({ SpreadsheetApp: { getActiveSpreadsheet: () => book } });
+  const date = new ctx.Date('2026-01-02T00:00:00Z');
+  history.getRange(2, 1, 1, 7).setValues([[date, 'AAPL', 100, 105, 98, 103, 1000000]]);
+  ctx.prepararMarketScanner();
+  assert.equal(book.timezone, 'UTC');
+  assert.equal(history.cell(2, 1), date, 'no bulk date conversion is needed');
+  assert.equal(ctx.msLoadHistory_(history).values[0][0], '2026-01-02');
 });
 
 function jobHarness() {

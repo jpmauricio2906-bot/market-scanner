@@ -37,6 +37,10 @@ En **Propiedades del script**, configurar:
 
 Ejecutar `prepararMarketScanner` y aceptar los permisos de Google. Guarda `SPREADSHEET_ID`, comprueba encabezados y lista, conserva Historial y escribe las fórmulas. Amplía Historial a 125.001 filas para 250×500 sesiones más encabezados. La plantilla anterior de 16 columnas requiere importar esta nueva versión; no mezclarla con los scripts de 250.
 
+La preparación valida todo el historial antes de modificarlo. Acepta fechas de celda, fechas `YYYY-MM-DD`, seriales enteros de Excel/Sheets e ISO de medianoche UTC. Conserva la zona horaria del archivo para mantener el día de las fechas importadas; las consultas y los timers utilizan Nueva York explícitamente. Los precios y el volumen deben ser números, sin convertir texto según una configuración regional supuesta.
+
+Si aparece `Historial!A2: Fecha vacía`, la importación perdió la fecha de esa fila. Revisar la columna A y volver a importar la plantilla corregida usando **Sustituir la hoja de cálculo**. El script no inventa fechas ni omite filas incompletas. Los demás errores identifican la celda y el requisito incumplido; los duplicados indican ambas filas. No se modifica el historial cuando falla esta validación.
+
 Mantener el orden y tickers de `Precios`. Los cambios de universo deben aplicarse juntos a `data/universe.json`, `Universe.gs` y la plantilla.
 
 ## 4. Carga y comprobación
