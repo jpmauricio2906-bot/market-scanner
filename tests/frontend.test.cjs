@@ -348,7 +348,8 @@ test("both pages use the same data client and all inline scripts compile", () =>
   for (const filename of ["index.html", "ticker.html"]) {
     const html = fs.readFileSync(path.join(root, filename), "utf8");
     assert.ok(html.includes('<script src="js/config.js"></script>'));
-    assert.ok(html.includes('<script src="js/data.js"></script>'));
+    assert.ok(html.includes('<script src="js/market-calendar.js?v=3"></script>'));
+    assert.ok(html.includes('<script src="js/data.js?v=3"></script>'));
     assert.ok(!html.includes("const SUPABASE_KEY") && !html.includes("var SUPABASE_KEY"));
     for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(match[1], { filename });
   }
