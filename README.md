@@ -8,7 +8,7 @@ La corrección del 16/10 usa `BATS:ARKK`, interpreta la hora UTC de SOXS mediant
 
 DELL, LABU, MAGS y SPY se recuperaron mediante el worker y las respuestas Yahoo corregidas: los **250 instrumentos tienen cierre confirmado del 16/10**. Los trabajos fallidos continúan reintentándose con una hora de espera desde el quinto fallo, conservando las validaciones. [Recuperación y política de reintentos](docs/RECUPERACION_PROVEEDOR.md).
 
-La revisión puntual del cierre del **19/10/2026** se programa en Supabase a las **20:30 de Nueva York**. GitHub Actions consulta el informe desde las 20:35 y abre una incidencia asignada al propietario si hay pendientes, rechazos sin resolver o un fallo de comprobación. La revisión funciona con el equipo apagado y conserva los controles de calidad. [Programación, informe y avisos](docs/REVISION_CIERRE_CLOUD.md).
+Supabase revisa los cierres de los **250 instrumentos cada día bursátil a las 20:30 de Nueva York**, desde el 19/10/2026. GitHub Actions consulta el informe desde las 20:35 y abre una incidencia asignada al propietario **solo si hay tickers pendientes, rechazados o desactualizados**. Excluye fines de semana y feriados, respeta los cambios de horario y funciona con el equipo apagado. Los fallos técnicos se registran en Actions sin abrir incidencias. [Programación, informe y avisos](docs/REVISION_CIERRE_CLOUD.md).
 
 ```mermaid
 flowchart LR

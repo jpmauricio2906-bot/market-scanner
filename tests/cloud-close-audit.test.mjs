@@ -4,8 +4,11 @@ import { readFile } from 'node:fs/promises';
 import { AuditError, validateUniverse, validateSnapshot, minimumCapture, readPublicConfig,
   requestJson, fetchSnapshot, upsertIncident, closeRecoveredIncident, renderReport, escapeMarkdown, parseArguments }
   from '../tools/check-close-audit.mjs';
+import { notificationAction, tickerIncidents } from '../tools/check-close-audit.mjs';
+import { scheduledSession, auditInstant, newYorkParts } from '../tools/close-audit-schedule.mjs';
 
 const universe = validateUniverse(JSON.parse(await readFile(new URL('../data/universe.json', import.meta.url), 'utf8')));
+const calendar = JSON.parse(await readFile(new URL('../supabase/calendar.json', import.meta.url), 'utf8'));
 const sessionDate = '2026-10-19';
 const captured = '2026-10-20T00:30:00+00:00';
 const options = { sessionDate, now: Date.parse('2026-10-20T01:00:00Z') };
@@ -236,4 +239,64 @@ test('fixtures always require --no-notify and CLI rejects invalid target dates',
   assert.throws(() => parseArguments(['--input', 'fixture.json']), errorCode('FIXTURE_REQUIRES_NO_NOTIFY'));
   assert.throws(() => parseArguments(['--session', '2026-02-30']), errorCode('ARGUMENT_INVALID'));
   assert.throws(() => parseArguments(['--unrecognized']), errorCode('ARGUMENT_INVALID'));
+});
+test('20:30 New York audit boundaries follow daylight and standard time', () => {
+  assert.equal(auditInstant('2026-03-09'), '2026-03-10T00:30:00.000Z');
+  assert.equal(minimumCapture('2026-11-02'), '2026-11-03T01:30:00.000Z');
+  assert.equal(newYorkParts('2026-03-10T00:30:00Z').hour, 20);
+  assert.equal(newYorkParts('2026-11-03T01:30:00Z').hour, 20);
+  assert.equal(scheduledSession(calendar, '2026-03-10T00:29:59Z').due, false);
+  assert.equal(scheduledSession(calendar, '2026-03-10T00:30:00Z').due, true);
+  assert.equal(scheduledSession(calendar, '2026-11-03T01:29:59Z').due, false);
+  assert.equal(scheduledSession(calendar, '2026-11-03T01:30:00Z').due, true);
+});
+test('scheduled review uses only today in New York and never reuses a Friday on the weekend', () => {
+  const saturday = scheduledSession(calendar, '2026-10-18T00:35:00Z');
+  assert.equal(saturday.session, '2026-10-17'); assert.equal(saturday.due, false);
+  const sunday = scheduledSession(calendar, '2026-10-19T00:35:00Z');
+  assert.equal(sunday.session, '2026-10-18'); assert.equal(sunday.due, false);
+  const monday = scheduledSession(calendar, '2026-10-20T00:35:00Z');
+  assert.equal(monday.session, '2026-10-19'); assert.equal(monday.due, true);
+  assert.equal(scheduledSession(calendar, '2026-10-20T02:30:00Z').due, false);
+});
+test('exchange holidays are skipped and early-close sessions still audit at 20:30', () => {
+  const holiday = scheduledSession(calendar, '2026-07-04T00:35:00Z');
+  assert.equal(holiday.session, '2026-07-03'); assert.equal(holiday.tradingDay, false); assert.equal(holiday.due, false);
+  assert.ok(calendar.earlyCloses.includes('2026-11-27'));
+  const early = scheduledSession(calendar, '2026-11-28T01:35:00Z');
+  assert.equal(early.session, '2026-11-27'); assert.equal(early.due, true);
+  assert.equal(early.auditAt, '2026-11-28T01:30:00.000Z');
+  assert.equal(scheduledSession(calendar, '2026-11-27T18:35:00Z').due, false);
+});
+test('calendar validity and coverage cannot silently fall back to weekdays', () => {
+  assert.throws(() => scheduledSession(calendar, '2029-01-03T01:35:00Z'), /CALENDAR_OUT_OF_RANGE/);
+  assert.throws(() => scheduledSession({ ...calendar, timeZone: 'UTC' }, '2026-10-20T00:35:00Z'), /CALENDAR_INVALID/);
+});
+test('gate implies scheduling and scheduled mode rejects fixed dates, probes and fixtures', () => {
+  const gate = parseArguments(['--gate']); assert.equal(gate.gate, true); assert.equal(gate.scheduled, true);
+  assert.equal(parseArguments(['--scheduled']).scheduled, true);
+  for (const args of [['--scheduled', '--session', '2026-10-19'], ['--scheduled', '--probe'],
+    ['--scheduled', '--input', 'f.json', '--no-notify']]) {
+    assert.throws(() => parseArguments(args), errorCode('ARGUMENT_INVALID'));
+  }
+});
+test('API errors, missing or malformed snapshots and global-only failures never create GitHub incidents', () => {
+  for (const error of ['HTTP_STATUS_503', 'SNAPSHOT_MISSING', 'SNAPSHOT_SCHEMA_INVALID', 'SNAPSHOT_COUNTS_INVALID']) {
+    assert.equal(notificationAction({ report: null, error }), 'none');
+  }
+  const report = fixture()[0].report; report.ok = false;
+  report.issues = [{ ticker: null, code: 'WORKER_NOT_ACTIVE' }, { ticker: null, code: 'YAHOO_RECEIPTS_INCOMPLETE' }];
+  assert.equal(notificationAction({ report }), 'none'); assert.deepEqual(tickerIncidents(report), []);
+  report.issues = [{ ticker: 'DELL', code: 'GOOGLEFINANCE_RECEIPTS_INCOMPLETE' }];
+  assert.equal(notificationAction({ report }), 'none');
+});
+test('only validated ticker incidents notify; dry run and probe modes always suppress writes', () => {
+  const report = fixture()[0].report; report.ok = false;
+  report.issues = [{ ticker: 'DELL', code: 'ACTIVE_REPAIR' }, { ticker: null, code: 'WORKER_NOT_ACTIVE' }];
+  assert.equal(notificationAction({ report }), 'incident'); assert.equal(tickerIncidents(report).length, 1);
+  for (const guard of [{ noNotify: true }, { probe: true }, { gate: true }, { error: 'HTTP_STATUS_503' }]) {
+    assert.equal(notificationAction({ report, ...guard }), 'none');
+  }
+  assert.equal(notificationAction({ report: fixture()[0].report }), 'resolve');
+  assert.equal(notificationAction({ report: null }), 'none');
 });

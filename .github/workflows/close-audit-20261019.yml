@@ -1,4 +1,4 @@
-name: Market Scanner - cierre del 19 de octubre
+name: Market Scanner - revisión diaria de cierres
 
 on:
   push:
@@ -6,24 +6,30 @@ on:
     paths:
       - '.github/workflows/close-audit-20261019.yml'
       - 'tools/check-close-audit.mjs'
+      - 'tools/close-audit-schedule.mjs'
+      - 'tools/record-close-audit-activity.mjs'
       - 'tests/cloud-close-audit.test.mjs'
+      - 'tests/close-audit-activity.test.mjs'
+      - 'supabase/calendar.json'
   workflow_dispatch:
   schedule:
-    # Supabase captures the report at 20:30 New York (00:30 UTC October 20).
-    # Later slots recover a delayed runner or temporary network failure.
-    - cron: '35,50 0 20 10 *'
-    - cron: '20 1 20 10 *'
+    # Supabase captures at 20:30 local time; later reads retry connectivity.
+    # The calendar gate also excludes exchange holidays and checks coverage.
+    - cron: '35,50 20 * * 1-5'
+      timezone: 'America/New_York'
+    - cron: '20 21 * * 1-5'
+      timezone: 'America/New_York'
 
 permissions:
   contents: read
 
 concurrency:
-  group: market-scanner-close-audit-20261019
+  group: market-scanner-daily-close-audit
   cancel-in-progress: false
 
 jobs:
   verify:
-    if: github.repository == 'jpmauricio2906-bot/market-scanner'
+    if: github.repository == 'jpmauricio2906-bot/market-scanner' && github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -34,18 +40,22 @@ jobs:
         with:
           node-version: '22'
       - name: Probar lector e incidencias sin enviar avisos
-        run: node --test tests/cloud-close-audit.test.mjs
+        run: node --test tests/cloud-close-audit.test.mjs tests/close-audit-activity.test.mjs
       - name: Comprobar acceso de solo lectura a Supabase
-        if: github.event_name == 'push'
         run: node tools/check-close-audit.mjs --probe
+      - name: Probar calendario y resolución del día de Nueva York
+        run: node tools/check-close-audit.mjs --gate
+      - name: Probar lectura del registro de actividad sin escribir
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/record-close-audit-activity.mjs --dry-run
 
   audit:
-    needs: verify
     if: github.repository == 'jpmauricio2906-bot/market-scanner' && github.event_name != 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write
       issues: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -54,29 +64,31 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-      - name: Limitar la comprobación a esta revisión puntual
+      - name: Comprobar día bursátil y ventana de Nueva York
         id: window
-        shell: bash
-        run: |
-          node --input-type=module <<'JS'
-          import { appendFileSync } from 'node:fs';
-          const now = Date.now();
-          const due = now >= Date.parse('2026-10-20T00:30:00Z') &&
-            now < Date.parse('2026-10-21T00:00:00Z');
-          appendFileSync(process.env.GITHUB_OUTPUT, `due=${due}\n`);
-          if (!due) console.log('Fuera de la ventana de esta auditoría; no se envían avisos.');
-          JS
+        run: node tools/check-close-audit.mjs --gate
       - name: Revisar los 250 cierres y avisar únicamente ante incidencias
+        id: reader
         if: steps.window.outputs.due == 'true'
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          TARGET_SESSION: '2026-10-19'
-        run: node tools/check-close-audit.mjs --session 2026-10-19
+        run: node tools/check-close-audit.mjs --scheduled
+      - name: Registrar actividad del monitor como máximo cada 28 días
+        if: always() && steps.window.outputs.due == 'true'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/record-close-audit-activity.mjs
+      - name: Registrar una revisión no conforme o incompleta
+        if: always() && steps.window.outputs.due == 'true' && steps.reader.outcome == 'failure'
+        run: |
+          echo 'La revisión contiene incidencias o no pudo completarse. Consultar el informe; este estado no confirma 250 cierres correctos.' >> "$GITHUB_STEP_SUMMARY"
       - name: Conservar el informe aunque haya incidencias
         if: always() && steps.window.outputs.due == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: close-audit-2026-10-19-${{ github.run_id }}
-          path: outputs/close-audit-2026-10-19/
+          name: close-audit-${{ steps.window.outputs.session }}-${{ github.run_id }}
+          path: outputs/close-audit-${{ steps.window.outputs.session }}/
           if-no-files-found: warn
           retention-days: 30

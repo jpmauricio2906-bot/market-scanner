@@ -3,6 +3,7 @@
 import { readFile, mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validDate, auditInstant, scheduledSession } from './close-audit-schedule.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_SESSION = '2026-10-19';
@@ -14,6 +15,9 @@ const ISSUE_CODES = new Set(['MISSING_FINAL_CLOSE', 'INVALID_FINAL_OHLCV', 'PROV
   'ACTIVE_REPAIR', 'LATEST_CAPTURE_REJECTED', 'UNIVERSE_COUNT', 'SESSION_NOT_CONFIRMED',
   'GOOGLEFINANCE_RECEIPTS_INCOMPLETE', 'YAHOO_RECEIPTS_INCOMPLETE', 'WORKER_NOT_ACTIVE',
   'WORKER_EXECUTION_FAILED_OR_MISSING']);
+const TICKER_ISSUE_CODES = new Set(['MISSING_FINAL_CLOSE', 'INVALID_FINAL_OHLCV', 'PROVISIONAL_CLOSE',
+  'STALE_OR_MISSING_PUBLIC_QUOTE', 'PUBLIC_HISTORY_MISMATCH', 'HISTORY_COVERAGE_OR_QUALITY',
+  'ACTIVE_REPAIR', 'LATEST_CAPTURE_REJECTED']);
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -22,8 +26,7 @@ export class AuditError extends Error {
 }
 function requireAudit(condition, code) { if (!condition) throw new AuditError(code); }
 export function validSession(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-    Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+  return validDate(value);
 }
 function timestamp(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
@@ -40,10 +43,9 @@ export function validateUniverse(document) {
     new Set(tickers).size === 250, 'UNIVERSE_INVALID');
   return [...tickers].sort();
 }
-// This is the single October 19 review: 20:30 New York = 00:30 UTC the next day.
 export function minimumCapture(sessionDate) {
   requireAudit(validSession(sessionDate), 'SESSION_INVALID');
-  return new Date(Date.parse(`${sessionDate}T00:30:00Z`) + 86400000).toISOString();
+  return auditInstant(sessionDate);
 }
 export function validateSnapshot(rows, universe, {
   sessionDate = DEFAULT_SESSION, minimumCapturedAt = minimumCapture(sessionDate), now = Date.now()
@@ -175,6 +177,14 @@ export function renderReport({ sessionDate, report, error, runUrl }) {
   if (runUrl) lines.push('', `Ejecución de GitHub: ${runUrl}`);
   return `${lines.join('\n')}\n`;
 }
+export function tickerIncidents(report) {
+  return report?.issues?.filter(issue => typeof issue.ticker === 'string' && TICKER_ISSUE_CODES.has(issue.code)) ?? [];
+}
+export function notificationAction({ report, error, noNotify = false, probe = false, gate = false }) {
+  if (noNotify || probe || gate || error || !report) return 'none';
+  if (report.ok) return 'resolve';
+  return tickerIncidents(report).length ? 'incident' : 'none';
+}
 async function incidentContext({ repository, token, sessionDate, apiUrl = 'https://api.github.com' }, deps) {
   requireAudit(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository || '') && token && validSession(sessionDate), 'GITHUB_CONFIG_MISSING');
   let parsed; try { parsed = new URL(apiUrl); } catch { throw new AuditError('GITHUB_CONFIG_INVALID'); }
@@ -220,24 +230,44 @@ export async function closeRecoveredIncident(config, deps = {}) {
 }
 
 export function parseArguments(args) {
-  const result = { sessionDate: DEFAULT_SESSION, noNotify: false, probe: false, input: null };
+  const result = { sessionDate: DEFAULT_SESSION, noNotify: false, probe: false, input: null, scheduled: false, gate: false };
   for (let index = 0; index < args.length; index++) {
     if (args[index] === '--session') result.sessionDate = args[++index];
     else if (args[index] === '--input') result.input = args[++index];
     else if (args[index] === '--no-notify') result.noNotify = true;
     else if (args[index] === '--probe') result.probe = true;
+    else if (args[index] === '--scheduled') result.scheduled = true;
+    else if (args[index] === '--gate') { result.gate = true; result.scheduled = true; }
     else throw new AuditError('ARGUMENT_INVALID');
   }
   requireAudit(validSession(result.sessionDate) && (result.input === null || typeof result.input === 'string'), 'ARGUMENT_INVALID');
   requireAudit(!result.input || result.noNotify, 'FIXTURE_REQUIRES_NO_NOTIFY');
+  requireAudit(!result.scheduled || (!result.input && !args.includes('--session') && !result.probe), 'ARGUMENT_INVALID');
   return result;
 }
 export async function main(args = process.argv.slice(2), env = process.env) {
   let options = { sessionDate: env.TARGET_SESSION || DEFAULT_SESSION,
-    noNotify: args.includes('--no-notify') || args.includes('--input'), probe: args.includes('--probe') };
+    noNotify: args.includes('--no-notify') || args.includes('--input'), probe: args.includes('--probe'), gate: args.includes('--gate') };
   let report = null, error = null, status = 2;
   try {
-    options = parseArguments(env.TARGET_SESSION && !args.includes('--session') ? ['--session', env.TARGET_SESSION, ...args] : args);
+    options = parseArguments(env.TARGET_SESSION && !args.includes('--session') && !args.includes('--scheduled') && !args.includes('--gate')
+      ? ['--session', env.TARGET_SESSION, ...args] : args);
+    if (options.scheduled) {
+      const calendar = JSON.parse(await readFile(resolve(ROOT, 'supabase/calendar.json'), 'utf8'));
+      let schedule;
+      try { schedule = scheduledSession(calendar); }
+      catch (failure) { throw new AuditError(['CALENDAR_INVALID', 'CALENDAR_OUT_OF_RANGE', 'SCHEDULE_TIME_INVALID'].includes(failure.message)
+        ? failure.message : 'SCHEDULE_INVALID'); }
+      options.sessionDate = schedule.session;
+      if (options.gate) {
+        if (env.GITHUB_OUTPUT) await appendFile(env.GITHUB_OUTPUT, `due=${schedule.due}\nsession=${schedule.session}\n`);
+        console.log(JSON.stringify(schedule)); return 0;
+      }
+      if (!schedule.due) {
+        console.log(`Sin auditoría: ${schedule.session} ${schedule.localTime} Nueva York, fuera de una ventana bursátil de revisión.`);
+        return 0;
+      }
+    }
     const universe = validateUniverse(JSON.parse(await readFile(resolve(ROOT, 'data/universe.json'), 'utf8')));
     let rows;
     if (options.input) {
@@ -259,16 +289,20 @@ export async function main(args = process.argv.slice(2), env = process.env) {
     ? `https://github.com/${repository}/actions/runs/${env.GITHUB_RUN_ID}` : null;
   const safeSession = validSession(options.sessionDate) ? options.sessionDate : DEFAULT_SESSION;
   let markdown = renderReport({ sessionDate: safeSession, report, error, runUrl });
-  if (status && !options.noNotify && !options.probe) {
+  const action = notificationAction({ report, error, ...options });
+  if (action === 'incident') {
     try {
+      const issues = tickerIncidents(report);
+      const incidentMarkdown = renderReport({ sessionDate: safeSession, runUrl,
+        report: { ...report, issues } });
       const issue = await upsertIncident({ repository, token: env.GITHUB_TOKEN, sessionDate: safeSession,
-        body: markdown, apiUrl: env.GITHUB_API_URL });
+        body: incidentMarkdown, apiUrl: env.GITHUB_API_URL });
       markdown += `\nIncidencia GitHub: #${issue.number}.\n`;
     } catch (failure) {
       const code = failure instanceof AuditError ? failure.code : 'GITHUB_NOTIFICATION_ERROR';
       markdown += `\nNo se pudo publicar el aviso: ${code}. Consulta esta ejecución de Actions.\n`; status = 2;
     }
-  } else if (!status && !options.noNotify && !options.probe) {
+  } else if (action === 'resolve') {
     try {
       const issue = await closeRecoveredIncident({ repository, token: env.GITHUB_TOKEN,
         sessionDate: safeSession, body: markdown, apiUrl: env.GITHUB_API_URL });
