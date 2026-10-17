@@ -6,6 +6,8 @@ La instalación del nuevo Apps Script y sus activadores se realiza con la cuenta
 
 La corrección del 16/10 usa `BATS:ARKK`, interpreta la hora UTC de SOXS mediante una celda auxiliar y compara la antigüedad después del cierre con el horario de la sesión. Conserva la validación de identidad, horas futuras y OHLCV de Supabase. Para instalarla en Google, sustituir el script completo y ejecutar `prepararMarketScanner` una vez; las propiedades privadas se conservan.
 
+DELL, LABU, MAGS y SPY se recuperaron mediante el worker y las respuestas Yahoo corregidas: los **250 instrumentos tienen cierre confirmado del 16/10**. Los trabajos fallidos continúan reintentándose con una hora de espera desde el quinto fallo, conservando las validaciones. [Recuperación y política de reintentos](docs/RECUPERACION_PROVEEDOR.md).
+
 ```mermaid
 flowchart LR
   Finance[GOOGLEFINANCE · fórmulas Precios] --> Snapshot[Envío de 250 cotizaciones]

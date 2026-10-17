@@ -528,7 +528,7 @@ $$;
 create or replace function public.market_claim_repairs(p_limit integer default 2) returns jsonb
  language plpgsql security invoker set search_path='' as $$
 declare jobs jsonb; begin
- with candidates as(select id from market_scanner.repair_queue where attempts<5 and next_attempt_at<=now()
+ with candidates as(select id from market_scanner.repair_queue where next_attempt_at<=now()
   and (status in ('pending','failed') or (status='running' and lease_until<now())) order by requested_at,id for update skip locked limit least(greatest(p_limit,1),2)),
  claimed as(update market_scanner.repair_queue q set status='running',attempts=attempts+1,lease_token=gen_random_uuid(),lease_until=now()+interval '10 minutes'
   from candidates c where q.id=c.id returning q.id,q.ticker,q.lease_token)
@@ -539,7 +539,7 @@ end $$;
 create or replace function public.market_fail_repair(p_job_id bigint,p_lease_token uuid,p_reason text) returns jsonb
  language plpgsql security invoker set search_path='' as $$ begin
  update market_scanner.repair_queue set status='failed',last_error=left(p_reason,200),lease_until=null,
- next_attempt_at=now()+make_interval(mins=>least(60,(2^attempts)::integer))
+ next_attempt_at=now()+make_interval(mins=>case when attempts>=5 then 60 else (2^greatest(attempts,1))::integer end)
  where id=p_job_id and lease_token=p_lease_token and status='running';
  return jsonb_build_object('status',case when found then 'failed' else 'lease_expired' end);
 end $$;
@@ -591,7 +591,7 @@ end $$;
 create or replace function market_scanner.dispatch_worker() returns bigint
  language plpgsql security invoker set search_path='' as $$
 declare request_id bigint; begin
- if not exists(select 1 from market_scanner.repair_queue where attempts<5 and next_attempt_at<=now() and
+ if not exists(select 1 from market_scanner.repair_queue where next_attempt_at<=now() and
   (status in ('pending','failed') or (status='running' and lease_until<now()))) then return null;end if;
  select net.http_post(url:='https://wpenzrjybvysvfaefkxh.supabase.co/functions/v1/market-history-worker',
   headers:=jsonb_build_object('Content-Type','application/json','X-Market-Worker-Token',(select decrypted_secret from vault.decrypted_secrets where name='market_scanner_worker_token')),

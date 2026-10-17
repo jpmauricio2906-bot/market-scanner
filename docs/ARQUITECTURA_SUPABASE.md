@@ -1,6 +1,6 @@
 # Historial y validación en Supabase
 
-Estado de v3: migración y proyección desplegadas; 70 pruebas JavaScript y 111 comprobaciones SQL aprobadas. La inspección de la interfaz en producción se realiza tras publicar. La cobertura de las fórmulas y los timers de Google requieren prueba con la cuenta propietaria.
+Estado de v3: backend desplegado, 86 pruebas JavaScript aprobadas y 140 comprobaciones SQL acumuladas. La recuperación del 16/10 se comprobó con 43 SQL ejecutadas en esta revisión y con 250 cierres confirmados en el cliente publicado. La validación de las capturas Google se observa en Supabase; la inspección directa de las celdas y los activadores requiere acceso a la cuenta propietaria. Alcance y fechas en [VERIFICACION.md](VERIFICACION.md).
 
 ## Responsabilidades y datos
 
@@ -69,6 +69,8 @@ Por ticker, descarga tres años de barras diarias de Yahoo y envía el resultado
 La sustitución se realiza en una transacción: se conserva la serie anterior hasta que la nueva ha superado todas las comprobaciones y la operación puede confirmarse. Se retienen las últimas 500 sesiones reales de ese ticker. La cola no autoriza a publicar una descarga parcial ni a fabricar días de bolsa.
 
 Los errores de transporte se comunican con `market_fail_repair(p_job_id,p_lease_token,p_reason)`. Un rechazo de calidad de `market_replace_history` registra su resultado en el servidor; el worker no registra además un segundo fallo sobre la misma respuesta. Una tarea fallida o una lease vencida debe quedar visible y seguir la política de reintentos del backend.
+
+Desde la recuperación del 16/10, cinco fallos no bloquean permanentemente un trabajo. Las esperas son 2, 4, 8 y 16 minutos tras los primeros cuatro fallos, y una hora desde el quinto. El worker conserva el límite de dos reclamaciones y las leases vigentes; un dato rechazado sigue sin publicarse. Esta espera permite recuperar correcciones tardías de Yahoo, fuera del horario de los emisores Google. [Caso y operación](RECUPERACION_PROVEEDOR.md).
 
 ## Cron y autenticación del worker
 
