@@ -164,7 +164,7 @@ test('GitHub notification reuses a closed incident found on a later page', async
     fetchImpl: async (url, init) => {
       calls.push({ url: String(url), init });
       if (calls.length === 1) return response(Array.from({ length: 100 }, (_, n) => ({ number: n + 1, body: 'unrelated' })));
-      if (calls.length === 2) return response([{ number: 120, state: 'closed', body: '<!-- market-scanner-close-audit:2026-10-19 -->old' }]);
+      if (calls.length === 2) return response([{ number: 120, state: 'closed', user: { login: 'github-actions[bot]' }, body: '<!-- market-scanner-close-audit:2026-10-19 -->old' }]);
       assert.equal(init.method, 'PATCH'); assert.ok(String(url).endsWith('/issues/120'));
       assert.equal(JSON.parse(init.body).state, 'open'); return response({ number: 120 });
     }
@@ -189,6 +189,19 @@ test('GitHub creates only one marked and assigned incident, without retrying amb
     }, sleepImpl: noSleep
   }), errorCode('HTTP_TRANSPORT_ERROR'));
   assert.equal(writes, 1);
+});
+test('a human marker cannot hijack the workflow incident or cause a human issue to be edited', async () => {
+  let calls = 0;
+  const result = await upsertIncident({ repository: 'jpmauricio2906-bot/market-scanner', token: 'test-token', sessionDate, body: 'report' }, {
+    fetchImpl: async (url, init) => {
+      if (++calls === 1) return response([{ number: 1, state: 'open', user: { login: 'human' },
+        body: '<!-- market-scanner-close-audit:2026-10-19 -->' }]);
+      assert.equal(init.method, 'POST'); assert.ok(String(url).endsWith('/issues'));
+      assert.deepEqual(JSON.parse(init.body).assignees, ['jpmauricio2906-bot']);
+      return response({ number: 2 }, 201);
+    }
+  });
+  assert.deepEqual(result, { number: 2, updated: false }); assert.equal(calls, 2);
 });
 test('Markdown renders safe fields without raw HTML, mentions or untrusted table delimiters', () => {
   assert.equal(escapeMarkdown('<@everyone|x>\n'), '&lt;&#64;everyone&#124;x&gt; ');

@@ -196,7 +196,7 @@ async function incidentContext({ repository, token, sessionDate, apiUrl = 'https
 export async function upsertIncident(config, deps = {}) {
   const { base, headers, marker, matches } = await incidentContext(config, deps);
   const { sessionDate, body } = config;
-  const existing = matches[0];
+  const existing = matches.find(issue => issue.user?.login === 'github-actions[bot]');
   const payload = { title: `Market Scanner: incidencias del cierre ${sessionDate}`, body: `${marker}\n${body}`, state: 'open' };
   if (!existing) payload.assignees = ['jpmauricio2906-bot'];
   if (existing) requireAudit(Number.isSafeInteger(existing.number) && existing.number > 0, 'GITHUB_RESPONSE_INVALID');

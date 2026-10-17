@@ -71,6 +71,28 @@ clave privada de Supabase. Los horarios y la política de notificación se defin
 en el workflow de GitHub. Un inicio tardío de Actions no cambia la captura que
 ya quedó guardada en Supabase.
 
+El workflow `close-audit-20261019.yml` consulta el informe el lunes 19 a las
+**20:35, 20:50 y 21:20 de Nueva York**. Las dos últimas lecturas permiten
+recuperar un retraso de GitHub o un fallo de conexión. Una condición de fecha
+impide auditar o enviar avisos en años posteriores. GitHub puede retrasar un
+inicio programado; el resultado conserva la hora de captura de Supabase.
+
+Si hay problemas, abre una única incidencia asignada a `jpmauricio2906-bot`,
+con los tickers, códigos, último cierre y próximo reintento disponibles. Si no
+puede leer o validar el informe, avisa de ese fallo en lugar de dar la revisión
+por correcta. Los reintentos reutilizan la misma incidencia del bot. Una lectura
+posterior conforme cierra una incidencia previa de fallo de comprobación; no
+modifica incidencias humanas. Un informe de Supabase con problemas conserva lo
+observado a las 20:30, aunque los precios se recuperen más tarde.
+
+Si todo está correcto, no abre una incidencia. El informe queda en Supabase y
+en el resumen de Actions; los archivos JSON y Markdown se conservan también
+como artefactos durante 30 días. Los avisos son notificaciones de GitHub, según
+las preferencias de la cuenta; no dependen de un chat de Codex abierto.
+
+Referencias: [programación y posibles retrasos de Actions](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+y [configuración de notificaciones](https://docs.github.com/en/account-and-profile/managing-subscriptions-and-notifications-on-github/setting-up-notifications/configuring-notifications).
+
 ## Comprobación antes del lunes
 
 El constructor `market_scanner.build_close_audit(fecha, reloj)` es de solo
