@@ -1,0 +1,82 @@
+name: Market Scanner - cierre del 19 de octubre
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/close-audit-20261019.yml'
+      - 'tools/check-close-audit.mjs'
+      - 'tests/cloud-close-audit.test.mjs'
+  workflow_dispatch:
+  schedule:
+    # Supabase captures the report at 20:30 New York (00:30 UTC October 20).
+    # Later slots recover a delayed runner or temporary network failure.
+    - cron: '35,50 0 20 10 *'
+    - cron: '20 1 20 10 *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-scanner-close-audit-20261019
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'jpmauricio2906-bot/market-scanner'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Probar lector e incidencias sin enviar avisos
+        run: node --test tests/cloud-close-audit.test.mjs
+      - name: Comprobar acceso de solo lectura a Supabase
+        if: github.event_name == 'push'
+        run: node tools/check-close-audit.mjs --probe
+
+  audit:
+    needs: verify
+    if: github.repository == 'jpmauricio2906-bot/market-scanner' && github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Limitar la comprobación a esta revisión puntual
+        id: window
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          const now = Date.now();
+          const due = now >= Date.parse('2026-10-20T00:30:00Z') &&
+            now < Date.parse('2026-10-21T00:00:00Z');
+          appendFileSync(process.env.GITHUB_OUTPUT, `due=${due}\n`);
+          if (!due) console.log('Fuera de la ventana de esta auditoría; no se envían avisos.');
+          JS
+      - name: Revisar los 250 cierres y avisar únicamente ante incidencias
+        if: steps.window.outputs.due == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_SESSION: '2026-10-19'
+        run: node tools/check-close-audit.mjs --session 2026-10-19
+      - name: Conservar el informe aunque haya incidencias
+        if: always() && steps.window.outputs.due == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: close-audit-2026-10-19-${{ github.run_id }}
+          path: outputs/close-audit-2026-10-19/
+          if-no-files-found: warn
+          retention-days: 30
