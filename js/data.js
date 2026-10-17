@@ -236,6 +236,15 @@ async function fetchLatestQuotes(ticker = null, universe = null) {
   return rows;
 }
 
+function _quoteFreshnessReference(now, clock, timing) {
+  const minute = clock.hour * 60 + clock.minute;
+  if (!timing || minute < timing.closes) return now.getTime();
+  // After the session, freshness refers to its actual close. Subtracting New
+  // York minutes from the current UTC minute also handles daylight saving time
+  // and the calendar's early closes without assuming a fixed UTC offset.
+  return Math.floor(now.getTime() / 60000) * 60000 - (minute - timing.closes) * 60000;
+}
+
 function mergeRecentMarketQuotes(base, quotes, includeRecent = true, now = new Date()) {
   const clock = _newYorkClock(now), allowed = new Set(base.coverage.map(item => item.ticker));
   const finalByTicker = new Map();
@@ -257,9 +266,11 @@ function mergeRecentMarketQuotes(base, quotes, includeRecent = true, now = new D
         _newYorkClock(new Date(sourceTime)).today !== quote.fecha) { invalid.add(quote.ticker); return; }
     const timing = marketSessionTiming(clock.today), minute = clock.hour * 60 + clock.minute;
     const maxAge = (quote.source === 'googlefinance' ? Math.min(30, delay + 10) : 30) * 60000;
-    const outdated = now.getTime() - sourceTime > maxAge || now.getTime() - fetchedTime > maxAge;
+    const freshnessReference = _quoteFreshnessReference(now, clock, timing);
+    const outdated = !quote.is_final && (freshnessReference - sourceTime > maxAge || freshnessReference - fetchedTime > maxAge);
     if (quote.fecha !== clock.today || (timing && minute < timing.opens)) {
-      stale.add(quote.ticker); return;
+      if (!quote.is_final) stale.add(quote.ticker);
+      return;
     }
     // The server validates freshness at ingestion. Later reads keep today's last
     // approved quote visible and identify its age, rather than reverting prices.

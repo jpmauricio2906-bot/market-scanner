@@ -1,6 +1,6 @@
 # Instalación v3: fórmulas, cotizaciones y análisis del día
 
-Estado de v3: backend desplegado, 70 pruebas JavaScript y 111 comprobaciones SQL aprobadas. La comprobación de la interfaz en producción se realiza después de publicar. El propietario debe instalar las fórmulas y comprobar su cobertura en Google; no se afirma que sus nuevos temporizadores estén ejecutándose.
+Estado de v3: backend desplegado. Las correcciones del 16/10 tienen 86 pruebas JavaScript aprobadas y regresiones SQL que comprueban identidad, hora, OHLCV y conservación del historial; los resultados y fechas están en [VERIFICACION.md](VERIFICACION.md). El propietario debe copiar el script actualizado, preparar las fórmulas y comprobar su cobertura en Google.
 
 ## 1. Conservar datos y detener la carga anterior
 
@@ -19,6 +19,8 @@ El backend del proyecto ya está desplegado. Para reproducir la instalación se 
 - El worker `market-history-worker` y los trabajos Cron que lo invocan y mantienen los datos.
 
 Los contratos se describen en [ARQUITECTURA_SUPABASE.md](ARQUITECTURA_SUPABASE.md). El rol público puede leer cierres y la proyección de cotizaciones aprobadas; no puede ejecutar RPC de ingesta, reclamar reparaciones ni acceder a payloads y controles privados.
+
+Para actualizar una instalación v3 existente solo hace falta [arkk_exchange_correction.sql](../supabase/arkk_exchange_correction.sql), ya aplicado en este proyecto. Corrige el metadato de bolsa de ARKK a `CBOEBZX`, equivalente a `BATS` en Google. No reinstalar el esquema ni el historial para este cambio.
 
 El worker exige su token privado de servidor, generado y almacenado en Vault por la configuración del backend. Su autenticación se valida antes de reclamar trabajo. Ese token no se copia a Google Sheets ni a GitHub. La clave privada de plataforma que usa internamente la función permanece en el entorno de Supabase.
 
@@ -54,6 +56,8 @@ Ejecutar esta secuencia con la cuenta propietaria:
 6. Revisar la columna M y el informe de aceptados, pendientes y rechazados. Después instalar los temporizadores del apartado siguiente.
 
 Las fórmulas `GOOGLEFINANCE` calculan C:I y V; J:K mantienen el cambio absoluto y porcentual. La bolsa y el símbolo son explícitos, por ejemplo `NASDAQ:AAPL` y `NYSE:BRK.B`. El script envía sus valores actuales sin convertir celdas ausentes en cero.
+
+La preparación también instala `BATS:ARKK` y añade una columna auxiliar `SOXS hora UTC` al final de la hoja. C de SOXS utiliza `MARKET_SCANNER_UTC_TIME` sobre esa referencia para interpretar correctamente la hora del proveedor en verano e invierno. No ejecutar esa función manualmente ni crear otro timer. La columna se reutiliza al repetir la preparación; no modifica `Historial`. Detalle de la conversión y de `OUTDATED` después del cierre en [COTIZACIONES_INTRADIA.md](COTIZACIONES_INTRADIA.md).
 
 | Columnas | Contenido |
 | --- | --- |

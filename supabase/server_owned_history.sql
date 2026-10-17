@@ -282,7 +282,7 @@ insert into market_scanner.instruments(ticker,yahoo_symbol,instrument_type,excha
 ('SMH','SMH','ETF','NASDAQ',null),
 ('XBI','XBI','ETF','NYSEARCA',null),
 ('IBB','IBB','ETF','NASDAQ',null),
-('ARKK','ARKK','ETF','NYSEARCA',null),
+('ARKK','ARKK','ETF','CBOEBZX',null),
 ('MAGS','MAGS','ETF','CBOEBZX',null),
 ('TLT','TLT','ETF','NASDAQ',null),
 ('IEF','IEF','ETF','NASDAQ',null),

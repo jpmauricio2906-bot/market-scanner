@@ -229,7 +229,7 @@ ETF,,27,SOXX,SOXX,iShares Semiconductor ETF,NASDAQ,,,Industria: semiconductores,
 ETF,,28,SMH,SMH,VanEck Semiconductor ETF,NASDAQ,,,Industria: semiconductores,VanEck,1,false,,https://www.vaneck.com/us/en/investments/semiconductor-etf-smh/,2026-10-15
 ETF,,29,XBI,XBI,State Street SPDR S&P Biotech ETF,NYSEARCA,,,Industria: biotecnología,State Street,1,false,,https://www.ssga.com/us/en/intermediary/etfs/state-street-spdr-sp-biotech-etf-xbi,2026-10-15
 ETF,,30,IBB,IBB,iShares Biotechnology ETF,NASDAQ,,,Industria: biotecnología,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239699/ishares-biotechnology-etf,2026-10-15
-ETF,,31,ARKK,ARKK,ARK Innovation ETF,NYSEARCA,,,Temático: innovación,ARK Investment Management,1,false,,https://www.ark-funds.com/funds/arkk,2026-10-15
+ETF,,31,ARKK,ARKK,ARK Innovation ETF,CBOEBZX,,,Temático: innovación,ARK Investment Management,1,false,,https://www.ark-funds.com/funds/arkk,2026-10-15
 ETF,,32,MAGS,MAGS,Roundhill Magnificent Seven ETF,CBOEBZX,,,Temático: Magnificent Seven,Roundhill Investments,1,false,,https://www.roundhillinvestments.com/etf/mags/,2026-10-15
 ETF,,33,TLT,TLT,iShares 20+ Year Treasury Bond ETF,NASDAQ,,,Bonos: Tesoro de largo plazo,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239454/ishares-20%20-year-treasury-bond-etf,2026-10-15
 ETF,,34,IEF,IEF,iShares 7-10 Year Treasury Bond ETF,NASDAQ,,,Bonos: Tesoro de plazo intermedio,iShares / BlackRock,1,false,,https://www.ishares.com/us/products/239456/ishares-7-10-year-treasury-bond-etf,2026-10-15

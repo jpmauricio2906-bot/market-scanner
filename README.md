@@ -4,6 +4,8 @@ Aplicación estática con 200 empresas y 50 ETF. **Precios recupera las fórmula
 
 La instalación del nuevo Apps Script y sus activadores se realiza con la cuenta propietaria. Copiar esta versión y ejecutar la preparación recupera las fórmulas en el mismo libro; no exige importar de nuevo el Excel. [Ruta rápida e intradiarios](docs/COTIZACIONES_INTRADIA.md).
 
+La corrección del 16/10 usa `BATS:ARKK`, interpreta la hora UTC de SOXS mediante una celda auxiliar y compara la antigüedad después del cierre con el horario de la sesión. Conserva la validación de identidad, horas futuras y OHLCV de Supabase. Para instalarla en Google, sustituir el script completo y ejecutar `prepararMarketScanner` una vez; las propiedades privadas se conservan.
+
 ```mermaid
 flowchart LR
   Finance[GOOGLEFINANCE · fórmulas Precios] --> Snapshot[Envío de 250 cotizaciones]

@@ -12,6 +12,15 @@
       "sourceUrl": "https://www.roundhillinvestments.com/etf/mags/"
     }
   ],
+  "exchangeCorrections": [
+    {
+      "ticker": "ARKK",
+      "previousExchange": "NYSEARCA",
+      "exchange": "CBOEBZX",
+      "verifiedAt": "2026-10-16",
+      "sourceUrl": "https://helpcenter.ark-funds.com/how-do-i-invest-from-abroad"
+    }
+  ],
   "etfs": [
     {
       "selectionOrder": 1,
@@ -468,7 +477,7 @@
       "ticker": "ARKK",
       "yahooTicker": "ARKK",
       "name": "ARK Innovation ETF",
-      "exchange": "NYSEARCA",
+      "exchange": "CBOEBZX",
       "type": "ETF",
       "category": "Temático: innovación",
       "issuer": "ARK Investment Management",
@@ -772,3 +781,4 @@
     }
   ]
 }
+

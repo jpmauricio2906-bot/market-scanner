@@ -18,6 +18,23 @@ function msGoogleSymbol_(company) {
   return exchange + ':' + company.ticker.replace(/-/g, '.');
 }
 
+/**
+ * Interprets the SOXS provider's UTC wall time as an actual instant.
+ * The input Date carries the spreadsheet's timezone, so retain its displayed
+ * date and clock before interpreting that clock as UTC. Other tickers do not
+ * use this adapter, and a genuinely future provider time stays in the future.
+ * @param {Date} value The GOOGLEFINANCE tradetime result for SOXS.
+ * @return {Date} The provider's UTC instant, displayed in the sheet's timezone.
+ * @customfunction
+ */
+function MARKET_SCANNER_UTC_TIME(value) {
+  if (!(value instanceof Date) || !Number.isFinite(value.getTime()))
+    throw new Error('Falta una hora válida del proveedor.');
+  const book = SpreadsheetApp.getActiveSpreadsheet();
+  if (!book) throw new Error('Vincular este proyecto a Google Sheets.');
+  return new Date(Utilities.formatDate(value, book.getSpreadsheetTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") + 'Z');
+}
+
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Market Scanner')
     .addItem('1. Preparar Precios', 'prepararMarketScanner')
@@ -46,8 +63,18 @@ function prepararMarketScanner() {
   return msLocked_(function() {
     const ss = SpreadsheetApp.getActiveSpreadsheet(), companies = msUniverse_(), count = companies.length, last = count + 1;
     if (!ss) throw new Error('Vincular este proyecto a Google Sheets.');
-    let sheet = ss.getSheetByName('Precios'), migrate = false, previous = [];
+    let sheet = ss.getSheetByName('Precios'), migrate = false, previous = [], utcColumn = 0;
     if (sheet) {
+      // Keep the provider formula separate from the custom function, whose
+      // argument must be a direct cell reference to recalculate reliably.
+      for (let first = 1; first <= sheet.getMaxColumns(); first += 64) {
+        const names = sheet.getRange(1, first, 1, Math.min(64, sheet.getMaxColumns() - first + 1)).getValues()[0];
+        names.forEach(function(name, n) {
+          if (name !== 'SOXS hora UTC') return;
+          if (utcColumn) throw new Error('Precios: encabezado SOXS hora UTC duplicado.');
+          utcColumn = first + n;
+        });
+      }
       const width = Math.min(sheet.getMaxColumns(), MS_HEADERS.Precios.length);
       const headers = sheet.getRange(1, 1, 1, width).getValues()[0];
       const legacy = headers.slice(0, 21), extras = headers.slice(21);
@@ -62,21 +89,40 @@ function prepararMarketScanner() {
       const old = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, Math.min(count, sheet.getLastRow() - 1), 1).getValues() : [];
       if (old.some((row, n) => row[0] && row[0] !== companies[n].ticker)) throw new Error('Precios: lista distinta a Universe.gs. Revisar antes de preparar.');
       if (migrate && old.length) previous = sheet.getRange(2, 12, old.length, 2).getValues();
-      if (migrate && templateGuide) sheet.insertColumnsAfter(22, 3);
+      if (migrate && templateGuide) {
+        sheet.insertColumnsAfter(22, 3);
+        if (utcColumn > 22) utcColumn += 3;
+      }
     } else sheet = ss.insertSheet('Precios');
     if (sheet.getMaxRows() < last) sheet.insertRowsAfter(sheet.getMaxRows(), last - sheet.getMaxRows());
     if (sheet.getMaxColumns() < MS_HEADERS.Precios.length)
       sheet.insertColumnsAfter(sheet.getMaxColumns(), MS_HEADERS.Precios.length - sheet.getMaxColumns());
+    if (!utcColumn) {
+      utcColumn = sheet.getMaxColumns() + 1;
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), 1);
+    }
+    let utcLabel = '';
+    for (let column = utcColumn; column > 0; column = Math.floor((column - 1) / 26))
+      utcLabel = String.fromCharCode(65 + (column - 1) % 26) + utcLabel;
     sheet.getRange(1, 1, 1, MS_HEADERS.Precios.length).setValues([MS_HEADERS.Precios]).setBackground('#16324f').setFontColor('#ffffff').setFontWeight('bold');
+    sheet.getRange(1, utcColumn).setValue('SOXS hora UTC');
     sheet.setFrozenRows(1);
     sheet.getRange(2, 1, count, 2).setValues(companies.map(c => [c.ticker, c.name]));
     sheet.getRange(2, 3, count, 9).setFormulas(companies.map(function(c, n) {
       const r = n + 2;
-      const gf = attribute => '=IFERROR(GOOGLEFINANCE("' + msGoogleSymbol_(c) + '","' + attribute + '"),"")';
+      const gf = function(attribute) {
+        const formula = c.ticker === 'SOXS' && attribute === 'tradetime'
+          ? 'MARKET_SCANNER_UTC_TIME(' + utcLabel + r + ')'
+          : 'GOOGLEFINANCE("' + msGoogleSymbol_(c) + '","' + attribute + '")';
+        return '=IFERROR(' + formula + ',"")';
+      };
       return ['tradetime','priceopen','high','low','price','volume','closeyest'].map(gf).concat([
         '=IF(AND(ISNUMBER(G' + r + '),ISNUMBER(I' + r + ')),G' + r + '-I' + r + ',"")',
         '=IF(AND(ISNUMBER(J' + r + '),ISNUMBER(I' + r + '),I' + r + '>0),J' + r + '/I' + r + ',"")']);
     }));
+    const soxsRow = companies.findIndex(c => c.ticker === 'SOXS') + 2;
+    sheet.getRange(soxsRow, utcColumn).setFormulas([['=IFERROR(GOOGLEFINANCE("NYSEARCA:SOXS","tradetime"),"")']]);
+    sheet.getRange(soxsRow, utcColumn).setNumberFormat('yyyy-mm-dd hh:mm:ss');
     sheet.getRange(2, 22, count, 1).setFormulas(companies.map(c => ['=IFERROR(GOOGLEFINANCE("' + msGoogleSymbol_(c) + '","datadelay"),"")']));
     if (migrate) {
       sheet.getRange(2, 23, count, 2).setValues(companies.map((c, n) => [previous[n] && previous[n][1] || '', previous[n] && previous[n][0] || '']));

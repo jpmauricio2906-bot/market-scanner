@@ -28,6 +28,8 @@ La referencia del usuario a **MAG7** se resolvió como **MAGS**, ticker estadoun
 
 Los ETF se validan y deduplican por ticker, nunca por el CIK ni el nombre de su emisor: distintos fondos pueden pertenecer al mismo trust o gestora. Las 200 empresas conservan la deduplicación por CIK.
 
+Corrección de bolsa comprobada el **16 de octubre de 2026**: ARKK cotiza en Cboe BZX, según [ARK](https://helpcenter.ark-funds.com/how-do-i-invest-from-abroad). Su metadato es `CBOEBZX` y Google Finance usa `BATS:ARKK`. `exchangeCorrections` registra esta revisión por separado de la selección del 15/10; no cambia los 250 instrumentos ni sus posiciones. Para una base existente, aplicar únicamente `supabase/arkk_exchange_correction.sql`, que actualiza ese metadato sin tocar precios ni permisos.
+
 ## Actualizar o verificar
 
 Desde la carpeta `market-scanner-main`, con Node.js 20 o posterior:

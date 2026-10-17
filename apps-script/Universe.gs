@@ -1794,7 +1794,7 @@ const MS_UNIVERSE = [
     "ticker": "ARKK",
     "yahooTicker": "ARKK",
     "name": "ARK Innovation ETF",
-    "exchange": "NYSEARCA",
+    "exchange": "CBOEBZX",
     "type": "ETF",
     "category": "Temático: innovación",
     "issuer": "ARK Investment Management",

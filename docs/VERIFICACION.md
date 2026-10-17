@@ -1,10 +1,12 @@
-# Verificación de v3: cotizaciones y vela del día
+# Verificación de v3.2: identidad, hora y antigüedad de cotizaciones
 
-Verificación previa a publicación: backend v3 desplegado, **74 pruebas JavaScript y 111 comprobaciones SQL aprobadas**. La comprobación del navegador en producción se realiza después de publicar. La cobertura y el recálculo real de las 250 fórmulas requieren la cuenta del propietario. No se declara activada esa instalación de Google.
+Verificación previa a publicación: **86 pruebas JavaScript aprobadas y 123 comprobaciones SQL acumuladas**. Las SQL incluyen 12 regresiones nuevas y las 111 aprobadas anteriormente el 16/10/2026. En esta revisión se repitieron 52 comprobaciones: las 12 nuevas y dos grupos de 26 y 14. Las otras 71 conservan la evidencia aprobada del 16/10 a las 18:24 UTC; su nuevo intento quedó pendiente por la conexión de la herramienta, sin un fallo SQL reportado. La comprobación del cliente en producción se realiza después de publicar. La cobertura y el recálculo real de las 250 fórmulas requieren la cuenta del propietario.
 
 ## Apps Script local
 
-Las 33 pruebas verifican la instalación de fórmulas con bolsa y símbolo explícitos, migración de 21 a 24 columnas y conservación de `Historial`. Dos regresiones cubren la plantilla real con instrucciones en W:X: se preservan en Z:AA, una segunda preparación no vuelve a moverlas y una lista incompatible se rechaza antes de insertar columnas. C:I y V contienen datos del proveedor; J:K calculan cambios; L:M corresponden al envío rápido; N y W:X conservan la información del historial.
+Las 38 pruebas verifican la instalación de fórmulas con bolsa y símbolo explícitos, migración de 21 a 24 columnas y conservación de `Historial`. Dos regresiones cubren la plantilla real con instrucciones en W:X: se preservan en Z:AA, una segunda preparación no vuelve a moverlas y una lista incompatible se rechaza antes de insertar columnas. C:I y V contienen datos del proveedor; J:K calculan cambios; L:M corresponden al envío rápido; N y W:X conservan la información del historial.
+
+Cinco regresiones adicionales verifican la fórmula auxiliar de hora de SOXS: solo ese símbolo interpreta el reloj UTC del proveedor, usando la zona horaria del archivo y contemplando verano, invierno y cambios de horario de Nueva York. Las horas ausentes siguen ausentes, las realmente futuras no se recortan y la columna auxiliar se añade o reutiliza sin desplazar notas ni duplicarse. Los demás símbolos conservan su `tradetime` nativo. La identidad Google de ARKK pasa a `BATS:ARKK`, correspondiente a Cboe BZX. El procedimiento está en [COTIZACIONES_INTRADIA.md](COTIZACIONES_INTRADIA.md).
 
 El envío rápido lee las 250 filas en un rango y realiza una sola RPC `market_ingest_sheet_quotes`. Sus pruebas comprueban que funciona con un bloqueo independiente de Yahoo, conserva datos ausentes para el validador, interpreta respuestas por ticker y no espera al recálculo en un bucle.
 
@@ -12,13 +14,17 @@ El trabajo Yahoo mantiene grupos de cinco, hasta 20 tickers por ejecución y con
 
 Estas pruebas usan dobles de servicios; no demuestran que Google Finance cubra todos los atributos de los 250 símbolos ni que un activador del propietario se haya ejecutado.
 
-Las otras pruebas JavaScript son 26 de frontend y 15 de worker, para un total de 74 y cero fallos. Cubren la vela provisional en gráficos e indicadores, modo solo cierres, caché de 60 minutos, refresco de cotizaciones, estado `OUTDATED`, retraso Yahoo desconocido, calendario de cierres reducidos y los controles del worker.
+Las otras pruebas JavaScript son 33 de frontend y 15 de worker, para un total de 86 y cero fallos. Cubren la vela provisional en gráficos e indicadores, modo solo cierres, caché de 60 minutos, refresco de cotizaciones, estado `OUTDATED`, retraso Yahoo desconocido, calendario de cierres reducidos y los controles del worker.
+
+Siete regresiones del frontend verifican la antigüedad al cerrar la sesión: un cierre regular o reducido conserva su vigencia al compararlo con la hora de cierre de Nueva York, en verano e invierno. Durante la sesión se mantienen las tolerancias existentes de Google y Yahoo; una captura de mediodía envejecida sigue marcada, las horas futuras se rechazan y una vela provisional no se reutiliza al cambiar el día. Los cierres confirmados no generan una alerta de antigüedad por el paso de las horas. Un instrumento sin el cierre esperado sigue indicando retraso de cobertura.
 
 Dos regresiones adicionales verifican la coherencia de escala tras una reparación: una cotización cuyo cierre previo canónico ya no coincide con el historial en memoria provoca una sola recarga y elimina las referencias de caché anteriores. Si la discrepancia persiste, la vela provisional queda bloqueada sin un bucle de recargas; el modo solo cierres no vuelve a consultar por esa discrepancia.
 
-## SQL v3: 111 comprobaciones aprobadas
+## SQL: 12 regresiones nuevas y 111 comprobaciones de base
 
-[live_quotes.sql](../supabase/live_quotes.sql) está aplicado y añade la recepción de capturas Google y la proyección pública de cotizaciones aprobadas. Se aprobaron los seis grupos en transacciones `BEGIN`/`ROLLBACK`, con 49 comprobaciones nuevas y 62 históricas:
+[arkk_exchange_correction.sql](../supabase/arkk_exchange_correction.sql) se aplicó únicamente a los metadatos de bolsa de ARKK. No modifica precios, historial, funciones de calidad, permisos ni RLS. Las 12 comprobaciones de [quote_source_corrections.sql](../supabase/tests/quote_source_corrections.sql) aprobaron en una transacción revertida: identidad `BATS:ARKK` aceptada y antigua `NYSEARCA:ARKK` rechazada, hora UTC válida de SOXS en verano/invierno, rechazo de horas futuras y OHLC inválido, permisos preservados y hashes intactos del historial, capturas Yahoo privadas y cotizaciones públicas.
+
+[live_quotes.sql](../supabase/live_quotes.sql) está aplicado y añade la recepción de capturas Google y la proyección pública de cotizaciones aprobadas. Sus 111 comprobaciones de base aprobaron el 16/10/2026 en seis grupos con transacciones `BEGIN`/`ROLLBACK`: 49 de cotizaciones y 62 históricas. En esta revisión volvieron a aprobar los dos primeros grupos de cotizaciones, para 40 comprobaciones de base repetidas:
 
 | Grupo v3 | Comprobaciones |
 | --- | ---: |
@@ -38,11 +44,11 @@ Las pruebas del frontend verificaron los 250 instrumentos, mezcla de 500 cierres
 
 Se comprobó mediante las pruebas del cliente que el refresco con historial vigente consulta únicamente la proyección de cotizaciones y que cambiar el modo intradiario utiliza los datos cargados. La inspección del navegador en producción se realiza después de publicar, sin presentar fixtures como cotizaciones reales.
 
-## Lecturas reales de v3
+## Lecturas reales posteriores a la corrección
 
-La lectura REST con clave pública devolvió HTTP 200 y 244 cotizaciones aprobadas del 16/10/2026, todas de Yahoo y provisionales. La última captura de esa comprobación fue `16:41:51Z`; por ejemplo AAPL tenía hora de proveedor `16:29:46Z`, QQQ `16:39:50Z` y SOXS `16:41:49Z`. A las 14:24 de Nueva York esas capturas estaban envejecidas, por lo que la interfaz debe mostrarlas como `OUTDATED` con sus horas originales.
+La lectura de producción del 17/10/2026 a las 02:14 UTC, todavía 16/10 a las 22:14 en Nueva York, mostró 246 cotizaciones del 16/10, todas Yahoo y `FINAL`. ARKK cerraba en 81,65 USD y SOXS en 49,23 USD; ambas tenían hora de proveedor `20:00:00Z`, equivalente a las 16:00 de Nueva York. Esos cierres confirmados no deben mostrarse como `OUTDATED` por haber pasado varias horas desde el cierre.
 
-Esta evidencia no demuestra todavía una captura Google Finance de producción ni cobertura completa de las 250 fórmulas. Los instrumentos sin cotización aprobada conservan sus cierres confirmados. El historial mantuvo 124.076 barras finales del universo activo y 149.187 filas totales; los tres Cron y el worker siguen activos. Los asesores no reportaron WARN/ERROR, solo informativos de tablas privadas y de un índice nuevo aún sin uso.
+DELL, LABU, MAGS y SPY no tenían una cotización aprobada de ese día y conservan el último cierre disponible con el aviso de cobertura retrasada. El historial contenía 124.079 barras finales del universo activo y 149.190 filas totales; los tres Cron y el worker seguían activos. Esta lectura no demuestra todavía una captura Google Finance corregida de producción ni cobertura completa de las 250 fórmulas; el propietario debe volver a preparar y comprobar su hoja.
 
 ## Evidencia del backend histórico anterior
 

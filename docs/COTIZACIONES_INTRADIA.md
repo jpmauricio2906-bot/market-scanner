@@ -21,6 +21,12 @@ Las columnas nuevas son V, retraso del proveedor; W, estado del historial; X, mo
 
 La primera instalación puede mostrar celdas pendientes mientras Google calcula las fórmulas. La subida rápida no espera en un bucle a ese cálculo y no reemplaza datos ausentes por cero. Supabase devuelve un resultado por ticker y conserva el último dato aprobado cuando una nueva captura es incompleta o incoherente.
 
+ARKK usa `BATS:ARKK`, correspondiente a Cboe BZX. La corrección actualiza las fórmulas y el mismo identificador que valida Supabase; no admite un identificador incorrecto como excepción. [Bolsa declarada por ARK](https://helpcenter.ark-funds.com/how-do-i-invest-from-abroad).
+
+SOXS requiere un tratamiento de su hora: el proveedor muestra su reloj en UTC. `prepararMarketScanner` añade al final de la hoja una columna auxiliar con encabezado `SOXS hora UTC`, sin sobrescribir instrucciones ni columnas existentes. Solo la fila SOXS contiene allí `GOOGLEFINANCE("NYSEARCA:SOXS","tradetime")`. C toma esa celda mediante `MARKET_SCANNER_UTC_TIME(referencia)`, interpreta el reloj como UTC y devuelve el instante real para mostrarlo en la zona del libro. Por ejemplo, las 20:00 UTC son las 16:00 de Nueva York en verano; las 21:00 UTC son las 16:00 en invierno. No se resta una cantidad fija de horas ni se usa la hora del envío para sustituir la del proveedor.
+
+La función auxiliar se ejecuta desde la fórmula: **no se ejecuta manualmente ni necesita un temporizador propio**. La referencia directa permite recalcular cuando cambia la celda de origen. Repetir la preparación reutiliza la misma columna. Los otros 249 instrumentos conservan sus fórmulas nativas. Un valor ausente sigue pendiente y una hora realmente futura sigue llegando al servidor para ser rechazada. [Funciones personalizadas de Google](https://developers.google.com/apps-script/guides/sheets/functions).
+
 ## Uso diario
 
 Con los activadores activos no hay funciones manuales obligatorias. Para enviar los valores calculados de la hoja, ejecutar `actualizarCotizacionesAhora` una vez. Para consultar el estado, usar `verEstadoMarketScanner`.
@@ -36,6 +42,8 @@ El refresco rápido de la web consulta las cotizaciones publicadas y reutiliza l
 Una cotización provisional no sobrescribe una barra confirmada de la misma fecha. Si hay una revisión de escala o un split por reparar, esa cotización no se mezcla con un historial incompatible. Una reconstrucción histórica tampoco debe hacer retroceder la cotización del día a la fecha anterior.
 
 La aplicación también comprueba que su historial en memoria corresponda a la escala del cierre previo canónico que devuelve el servidor. Si la diferencia supera la tolerancia —el mayor valor entre 0,02 USD y el 0,5 % del cierre canónico—, renueva el historial una vez antes de combinar la cotización provisional. Si la discrepancia persiste, mantiene los cierres sin añadir esa vela y muestra el aviso correspondiente.
+
+Después del cierre, `OUTDATED` compara la hora de la cotización y de su captura con el cierre de esa sesión de Nueva York: normalmente 16:00 y 13:00 en sesiones reducidas. Conserva los márgenes existentes del proveedor; durante la sesión sigue comparando con la hora actual. Así, una cotización válida de cierre no envejece solo porque sean las 18:00, pero un precio del mediodía o una captura insuficiente para el cierre siguen mostrando el aviso. Los cierres `FINAL` no generan un aviso por edad; una vela provisional continúa identificada como tal y no se reutiliza en otra fecha de Nueva York. Esta regla de presentación no convierte una cotización Google en cierre confirmado ni cambia los controles SQL.
 
 ## Límites del proveedor
 

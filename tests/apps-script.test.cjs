@@ -56,7 +56,7 @@ function harness(options={}) {
         setValue(value){return this.setValues([[value]]);},setFormulas(values){record('formulas',details);values.forEach((line,y)=>line.forEach((v,x)=>formulas.set(key(row+y,col+x),v)));return this;},
         setNumberFormat(){return this;},setBackground(){return this;},setFontColor(){return this;},setFontWeight(){return this;}};
     }};
-  const book={getId:()=> 'test-sheet-v2',getSheetByName(name){record('sheet',{name});assert.equal(name,'Precios','Google must never access the archived history');return exists?sheet:null;},
+  const book={getId:()=> 'test-sheet-v2',getSpreadsheetTimeZone:()=>options.sheetTimeZone||'America/New_York',getSheetByName(name){record('sheet',{name});assert.equal(name,'Precios','Google must never access the archived history');return exists?sheet:null;},
     insertSheet(name){assert.equal(name,'Precios');exists=true;return sheet;}};
   let yahooGroups=0,rpcGroups=0;
   const properties={getProperty:k=>props.get(k)??null,setProperty(k,v){props.set(k,v);if(k==='MS_JOB_RECENT_V2')record('checkpoint',{saved:JSON.parse(v)});}};
@@ -66,7 +66,13 @@ function harness(options={}) {
       getUserLock:()=>({tryLock:()=>quickLocked,releaseLock(){record('user-unlock');}})},
     SpreadsheetApp:{getActiveSpreadsheet:()=>book,openById:id=>{assert.equal(id,book.getId());record('open');return book;},flush(){record('flush');},
       getUi:()=>({createMenu:()=>({addItem(label,fn){menus.push({label,fn});return this;},addSeparator(){return this;},addToUi(){}})})},
-    Utilities:{formatDate(date,timeZone,pattern){const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).formatToParts(date).map(x=>[x.type,x.value]));return pattern==='HH'?p.hour:`${p.year}-${p.month}-${p.day}`;}},
+    Utilities:{formatDate(date,timeZone,pattern){
+      const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(date).map(x=>[x.type,x.value]));
+      if(pattern==='HH')return p.hour;
+      const day=`${p.year}-${p.month}-${p.day}`;
+      if(pattern==="yyyy-MM-dd'T'HH:mm:ss")return `${day}T${p.hour}:${p.minute}:${p.second}`;
+      assert.equal(pattern,'yyyy-MM-dd');return day;
+    }},
     ScriptApp:{getProjectTriggers:()=>triggers.slice(),deleteTrigger:t=>triggers.splice(triggers.indexOf(t),1),
       newTrigger:handler=>({handler,timeBased(){return this;},everyMinutes(n){this.minutes=n;return this;},everyHours(n){this.hours=n;return this;},create(){const trigger={handler,minutes:this.minutes,hours:this.hours,getHandlerFunction:()=>handler};triggers.push(trigger);record('trigger',{handler,minutes:this.minutes,hours:this.hours});return trigger;}})},
     UrlFetchApp:{fetchAll(requests){yahooGroups++;record('yahoo',{requests:plain(requests)});elapsed+=options.yahooCost||0;
@@ -102,7 +108,7 @@ test('preparation writes only 251 Precios rows, formulas and metadata; it never 
   assert.equal(h.props.get('SPREADSHEET_ID'),'test-sheet-v2');
   assert.equal(h.sheet.getMaxRows(),251);assert.equal(h.cell(251,1),h.ctx.msUniverse_()[249].ticker);
   assert.ok(h.formulas.get('251,10').includes('G251-I251'));
-  assert.equal(h.sheet.getMaxColumns(),24);assert.equal(h.cell(1,12),'Enviado');
+  assert.equal(h.sheet.getMaxColumns(),25);assert.equal(h.cell(1,12),'Enviado');
   assert.equal(h.formulas.get('2,3'),'=IFERROR(GOOGLEFINANCE("NASDAQ:NVDA","tradetime"),"")');
   assert.equal([...h.formulas.values()].filter(formula=>formula.includes('GOOGLEFINANCE')).length,2000);
   assert.ok([...h.formulas.values()].every(formula=>!formula.includes('NOW(')));
@@ -254,7 +260,7 @@ test('progress reads the small Precios table and reports server-owned validation
 test('preparation migrates the existing 21 columns without reimporting or reading history',()=>{
   const h=harness();h.legacy();h.putCell(2,12,'2026-10-15T22:00:00Z');h.putCell(2,13,'FINAL');h.putCell(2,14,500);
   h.ctx.prepararMarketScanner();
-  assert.equal(h.sheet.getMaxColumns(),24);assert.equal(h.cell(2,23),'FINAL');assert.equal(h.cell(2,24),'2026-10-15T22:00:00Z');
+  assert.equal(h.sheet.getMaxColumns(),25);assert.equal(h.cell(2,23),'FINAL');assert.equal(h.cell(2,24),'2026-10-15T22:00:00Z');
   assert.equal(h.cell(2,12),'');assert.equal(h.cell(2,13),'PENDIENTE DE SUBIR');assert.equal(h.cell(2,14),500);
   assert.equal(h.formulas.get('2,7'),'=IFERROR(GOOGLEFINANCE("NASDAQ:NVDA","price"),"")');
   h.putCell(2,12,'quick time');h.putCell(2,13,'PROVISIONAL');h.ctx.prepararMarketScanner();
@@ -270,7 +276,7 @@ test('preparation migrates the shipped template with its W:X guide and preserves
     h.putCell(2,12,'2026-10-16T16:29:48Z');h.putCell(2,13,'PROVISIONAL');h.putCell(2,14,500);
     if(width===26)h.putCell(90,26,'Preservar contenido a la derecha');
     h.ctx.prepararMarketScanner();
-    assert.equal(h.sheet.getMaxColumns(),width+3);assert.equal(h.cell(1,26),'Market Scanner');
+    assert.equal(h.sheet.getMaxColumns(),width+4);assert.equal(h.cell(1,26),'Market Scanner');
     assert.equal(h.cell(2,26),'Uso');assert.equal(h.cell(2,27),'Instrucciones originales');
     assert.equal(h.cell(74,26),'Fuente ETF LABU');assert.equal(h.cell(74,27),'https://example.com/original-source');
     if(width===26)assert.equal(h.cell(90,29),'Preservar contenido a la derecha');
@@ -305,6 +311,77 @@ test('Google Finance identifiers disambiguate all exchanges, Berkshire class and
   assert.throws(()=>h.ctx.msGoogleSymbol_({ticker:'X',exchange:'UNKNOWN'}),/equivalencia/);
   const usd=companies.findIndex(c=>c.ticker==='USD')+2;
   assert.equal(h.formulas.get(usd+',22'),'=IFERROR(GOOGLEFINANCE("NYSEARCA:USD","datadelay"),"")');
+});
+
+test('only SOXS tradetime uses a direct auxiliary-cell reference while all other provider formulas remain native',()=>{
+  const h=harness();h.prepare();const companies=h.ctx.msUniverse_();
+  const soxs=companies.findIndex(c=>c.ticker==='SOXS')+2,aapl=companies.findIndex(c=>c.ticker==='AAPL')+2;
+  assert.equal(h.cell(1,25),'SOXS hora UTC');
+  assert.equal(h.formulas.get(soxs+',3'),`=IFERROR(MARKET_SCANNER_UTC_TIME(Y${soxs}),"")`);
+  assert.equal(h.formulas.get(soxs+',25'),'=IFERROR(GOOGLEFINANCE("NYSEARCA:SOXS","tradetime"),"")');
+  assert.equal(h.formulas.get(aapl+',3'),'=IFERROR(GOOGLEFINANCE("NASDAQ:AAPL","tradetime"),"")');
+  assert.equal(h.formulas.get(soxs+',7'),'=IFERROR(GOOGLEFINANCE("NYSEARCA:SOXS","price"),"")');
+  assert.equal([...h.formulas.values()].filter(value=>value.includes('MARKET_SCANNER_UTC_TIME')).length,1);
+  assert.equal([...h.formulas.values()].filter(value=>value.includes('GOOGLEFINANCE')).length,2000);
+  assert.ok(h.menus.every(item=>item.fn!=='MARKET_SCANNER_UTC_TIME'));
+});
+
+test('SOXS UTC wall times preserve the true instant through summer, winter and both New York DST boundaries',()=>{
+  const h=harness();
+  const cases=[
+    ['2026-10-17T00:00:00Z','2026-10-16T20:00:00.000Z'],
+    ['2026-12-16T02:00:00Z','2026-12-15T21:00:00.000Z'],
+    ['2026-03-07T02:00:00Z','2026-03-06T21:00:00.000Z'],
+    ['2026-03-10T00:00:00Z','2026-03-09T20:00:00.000Z'],
+    ['2026-10-31T00:00:00Z','2026-10-30T20:00:00.000Z'],
+    ['2026-11-03T02:00:00Z','2026-11-02T21:00:00.000Z']
+  ];
+  for(const [sheetDate,instant]of cases){
+    const actual=h.ctx.MARKET_SCANNER_UTC_TIME(new h.ctx.Date(sheetDate));
+    assert.equal(actual.toISOString(),instant);
+    assert.equal(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',hourCycle:'h23'}).format(actual),'16');
+  }
+  assert.equal(h.events.filter(e=>e.op==='rpc'||e.op==='yahoo'||e.op==='write').length,0);
+});
+
+test('SOXS UTC interpretation uses the sheet timezone and never clamps a genuinely future source time',()=>{
+  for(const [sheetTimeZone,input]of [['UTC','2026-10-16T20:00:00Z'],['America/New_York','2026-10-17T00:00:00Z'],['America/Los_Angeles','2026-10-17T03:00:00Z']]){
+    const h=harness({sheetTimeZone});
+    assert.equal(h.ctx.MARKET_SCANNER_UTC_TIME(new h.ctx.Date(input)).toISOString(),'2026-10-16T20:00:00.000Z');
+  }
+  const h=harness({now:'2026-10-16T20:05:00Z'});h.prepare();h.seedQuotes();
+  const soxs=h.ctx.msUniverse_().findIndex(c=>c.ticker==='SOXS')+2;
+  const future=h.ctx.MARKET_SCANNER_UTC_TIME(new h.ctx.Date('2026-10-18T00:00:00Z'));
+  assert.equal(future.toISOString(),'2026-10-17T20:00:00.000Z');
+  h.putCell(soxs,3,future);h.ctx.actualizarCotizacionesAhora();
+  const raw=h.events.find(e=>e.op==='rpc').payload.p_batch.find(item=>item.ticker==='SOXS');
+  assert.equal(raw.source_quote_at,'2026-10-17T20:00:00.000Z');
+  assert.equal(raw.fetched_at,'2026-10-16T20:05:00.000Z');
+});
+
+test('missing SOXS provider times fail the custom formula and stay missing when uploaded',()=>{
+  const h=harness();
+  for(const input of [null,undefined,'','#N/A','2026-10-16T20:00:00Z',0,new h.ctx.Date('invalid')])
+    assert.throws(()=>h.ctx.MARKET_SCANNER_UTC_TIME(input),/hora válida del proveedor/);
+  h.prepare();h.seedQuotes();const soxs=h.ctx.msUniverse_().findIndex(c=>c.ticker==='SOXS')+2;
+  h.putCell(soxs,3,'');h.ctx.actualizarCotizacionesAhora();
+  assert.equal(h.events.find(e=>e.op==='rpc').payload.p_batch.find(item=>item.ticker==='SOXS').source_quote_at,'');
+});
+
+test('UTC auxiliary setup appends safely, preserves notes and reuses its unique header beyond 64 columns',()=>{
+  for(const width of [34,70]){
+    const h=harness();h.legacy(width);
+    plain(vm.runInContext('MS_HEADERS.Precios',h.ctx)).forEach((value,n)=>h.putCell(1,n+1,value));
+    h.putCell(1,26,'Market Scanner');h.putCell(74,27,'Original guide');h.putCell(90,width,'Contenido existente');
+    h.ctx.prepararMarketScanner();assert.equal(h.sheet.getMaxColumns(),width+1);assert.equal(h.cell(1,width+1),'SOXS hora UTC');
+    assert.equal(h.cell(74,27),'Original guide');assert.equal(h.cell(90,width),'Contenido existente');
+    h.reset();h.ctx.prepararMarketScanner();
+    assert.equal(h.sheet.getMaxColumns(),width+1);assert.equal(h.events.filter(e=>e.op==='expand-columns').length,0);
+    assert.ok(h.events.filter(e=>e.op==='read'&&e.row===1).every(e=>e.width<=64));
+    h.putCell(1,25,'SOXS hora UTC');h.reset();
+    assert.throws(()=>h.ctx.prepararMarketScanner(),/SOXS hora UTC duplicado/);
+    assert.equal(h.events.filter(e=>['write','formulas','expand-columns','rpc','yahoo'].includes(e.op)).length,0);
+  }
 });
 
 test('the primary menu action uploads all 250 native quotes with one read and one RPC',()=>{
