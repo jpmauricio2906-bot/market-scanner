@@ -1,4 +1,4 @@
-import {runExperiment} from './lab.mjs';
+import {runExperiment} from './lab.mjs?v=2';
 
 self.onmessage = async ({data}) => {
   if (!data || data.type!=='run' || typeof data.id!=='string') return;

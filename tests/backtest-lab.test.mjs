@@ -17,10 +17,13 @@ function configuration(overrides={}) { return {weights:{AAA:.75,BBB:.25},strateg
 const data=[...rows(),...rows('BBB')];
 
 test('lab calendar matches reviewed source including extraordinary closure',async()=>{
-  const original=JSON.parse(await fs.readFile(new URL('../supabase/calendar.json',import.meta.url),'utf8'));
+  const original=JSON.parse(await fs.readFile(new URL('../data/backtest-calendar.json',import.meta.url),'utf8'));
   assert.deepEqual(EXCHANGE_CALENDAR,{firstYear:original.firstYear,lastYear:original.lastYear,holidays:original.holidays});
   assert.ok(!sessionDates('2025-01-06','2025-01-10').includes('2025-01-09'));
-  assert.throws(()=>sessionDates('2023-12-29','2024-01-03'),/calendario/);
+  assert.ok(!sessionDates('2018-12-03','2018-12-07').includes('2018-12-05'));
+  assert.ok(sessionDates('2021-06-18','2021-06-21').includes('2021-06-18'));
+  assert.ok(!sessionDates('2022-06-17','2022-06-21').includes('2022-06-20'));
+  assert.throws(()=>sessionDates('2014-12-31','2015-01-02'),/calendario/);
 });
 test('coverage exposes real eligibility and common final date',()=>{
   const result=inspectHistory([...rows(),...rows('BBB',80,180)],{weights:{AAA:.75,BBB:.25},strategy:PRESET_STRATEGIES.sma200});

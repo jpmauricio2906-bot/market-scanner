@@ -16,7 +16,7 @@ test('fixed diagnostics translate in either direction and remain stable when ren
 
 test('every literal validation error from the lab, storage, strategy, execution and data client is covered', async () => {
   for (const [path,target] of [
-    ['js/backtest/lab.mjs','en'], ['js/backtest/storage.mjs','en'],
+    ['js/backtest/lab.mjs','en'], ['js/backtest/history.mjs','en'], ['js/backtest/storage.mjs','en'],
     ['js/backtest/strategies.mjs','es'], ['js/backtest/execution.mjs','es'], ['js/data.js','es']
   ]) {
     const source=await readFile(new URL(`../${path}`,import.meta.url),'utf8');
@@ -28,6 +28,12 @@ test('every literal validation error from the lab, storage, strategy, execution 
 });
 
 const dynamicMessages = [
+  ['SHEL: el historial largo no ha superado los controles de calidad. Prueba otra selección mientras se revisan los datos.','SHEL: long history has not passed quality checks. Try another selection while the data is reviewed.'],
+  ['VLO: la última actualización falló; se conserva el historial confirmado hasta 2026-10-19.','VLO: the latest refresh failed; confirmed history through 2026-10-19 is retained.'],
+  ['VLO: el historial largo todavía no está disponible. Vuelve a intentarlo cuando termine su actualización.','VLO: long history is not available yet. Retry after its update finishes.'],
+  ['VLO: la cobertura del historial largo no es válida. No se ejecutará el backtest.','VLO: long-history coverage is invalid. The backtest will not run.'],
+  ['VLO: la descarga no coincide con la cobertura publicada. Vuelve a cargar el historial.','VLO: the download does not match published coverage. Load history again.'],
+  ['VLO: el historial cambió durante la descarga. Vuelve a cargarlo para obtener una copia consistente.','VLO: history changed during the download. Reload it to obtain a consistent copy.'],
   ['Fechas fuera del calendario revisado (2024–2028).','Dates outside the reviewed calendar (2024–2028).'],
   ['Barra inválida o no confirmada: BRK.B 2026-10-19.','Invalid or unconfirmed bar: BRK.B 2026-10-19.'],
   ['Barra duplicada: BRK.B 2026-10-19. Actualiza el historial.','Duplicate bar: BRK.B 2026-10-19. Refresh history.'],
