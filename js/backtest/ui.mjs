@@ -1,28 +1,45 @@
 import { inspectHistory, DEFAULT_CONFIG, PRESET_STRATEGIES } from './lab.mjs';
 import { validateWeights, normalizeWeights, equalWeights, readPortfolios, savePortfolio, deletePortfolio, toCsv } from './storage.mjs';
+import { t, translateMessage, getLanguage, setLanguage, applyTranslations, formatNumber } from './i18n.mjs';
 
 const $ = id => document.getElementById(id);
 const state = { universe: null, weights: {}, portfolios: [], storageReady: true, rows: [], scope: null, source: null,
-  worker: null, busy: false, request: 0, revision: 0, resultRevision: null, result: null, tradePage: 0, inspection: null };
+  worker: null, busy: false, request: 0, revision: 0, resultRevision: null, result: null, tradePage: 0, inspection: null,
+  message: null, statuses: new Map(), universeFailed: false };
 const PAGE_SIZE = 25;
 const strategyNames = { v3: 'Scanner v3', sma200: 'Tendencia larga · SMA200', custom: 'Estrategia personalizada' };
 const strategyFields = { entryScore: 'entry-score', trendScore: 'trend-score', momentum: 'momentum-score',
   maxEntryExtensionAtr: 'max-extension', minEntryDistanceAtr: 'min-distance', relativeVolume: 'relative-volume',
   exitPeriod: 'exit-period', exitConfirmations: 'exit-confirmations', exitScore: 'exit-score' };
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
-const number = (value, digits = 2) => Number.isFinite(value) ? value.toLocaleString('es-ES', { minimumFractionDigits: digits, maximumFractionDigits: digits }) : '—';
+const number = formatNumber;
 const percent = value => Number.isFinite(value) ? number(value * 100) + '%' : '—';
 const money = value => Number.isFinite(value) ? '$' + number(value) : '—';
 const signClass = value => value > 0 ? 'positive' : value < 0 ? 'negative' : '';
 const uuid = () => globalThis.crypto?.randomUUID?.() ?? 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2);
 const selectedTickers = () => Object.keys(state.weights);
 
-function message(text, type = '') {
-  $('message').textContent = text;
-  $('message').className = 'notice' + (type ? ' ' + type : '');
-  $('message').hidden = !text;
+function translated(descriptor) {
+  const params = typeof descriptor.params === 'function' ? descriptor.params() : descriptor.params;
+  return descriptor.raw ? translateMessage(t(descriptor.source)) : t(descriptor.source, params);
 }
-function fail(error) { message(error instanceof Error ? error.message : String(error), 'error'); }
+function renderMessage() {
+  if (!state.message) return;
+  $('message').textContent = translated(state.message);
+  $('message').className = 'notice' + (state.message.type ? ' ' + state.message.type : '');
+  $('message').hidden = !state.message.source;
+}
+function message(source, type = '', params = {}) {
+  state.message = { source, type, params }; renderMessage();
+}
+function fail(error) {
+  state.message = { source: error instanceof Error ? error.message : String(error), type: 'error', raw: true };
+  renderMessage();
+}
+function status(id, source, params = {}, raw = false) {
+  const descriptor = { source, params, raw };
+  state.statuses.set(id, descriptor); $(id).textContent = translated(descriptor);
+}
 function changed() {
   state.revision++;
   $('dirty-label').hidden = !state.result || state.revision === state.resultRevision;
@@ -44,11 +61,15 @@ function applyPreset() {
   $('strong-only').checked = strategy.strongOnly;
   $('exit-mode').value = strategy.exitMode;
   updateStrategyDisabled();
-  $('preset-description').textContent = preset === 'v3'
+  renderPresetDescription();
+}
+function renderPresetDescription() {
+  const preset = $('strategy-preset').value;
+  $('preset-description').textContent = t(preset === 'v3'
     ? 'Reglas de producción v3, sin modificaciones. Selecciona Personalizada para editar los criterios.'
     : preset === 'sma200'
       ? 'Compras v3. Venta tras 3 cierres consecutivos por debajo de SMA200; la ruptura bloquea también nuevas compras. Reglas fijas.'
-      : 'Experimento editable. Los cambios afectan a esta simulación; no modifican las señales del scanner.';
+      : 'Experimento editable. Los cambios afectan a esta simulación; no modifican las señales del scanner.');
 }
 function updateStrategyDisabled() {
   const custom = $('strategy-preset').value === 'custom';
@@ -71,19 +92,22 @@ function setBusy(busy) {
 }
 
 function renderUniverse() {
-  if (!state.universe) return;
-  const query = $('search').value.toLocaleLowerCase('es').trim();
+  if (!state.universe) {
+    if (state.universeFailed) $('universe-list').innerHTML = `<p class="muted">${escape(t('No se pudo cargar el universo. Recarga la página para reintentar.'))}</p>`;
+    return;
+  }
+  const query = $('search').value.toLocaleLowerCase(getLanguage()).trim();
   const type = $('type-filter').value;
   const items = state.universe.instruments.filter(item => (type === 'all' || item.type === type) &&
-    (!query || (item.ticker + ' ' + item.name).toLocaleLowerCase('es').includes(query)));
-  $('universe-list').innerHTML = items.length ? items.map(item => `<label class="asset-option"><input type="checkbox" data-ticker="${escape(item.ticker)}" ${Object.hasOwn(state.weights, item.ticker) ? 'checked' : ''}><span><strong>${escape(item.ticker)}</strong><span class="asset-name">${escape(item.name)}</span></span><span class="asset-kind">${item.type === 'STOCK' ? 'ACCIÓN' : item.dailyLeverage !== 1 ? escape(item.dailyLeverage) + '× ETF' : 'ETF'}</span></label>`).join('')
-    : '<p class="muted">No hay coincidencias.</p>';
+    (!query || (item.ticker + ' ' + item.name).toLocaleLowerCase(getLanguage()).includes(query)));
+  $('universe-list').innerHTML = items.length ? items.map(item => `<label class="asset-option"><input type="checkbox" data-ticker="${escape(item.ticker)}" ${Object.hasOwn(state.weights, item.ticker) ? 'checked' : ''}><span><strong>${escape(item.ticker)}</strong><span class="asset-name">${escape(item.name)}</span></span><span class="asset-kind">${item.type === 'STOCK' ? escape(t('ACCIÓN')) : item.dailyLeverage !== 1 ? escape(item.dailyLeverage) + '× ETF' : 'ETF'}</span></label>`).join('')
+    : `<p class="muted">${escape(t('No hay coincidencias.'))}</p>`;
 }
 function renderSelection() {
   const tickers = selectedTickers();
-  $('selection-count').textContent = `${tickers.length} activo${tickers.length === 1 ? '' : 's'}`;
-  $('selection-body').innerHTML = tickers.length ? tickers.map(ticker => `<tr><td>${escape(ticker)}</td><td><label class="sr-only" for="weight-${escape(ticker)}">Peso de ${escape(ticker)} en porcentaje</label><input id="weight-${escape(ticker)}" data-weight="${escape(ticker)}" type="number" min="0" max="100" step="any" value="${Number((state.weights[ticker] * 100).toFixed(6))}"></td><td><button type="button" data-remove="${escape(ticker)}" aria-label="Quitar ${escape(ticker)}">×</button></td></tr>`).join('')
-    : '<tr><td colspan="3" class="empty-small">Selecciona un activo para empezar.</td></tr>';
+  $('selection-count').textContent = t(tickers.length === 1 ? '{count} activo' : '{count} activos', { count: number(tickers.length, 0) });
+  $('selection-body').innerHTML = tickers.length ? tickers.map(ticker => `<tr><td>${escape(ticker)}</td><td><label class="sr-only" for="weight-${escape(ticker)}">${escape(t('Peso de {ticker} en porcentaje', { ticker }))}</label><input id="weight-${escape(ticker)}" data-weight="${escape(ticker)}" type="number" min="0" max="100" step="any" value="${Number((state.weights[ticker] * 100).toFixed(6))}"></td><td><button type="button" data-remove="${escape(ticker)}" aria-label="${escape(t('Quitar {ticker}', { ticker }))}">×</button></td></tr>`).join('')
+    : `<tr><td colspan="3" class="empty-small">${escape(t('Selecciona un activo para empezar.'))}</td></tr>`;
   renderTotal();
   $('run').disabled = state.busy || !hasHistory();
   $('load-history').disabled = state.busy || !tickers.length;
@@ -95,19 +119,28 @@ function renderTotal() {
 }
 function selectionChanged() {
   changed(); renderSelection(); renderUniverse(); refreshCoverage(false);
-  if (!hasHistory()) $('history-status').textContent = 'La selección cambió. Carga su historial antes de ejecutar.';
+  if (!hasHistory()) status('history-status', 'La selección cambió. Carga su historial antes de ejecutar.');
 }
 function renderPortfolios() {
   const current = $('saved-portfolio').value, parent = $('portfolio-parent').value;
-  $('saved-portfolio').innerHTML = '<option value="">Elige una cartera…</option>' + state.portfolios.map(item => `<option value="${escape(item.id)}">${item.parentId ? '↳ ' : ''}${escape(item.name)} · ${Object.keys(item.weights).length} activos</option>`).join('');
-  $('portfolio-parent').innerHTML = '<option value="">Cartera independiente</option>' + state.portfolios.filter(item => !item.parentId).map(item => `<option value="${escape(item.id)}">Subcartera de ${escape(item.name)}</option>`).join('');
+  $('saved-portfolio').innerHTML = `<option value="">${escape(t('Elige una cartera…'))}</option>` + state.portfolios.map(item => `<option value="${escape(item.id)}">${item.parentId ? '↳ ' : ''}${escape(item.name)} · ${escape(t(Object.keys(item.weights).length === 1 ? '{count} activo' : '{count} activos', { count: number(Object.keys(item.weights).length, 0) }))}</option>`).join('');
+  $('portfolio-parent').innerHTML = `<option value="">${escape(t('Cartera independiente'))}</option>` + state.portfolios.filter(item => !item.parentId).map(item => `<option value="${escape(item.id)}">${escape(t('Subcartera de {name}', { name: item.name }))}</option>`).join('');
   if (state.portfolios.some(item => item.id === current)) $('saved-portfolio').value = current;
   if (state.portfolios.some(item => item.id === parent)) $('portfolio-parent').value = parent;
   $('portfolio-count').textContent = state.portfolios.length;
 }
 
 function warningsHtml(warnings) {
-  return warnings?.length ? '<ul class="warning-list">' + [...new Set(warnings)].map(warning => `<li>${escape(warning)}</li>`).join('') + '</ul>' : '<p class="hint">Sin advertencias adicionales registradas.</p>';
+  return warnings?.length ? '<ul class="warning-list">' + [...new Set(warnings)].map(warning => `<li>${escape(translateMessage(warning))}</li>`).join('') + '</ul>' : `<p class="hint">${escape(t('Sin advertencias adicionales registradas.'))}</p>`;
+}
+function renderCoverage() {
+  const info = state.inspection;
+  $('coverage-panel').hidden = !info;
+  if (!info) return;
+  $('coverage-count').textContent = t(info.coverage.length === 1 ? '{count} activo' : '{count} activos', { count: number(info.coverage.length, 0) });
+  $('coverage-summary').textContent = t('Se requieren {count} cierres previos antes de operar, también para comprar y mantener. Cada activo entra cuando reúne su historial mínimo.', { count: number(info.warmupBars, 0) });
+  $('coverage-body').innerHTML = info.coverage.map(item => `<tr><td>${escape(item.ticker)}</td><td>${number(item.bars, 0)}</td><td>${escape(item.firstDate || '—')}</td><td>${escape(item.lastDate || '—')}</td><td>${escape(item.firstEligibleDate || t('Sin historial suficiente'))}</td></tr>`).join('');
+  $('coverage-warnings').innerHTML = warningsHtml(info.warnings);
 }
 function refreshCoverage(resetDates) {
   if (!hasHistory()) { $('coverage-panel').hidden = true; state.inspection = null; return; }
@@ -116,29 +149,25 @@ function refreshCoverage(resetDates) {
     const weights = equalWeights(selectedTickers());
     const info = inspectHistory(state.rows, { weights, strategy: currentStrategy() });
     state.inspection = info;
-    $('coverage-panel').hidden = false;
-    $('coverage-count').textContent = `${info.coverage.length} activos`;
-    $('coverage-summary').textContent = `Se requieren ${info.warmupBars} cierres previos antes de operar, también para comprar y mantener. Cada activo entra cuando reúne su historial mínimo.`;
-    $('coverage-body').innerHTML = info.coverage.map(item => `<tr><td>${escape(item.ticker)}</td><td>${number(item.bars, 0)}</td><td>${escape(item.firstDate || '—')}</td><td>${escape(item.lastDate || '—')}</td><td>${escape(item.firstEligibleDate || 'Sin historial suficiente')}</td></tr>`).join('');
-    $('coverage-warnings').innerHTML = warningsHtml(info.warnings);
+    renderCoverage();
     if (resetDates || !$('start-date').value) $('start-date').value = info.startDate || '';
     if (resetDates || !$('end-date').value) $('end-date').value = info.endDate || '';
-    $('history-status').textContent = `${info.coverage.length} activos cargados · ${info.warmupBars} sesiones de preparación · cierres confirmados.`;
-    $('run-status').textContent = 'Historial listo. Revisa las fechas y ejecuta la simulación.';
+    status('history-status', info.coverage.length === 1 ? '{count} activo cargado · {warmup} sesiones de preparación · cierres confirmados.' : '{count} activos cargados · {warmup} sesiones de preparación · cierres confirmados.', () => ({ count: number(info.coverage.length, 0), warmup: number(info.warmupBars, 0) }));
+    status('run-status', 'Historial listo. Revisa las fechas y ejecuta la simulación.');
   } catch (error) {
     state.inspection = null;
     $('coverage-panel').hidden = true;
-    $('history-status').textContent = error.message;
+    status('history-status', error.message, {}, true);
   }
 }
 async function loadHistory() {
   if (!selectedTickers().length) return message('Selecciona al menos un activo.', 'error');
   const request = ++state.request, tickers = selectedTickers(), scope = tickers.length === 1 ? tickers[0] : '*';
   message(''); setBusy(true); $('run-progress').removeAttribute('value');
-  $('run-status').textContent = 'Descargando únicamente sesiones confirmadas…';
+  status('run-status', 'Descargando únicamente sesiones confirmadas…');
   try {
     const response = await globalThis.fetchMarketData(scope === '*' ? null : scope, count => {
-      if (request === state.request) $('run-status').textContent = `Cargando historial: ${number(count, 0)} barras recibidas…`;
+      if (request === state.request) status('run-status', 'Cargando historial: {count} barras recibidas…', () => ({ count: number(count, 0) }));
     }, { includeRecent: false, refreshQuotes: false, forceHistory: true });
     if (request !== state.request) return;
     if (!Array.isArray(response.finalizedData)) throw new Error('La fuente no devolvió un historial confirmado. No se ejecutará el backtest.');
@@ -146,7 +175,7 @@ async function loadHistory() {
     state.scope = scope;
     state.source = { kind: 'market_history', confirmedOnly: true, loadedAt: response.historyLoadedAt || new Date().toISOString(), quality: response.quality };
     changed(); refreshCoverage(true);
-    if (!state.inspection) throw new Error($('history-status').textContent);
+    if (!state.inspection) throw new Error(state.statuses.get('history-status')?.source || 'No se pudo comprobar el historial.');
     message('Historial cargado. Las fechas sugeridas respetan el historial mínimo de la estrategia.', 'success');
   } catch (error) { if (request === state.request) fail(error); }
   finally { if (request === state.request) { setBusy(false); $('run-progress').value = 0; } }
@@ -165,7 +194,7 @@ function run() {
   try { config = readConfig(); } catch (error) { fail(error); return; }
   const request = ++state.request, revision = state.revision;
   message(''); setBusy(true); $('run-progress').value = 0;
-  $('run-status').textContent = 'Calculando señales y ejecuciones…';
+  status('run-status', 'Calculando señales y ejecuciones…');
   try {
     const worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
     state.worker = worker;
@@ -176,15 +205,15 @@ function run() {
       if (response.type === 'progress') {
         const { completed, total, ticker } = response.progress;
         $('run-progress').value = total ? completed / total * 100 : 0;
-        $('run-status').textContent = `Calculando ${ticker || ''} · ${completed} de ${total} activos`;
+        status('run-status', total === 1 ? 'Calculando {ticker} · {completed} de {total} activo' : 'Calculando {ticker} · {completed} de {total} activos', () => ({ ticker: ticker || '', completed: number(completed, 0), total: number(total, 0) }));
       } else if (response.type === 'result') {
         state.result = response.result; state.resultRevision = revision; state.tradePage = 0;
         finish(); renderResult();
-        $('run-status').textContent = 'Simulación terminada. Los resultados incluyen costes de entrada y salida.';
+        status('run-status', 'Simulación terminada. Los resultados incluyen costes de entrada y salida.');
         $('results').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-      } else if (response.type === 'error') { finish(); fail(response.error); $('run-status').textContent = 'No se completó esta ejecución.'; }
+      } else if (response.type === 'error') { finish(); fail(response.error); status('run-status', 'No se completó esta ejecución.'); }
     };
-    worker.onerror = event => { finish(); if (request === state.request) { fail(event.message || 'No se pudo iniciar el motor. Recarga la página e inténtalo de nuevo.'); $('run-status').textContent = 'La ejecución falló.'; } };
+    worker.onerror = event => { finish(); if (request === state.request) { fail(event.message || 'No se pudo iniciar el motor. Recarga la página e inténtalo de nuevo.'); status('run-status', 'La ejecución falló.'); } };
     worker.postMessage({ type: 'run', id: String(request), payload: { rows: state.rows, config, source: state.source } });
   } catch (error) { state.worker?.terminate(); state.worker = null; setBusy(false); fail(error); }
 }
@@ -194,7 +223,7 @@ function chart(container, strategy, benchmark, key, drawdown = false) {
   const series = [strategy, benchmark];
   const dates = [...new Set(series.flatMap(rows => rows.map(row => row.date)))].sort();
   const values = series.flatMap(rows => rows.map(row => row[key])).filter(Number.isFinite);
-  if (!dates.length || !values.length) { container.textContent = 'Sin datos para esta curva.'; return; }
+  if (!dates.length || !values.length) { container.textContent = t('Sin datos para esta curva.'); return; }
   let min = Math.min(...values, drawdown ? 0 : Infinity), max = Math.max(...values, drawdown ? 0 : -Infinity);
   if (min === max) { min -= drawdown ? .01 : Math.max(1, Math.abs(min) * .01); max += drawdown ? 0 : Math.max(1, Math.abs(max) * .01); }
   const pad = drawdown ? 0 : (max - min) * .1; min -= pad; max += pad;
@@ -205,26 +234,28 @@ function chart(container, strategy, benchmark, key, drawdown = false) {
   const ticks = Array.from({ length: 4 }, (_, i) => min + (max - min) * i / 3);
   const yLabel = value => drawdown ? number(value * 100, 1) + '%' : '$' + (Math.abs(value) >= 1000000 ? number(value / 1000000, 1) + ' M' : Math.abs(value) >= 1000 ? number(value / 1000, 1) + ' k' : number(value, 0));
   const dateLabels = [...new Set([dates[0], dates[Math.floor((dates.length - 1) / 2)], dates.at(-1)])];
-  container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${drawdown ? 'Caída porcentual desde máximos' : 'Capital en dólares'}: estrategia y comprar y mantener entre ${escape(dates[0])} y ${escape(dates.at(-1))}">${ticks.map(tick => `<line class="chart-grid" x1="${left}" y1="${y(tick)}" x2="${width - right}" y2="${y(tick)}"/><text x="${left - 12}" y="${y(tick) + 4}" text-anchor="end">${escape(yLabel(tick))}</text>`).join('')}<path class="chart-benchmark" d="${path(benchmark)}"/><path class="chart-strategy" d="${path(strategy)}"/>${dateLabels.map((date, index) => `<text x="${x(date)}" y="${height - 7}" text-anchor="${index === 0 ? 'start' : index === dateLabels.length - 1 ? 'end' : 'middle'}">${escape(date)}</text>`).join('')}</svg>`;
+  const description = t('{measure}: estrategia y comprar y mantener entre {start} y {end}', { measure: t(drawdown ? 'Caída porcentual desde máximos' : 'Capital en dólares'), start: dates[0], end: dates.at(-1) });
+  container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escape(description)}">${ticks.map(tick => `<line class="chart-grid" x1="${left}" y1="${y(tick)}" x2="${width - right}" y2="${y(tick)}"/><text x="${left - 12}" y="${y(tick) + 4}" text-anchor="end">${escape(yLabel(tick))}</text>`).join('')}<path class="chart-benchmark" d="${path(benchmark)}"/><path class="chart-strategy" d="${path(strategy)}"/>${dateLabels.map((date, index) => `<text x="${x(date)}" y="${height - 7}" text-anchor="${index === 0 ? 'start' : index === dateLabels.length - 1 ? 'end' : 'middle'}">${escape(date)}</text>`).join('')}</svg>`;
 }
 function renderResult() {
   const result = state.result, strategy = result.strategy, benchmark = result.benchmark, config = result.config;
   $('empty-state').hidden = true; $('results').hidden = false; $('dirty-label').hidden = state.revision === state.resultRevision;
-  $('result-title').textContent = strategyNames[config.strategy.preset] || 'Estrategia';
-  $('result-meta').textContent = `${strategy.period.startDate} → ${strategy.period.endDate} · ${strategy.period.sessions} sesiones · Motor ${result.engineVersion}`;
-  $('result-config').textContent = `${Object.keys(config.weights).length} activos · Capital ${money(config.initialCapital)} · Comisión ${number(config.commissionBps / 100)}% y deslizamiento ${number(config.slippageBps / 100)}% por lado · Pesos iniciales sin rebalanceo`;
+  $('result-title').textContent = t(strategyNames[config.strategy.preset] || 'Estrategia');
+  $('result-meta').textContent = t('{start} → {end} · {sessions} sesiones · Motor {version}', { start: strategy.period.startDate, end: strategy.period.endDate, sessions: number(strategy.period.sessions, 0), version: result.engineVersion });
+  const assetCount = Object.keys(config.weights).length;
+  $('result-config').textContent = t(assetCount === 1 ? '{count} activo · Capital {capital} · Comisión {commission}% y deslizamiento {slippage}% por lado · Pesos iniciales sin rebalanceo' : '{count} activos · Capital {capital} · Comisión {commission}% y deslizamiento {slippage}% por lado · Pesos iniciales sin rebalanceo', { count: number(assetCount, 0), capital: money(config.initialCapital), commission: number(config.commissionBps / 100), slippage: number(config.slippageBps / 100) });
   const a = strategy.metrics, b = benchmark.metrics;
   const cards = [['Rentabilidad neta', 'totalReturn', percent, 'Ganancia acumulada'], ['Caída máxima', 'maxDrawdown', percent, 'Desde un máximo previo'], ['Rentabilidad anualizada', 'cagr', percent, 'CAGR del período'], ['Costes totales', 'totalCost', money, 'Comisión + deslizamiento']];
-  $('metrics').innerHTML = cards.map(([label, key, format, note]) => `<article class="metric"><div class="metric-label">${label}</div><div class="metric-value ${a[key] < 0 ? 'negative' : ''}">${format(a[key])}</div><div class="metric-benchmark">${format(b[key])} mantener</div><div class="metric-note">${note}</div></article>`).join('');
+  $('metrics').innerHTML = cards.map(([label, key, format, note]) => `<article class="metric"><div class="metric-label">${escape(t(label))}</div><div class="metric-value ${a[key] < 0 ? 'negative' : ''}">${format(a[key])}</div><div class="metric-benchmark">${escape(t('{value} mantener', { value: format(b[key]) }))}</div><div class="metric-note">${escape(t(note))}</div></article>`).join('');
   const rows = [['Capital final', 'finalEquity', money], ['Beneficio neto', 'netProfit', money], ['Sharpe (tipo libre de riesgo 0)', 'sharpeRatio', number], ['Volatilidad anualizada', 'annualizedVolatility', percent], ['Exposición media', 'averageExposure', percent], ['Ciclos de compra y venta', 'tradeCount', value => number(value, 0)], ['Salidas por señal', 'signalExits', value => number(value, 0)], ['Liquidaciones al final', 'terminalExits', value => number(value, 0)], ['Operaciones con ganancia', 'winRate', percent], ['Duración media · sesiones', 'averageHoldingSessions', number], ['Duración mediana · sesiones', 'medianHoldingSessions', number], ['Comisiones', 'commissionCost', money], ['Deslizamiento', 'slippageCost', money]];
-  $('metrics-detail').innerHTML = rows.map(([label, key, format]) => `<tr><td>${label}</td><td>${format(a[key])}</td><td>${format(b[key])}</td></tr>`).join('');
+  $('metrics-detail').innerHTML = rows.map(([label, key, format]) => `<tr><td>${escape(t(label))}</td><td>${format(a[key])}</td><td>${format(b[key])}</td></tr>`).join('');
   chart($('equity-chart'), strategy.equityCurve, benchmark.equityCurve, 'equity');
   chart($('drawdown-chart'), strategy.equityCurve, benchmark.equityCurve, 'drawdown', true);
   const benchmarkTickers = new Map(benchmark.perTicker.map(item => [item.ticker, item]));
   $('ticker-results').innerHTML = strategy.perTicker.map(item => `<tr><td><a class="ticker-link" href="ticker.html?ticker=${encodeURIComponent(item.ticker)}">${escape(item.ticker)}</a></td><td>${percent(config.weights[item.ticker])}</td><td class="${signClass(item.totalReturn)}">${percent(item.totalReturn)}</td><td>${percent(benchmarkTickers.get(item.ticker)?.totalReturn)}</td><td class="${signClass(item.netProfit)}">${money(item.netProfit)}</td><td>${number(item.tradeCount, 0)}</td></tr>`).join('');
   const warnings = [...(result.data.warnings || []), ...(strategy.dataQuality?.warnings || []), ...(benchmark.dataQuality?.warnings || [])];
   $('result-warnings').innerHTML = warningsHtml(warnings);
-  $('data-hash').textContent = `Datos ${result.data.firstDate} → ${result.data.lastDate} · SHA-256 ${result.data.hash} · Creado ${result.createdAt}`;
+  $('data-hash').textContent = t('Datos {start} → {end} · SHA-256 {hash} · Creado {created}', { start: result.data.firstDate, end: result.data.lastDate, hash: result.data.hash, created: result.createdAt });
   renderTrades();
 }
 function renderTrades() {
@@ -233,8 +264,8 @@ function renderTrades() {
   const pages = Math.max(1, Math.ceil(trades.length / PAGE_SIZE));
   state.tradePage = Math.min(Math.max(0, state.tradePage), pages - 1);
   const subset = trades.slice(state.tradePage * PAGE_SIZE, (state.tradePage + 1) * PAGE_SIZE);
-  $('trade-results').innerHTML = subset.length ? subset.map(item => `<tr><td>${escape(item.ticker)}</td><td>${escape(item.entryDate)}</td><td>${escape(item.exitDate)}</td><td>${item.exitIsExecutable === false ? 'Valoración sin ejecución' : item.exitReason === 'signal' ? 'Señal' : 'Fin del período'}</td><td class="${signClass(item.netReturn)}">${percent(item.netReturn)}</td><td class="${signClass(item.netProfit)}">${money(item.netProfit)}</td><td>${money(item.totalCost)}</td><td>${number(item.holdingSessions, 0)}</td></tr>`).join('') : '<tr><td colspan="8" class="empty-small">No se produjeron operaciones en este período.</td></tr>';
-  $('trades-page').textContent = `${number(trades.length, 0)} ciclos · ${state.tradePage + 1} / ${pages}`;
+  $('trade-results').innerHTML = subset.length ? subset.map(item => `<tr><td>${escape(item.ticker)}</td><td>${escape(item.entryDate)}</td><td>${escape(item.exitDate)}</td><td>${escape(t(item.exitIsExecutable === false ? 'Valoración sin ejecución' : item.exitReason === 'signal' ? 'Señal' : 'Fin del período'))}</td><td class="${signClass(item.netReturn)}">${percent(item.netReturn)}</td><td class="${signClass(item.netProfit)}">${money(item.netProfit)}</td><td>${money(item.totalCost)}</td><td>${number(item.holdingSessions, 0)}</td></tr>`).join('') : `<tr><td colspan="8" class="empty-small">${escape(t('No se produjeron operaciones en este período.'))}</td></tr>`;
+  $('trades-page').textContent = t('{count} ciclos · {page} / {pages}', { count: number(trades.length, 0), page: number(state.tradePage + 1, 0), pages: number(pages, 0) });
   $('trades-prev').disabled = state.tradePage === 0;
   $('trades-next').disabled = state.tradePage >= pages - 1;
 }
@@ -279,7 +310,7 @@ $('save-portfolio').addEventListener('click', () => {
       weights: validateWeights(state.weights), createdAt: new Date().toISOString() };
     state.portfolios = savePortfolio(localStorage, state.portfolios, item);
     renderPortfolios(); $('saved-portfolio').value = item.id;
-    message(`“${item.name.trim()}” guardada en este navegador.`, 'success');
+    message('“{name}” guardada en este navegador.', 'success', { name: item.name.trim() });
   } catch (error) { fail(error); }
 });
 $('load-portfolio').addEventListener('click', () => {
@@ -288,7 +319,7 @@ $('load-portfolio').addEventListener('click', () => {
     if (!portfolio) throw new Error('Elige una cartera guardada.');
     if (Object.keys(portfolio.weights).some(ticker => !state.universe?.byTicker.has(ticker))) throw new Error('Esta cartera contiene activos fuera del universo actual.');
     state.weights = { ...portfolio.weights }; $('portfolio-name').value = portfolio.name; $('portfolio-parent').value = portfolio.parentId || '';
-    selectionChanged(); message(`Selección cargada: ${portfolio.name}.`, 'success');
+    selectionChanged(); message('Selección cargada: {name}.', 'success', { name: portfolio.name });
   } catch (error) { fail(error); }
 });
 $('delete-portfolio').addEventListener('click', () => {
@@ -306,7 +337,7 @@ $('load-history').addEventListener('click', loadHistory);
 $('run').addEventListener('click', run);
 $('cancel').addEventListener('click', () => {
   state.request++; state.worker?.terminate(); state.worker = null; setBusy(false);
-  $('run-status').textContent = 'Operación cancelada. Los resultados anteriores se conservan.';
+  status('run-status', 'Operación cancelada. Los resultados anteriores se conservan.');
 });
 $('trades-strategy').addEventListener('change', () => { state.tradePage = 0; renderTrades(); });
 $('trades-prev').addEventListener('click', () => { state.tradePage--; renderTrades(); });
@@ -336,6 +367,24 @@ async function initialize() {
     if (requested && !state.universe.byTicker.has(requested)) message('El ticker solicitado no pertenece al universo disponible. Selecciona un activo.', 'error');
     else state.weights = { [requested || 'SPY']: 1 };
     renderUniverse(); renderSelection();
-  } catch (error) { $('universe-list').innerHTML = '<p class="muted">No se pudo cargar el universo. Recarga la página para reintentar.</p>'; fail(error); }
+  } catch (error) { state.universeFailed = true; renderUniverse(); fail(error); }
 }
+function changeLanguage(language) {
+  // Presentation only: retain entered weights exactly and do not reload data or recompute results.
+  const weightInputs = new Map([...document.querySelectorAll('[data-weight]')].map(input => [input.dataset.weight, input.value]));
+  setLanguage(language);
+  applyTranslations();
+  $('language').value = getLanguage();
+  renderPresetDescription(); renderUniverse(); renderSelection(); renderPortfolios(); renderCoverage();
+  for (const input of document.querySelectorAll('[data-weight]')) {
+    if (weightInputs.has(input.dataset.weight)) input.value = weightInputs.get(input.dataset.weight);
+  }
+  if (state.result) renderResult();
+  renderMessage();
+  for (const [id, descriptor] of state.statuses) $(id).textContent = translated(descriptor);
+  setBusy(state.busy);
+}
+$('language').addEventListener('change', event => changeLanguage(event.target.value));
+$('language').value = getLanguage();
+applyTranslations();
 initialize();
