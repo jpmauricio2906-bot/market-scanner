@@ -9,21 +9,22 @@
 <script src="js/config.js"></script>
 <script src="js/market-calendar.js?v=3"></script>
 <script src="js/data.js?v=3.2"></script>
+<script src="js/scoring.js?v=1"></script>
 <script>
-// ── Inline indicators ───────────────────────────────────────
-function sma(a,n){if(a.length<n)return null;let s=0;for(let i=a.length-n;i<a.length;i++)s+=a[i];return s/n;}
-function ema(a,n){if(a.length<n)return null;const k=2/(n+1);let e=0;for(let i=0;i<n;i++)e+=a[i];e/=n;for(let i=n;i<a.length;i++)e=a[i]*k+e*(1-k);return e;}
-function rsiCalc(a,n=14){if(a.length<n+1)return 50;let g=0,l=0,d;for(let i=1;i<=n;i++){d=a[i]-a[i-1];d>0?g+=d:l-=d;}let mg=g/n,ml=l/n;for(let i=n+1;i<a.length;i++){d=a[i]-a[i-1];if(d>0){mg=(mg*(n-1)+d)/n;ml=ml*(n-1)/n;}else{mg=mg*(n-1)/n;ml=(ml*(n-1)-d)/n;}}return ml===0?100:100-(100/(1+mg/ml));}
-function rsiSeries(closes,dates,n=14){if(closes.length<n+1)return[];const out=[];let g=0,l=0,d;for(let i=1;i<=n;i++){d=closes[i]-closes[i-1];d>0?g+=d:l-=d;}let mg=g/n,ml=l/n;out.push({time:dates[n],value:ml===0?100:100-(100/(1+mg/ml))});for(let i=n+1;i<closes.length;i++){d=closes[i]-closes[i-1];if(d>0){mg=(mg*(n-1)+d)/n;ml=ml*(n-1)/n;}else{mg=mg*(n-1)/n;ml=(ml*(n-1)-d)/n;}out.push({time:dates[i],value:ml===0?100:100-(100/(1+mg/ml))});}return out;}
-function macdSeries(closes,dates){const k12=2/13,k26=2/27,k9=2/10;if(closes.length<35)return{macd:[],signal:[],hist:[]};let e12=0,e26=0;for(let i=0;i<12;i++)e12+=closes[i];e12/=12;for(let i=0;i<26;i++)e26+=closes[i];e26/=26;const mv=[],md=[];for(let i=0;i<closes.length;i++){if(i>=12)e12=closes[i]*k12+e12*(1-k12);if(i>=26){e26=closes[i]*k26+e26*(1-k26);mv.push(e12-e26);md.push(dates[i]);}}if(mv.length<9)return{macd:[],signal:[],hist:[]};let sig=0;for(let i=0;i<9;i++)sig+=mv[i];sig/=9;const mo=[],so=[],ho=[];for(let j=0;j<mv.length;j++){if(j>=9)sig=mv[j]*k9+sig*(1-k9);const h=mv[j]-sig;mo.push({time:md[j],value:mv[j]});so.push({time:md[j],value:sig});ho.push({time:md[j],value:h});}return{macd:mo,signal:so,hist:ho};}
-function bollingerSeries(closes,dates,n=20,mult=2){const upper=[],mid=[],lower=[];for(let i=n-1;i<closes.length;i++){const sub=closes.slice(i-n+1,i+1);const mean=sub.reduce((a,b)=>a+b,0)/n;const std=Math.sqrt(sub.reduce((a,b)=>a+(b-mean)**2,0)/n);const t=dates[i];upper.push({time:t,value:+(mean+mult*std).toFixed(4)});mid.push({time:t,value:+mean.toFixed(4)});lower.push({time:t,value:+(mean-mult*std).toFixed(4)});}return{upper,mid,lower};}
-function stochRsiSeries(closes,dates,n=14){if(closes.length<n*2+1)return[];const ra=[];for(let i=n;i<closes.length;i++)ra.push({v:rsiCalc(closes.slice(0,i+1),n),d:dates[i]});const out=[];for(let i=n;i<ra.length;i++){const sub=ra.slice(i-n+1,i+1).map(x=>x.v);const mn=Math.min(...sub),mx=Math.max(...sub);out.push({time:ra[i].d,value:mx===mn?50:((ra[i].v-mn)/(mx-mn))*100});}return out;}
-function williamsRSeries(data,dates,n=14){const out=[];for(let i=n-1;i<data.length;i++){const sub=data.slice(i-n+1,i+1);const hh=Math.max(...sub.map(d=>d.high)),ll=Math.min(...sub.map(d=>d.low)),c=data[i].close;out.push({time:dates[i],value:hh===ll?-50:((hh-c)/(hh-ll))*-100});}return out;}
-function obvSeries(data,dates){const out=[];let obv=0;for(let i=1;i<data.length;i++){if(data[i].close>data[i-1].close)obv+=data[i].vol;else if(data[i].close<data[i-1].close)obv-=data[i].vol;out.push({time:dates[i],value:obv});}return out;}
-function rocSeries(closes,dates,n=10){const out=[];for(let i=n;i<closes.length;i++)out.push({time:dates[i],value:+(((closes[i]-closes[i-n])/closes[i-n])*100).toFixed(3)});return out;}
-function atrSeries(data,dates,n=14){if(data.length<n+1)return[];const trs=[];for(let i=1;i<data.length;i++)trs.push(Math.max(data[i].high-data[i].low,Math.abs(data[i].high-data[i-1].close),Math.abs(data[i].low-data[i-1].close)));let atr=0;for(let i=0;i<n;i++)atr+=trs[i];atr/=n;const out=[];for(let i=n;i<trs.length;i++){atr=(trs[i]*(2/(n+1)))+atr*(1-(2/(n+1)));out.push({time:dates[i+1],value:+(atr/data[i+1].close*100).toFixed(3)});}return out;}
-function computeSignals(data){const c=data.map(d=>d.close),s={};const sm5=sma(c,5),sm20=sma(c,20),pm5=sma(c.slice(0,-1),5),pm20=sma(c.slice(0,-1),20);s.sma_cross=sm5!==null&&sm20!==null?(pm5<=pm20&&sm5>sm20?1:pm5>=pm20&&sm5<sm20?-1:sm5>sm20?.3:-.3):0;const e12=ema(c,12),e26=ema(c,26),pe12=ema(c.slice(0,-1),12),pe26=ema(c.slice(0,-1),26);s.ema_cross=e12!==null&&e26!==null&&pe12!==null&&pe26!==null?(pe12<=pe26&&e12>e26?1:pe12>=pe26&&e12<e26?-1:e12>e26?.3:-.3):0;const s50=sma(c,50);s.sma50=s50!==null?((c[c.length-1]-s50)/s50>.05?.8:(c[c.length-1]-s50)/s50>0?.3:(c[c.length-1]-s50)/s50<-.05?-.8:-.3):0;const mr=macdSeries(c,new Array(c.length).fill("x"));s.macd=mr.hist.length>1?(mr.hist[mr.hist.length-2].value<=0&&mr.hist[mr.hist.length-1].value>0?1:mr.hist[mr.hist.length-2].value>=0&&mr.hist[mr.hist.length-1].value<0?-1:mr.hist[mr.hist.length-1].value>0?.3:-.3):0;const r=rsiCalc(c,14);s.rsi=r<30?1:r<40?.5:r>70?-1:r>60?-.5:0;const sr=stochRsiSeries(c,new Array(c.length).fill("x"),14);s.stoch_rsi=sr.length?(sr[sr.length-1].value<20?1:sr[sr.length-1].value<30?.5:sr[sr.length-1].value>80?-1:sr[sr.length-1].value>70?-.5:0):0;const rc=c.length>10?(c[c.length-1]-c[c.length-11])/c[c.length-11]*100:0;s.roc=rc>10?1:rc>5?.5:rc>2?.2:rc<-10?-1:rc<-5?-.5:rc<-2?-.2:0;const wr_v=williamsRSeries(data,new Array(data.length).fill("x"),14);s.williams=wr_v.length?(wr_v[wr_v.length-1].value<-80?1:wr_v[wr_v.length-1].value<-70?.5:wr_v[wr_v.length-1].value>-20?-1:wr_v[wr_v.length-1].value>-30?-.5:0):0;const boll=bollingerSeries(c,new Array(c.length).fill("x"));s.bb=boll.upper.length?(function(){const idx=boll.upper.length-1;const pct=(c[c.length-1]-boll.lower[idx].value)/(boll.upper[idx].value-boll.lower[idx].value);return pct<.15?1:pct<.25?.5:pct>.85?-1:pct>.75?-.5:0;})():0;const atr_v=atrSeries(data,new Array(data.length).fill("x"),14);s.atr=atr_v.length?(atr_v[atr_v.length-1].value<1?.2:atr_v[atr_v.length-1].value>5?-.2:0):0;const obv_v=obvSeries(data,new Array(data.length).fill("x"));if(obv_v.length>=20){const f=obv_v.slice(-20,-10).reduce((a,b)=>a+b.value,0)/10,sv=obv_v.slice(-10).reduce((a,b)=>a+b.value,0)/10;s.obv=f===0?0:(sv-f)/Math.abs(f)>.1?.7:(sv-f)/Math.abs(f)>.02?.3:(sv-f)/Math.abs(f)<-.1?-.7:(sv-f)/Math.abs(f)<-.02?-.3:0;}else s.obv=0;if(data.length>=21){const avg=data.slice(-21,-1).reduce((a,b)=>a+b.vol,0)/20;const rat=data[data.length-1].vol/avg;const up=data[data.length-1].close>data[data.length-2].close;s.vol_avg=rat>1.5?(up?1:-1):rat>1.2?(up?.5:-.5):0;}else s.vol_avg=0;if(data.length>=2){const c2=data[data.length-1],p=data[data.length-2],body=Math.abs(c2.close-c2.open),rng=c2.high-c2.low;if(rng>0){const br=body/rng,bull=c2.close>c2.open,ls=Math.min(c2.close,c2.open)-c2.low,us=c2.high-Math.max(c2.close,c2.open);s.candle=ls>2*body&&us<.3*body&&p.close<p.open?.8:us>2*body&&ls<.3*body&&p.close>p.open?-.8:bull&&p.close<p.open&&c2.open<p.close&&c2.close>p.open?1:!bull&&p.close>p.open&&c2.open>p.close&&c2.close<p.open?-1:bull&&br>.6?.4:!bull&&br>.6?-.4:0;}else s.candle=0;}else s.candle=0;if(data.length>=2){const g=(data[data.length-1].open-data[data.length-2].close)/data[data.length-2].close*100;s.gap=g>2?.8:g>.5?.3:g<-2?-.8:g<-.5?-.3:0;}else s.gap=0;return s;}
-function computeScore(signals,indicators){let ws=0,mw=0;indicators.forEach(i=>{if(i.weight===0)return;ws+=(signals[i.id]||0)*i.weight;mw+=i.weight;});return mw===0?50:Math.round(((ws/mw)+1)/2*100);}
+// Shared indicators keep charts and scanner signals consistent.
+const sma = MarketScoring.sma;
+const ema = MarketScoring.ema;
+const rsiCalc = MarketScoring.rsiCalc;
+const rsiSeries = MarketScoring.rsiSeries;
+const macdSeries = MarketScoring.macdSeries;
+const bollingerSeries = MarketScoring.bollingerSeries;
+const stochRsiSeries = MarketScoring.stochRsiSeries;
+const williamsRSeries = MarketScoring.williamsRSeries;
+const obvSeries = MarketScoring.obvSeries;
+const rocSeries = MarketScoring.rocSeries;
+const atrSeries = MarketScoring.atrSeries;
+const computeSignals = MarketScoring.computeSignals;
+const computeScore = MarketScoring.computeScore;
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
@@ -52,10 +53,20 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .price-chg{font-family:var(--mono);font-size:13px;font-weight:500}
 .price-chg.up{color:var(--buy)}.price-chg.dn{color:var(--sell)}
 .sig-badge{display:inline-block;padding:4px 12px;border-radius:4px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase}
-.sig-badge.BUY{background:var(--buy-bg);color:var(--buy);border:1px solid rgba(0,230,118,.3)}
-.sig-badge.SELL{background:var(--sell-bg);color:var(--sell);border:1px solid rgba(255,61,87,.3)}
+.sig-badge.BUY,.sig-badge.STRONG_BUY{background:var(--buy-bg);color:var(--buy);border:1px solid rgba(0,230,118,.3)}
+.sig-badge.SELL,.sig-badge.STRONG_SELL{background:var(--sell-bg);color:var(--sell);border:1px solid rgba(255,61,87,.3)}
 .sig-badge.HOLD{background:var(--hold-bg);color:var(--hold);border:1px solid rgba(255,193,7,.25)}
+.sig-badge.WAIT{color:var(--muted);border:1px solid var(--border)}
+.sig-badge.STRONG_BUY,.sig-badge.STRONG_SELL{border-width:2px;font-weight:700}
 .score-val{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.timing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.timing-card{padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.timing-label{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.timing-value{font-family:var(--mono);font-size:30px;font-weight:600;margin:6px 0}
+.timing-copy{font-size:12px;line-height:1.5;color:var(--muted)}
+.timing-parts{font-family:var(--mono);font-size:10px;line-height:1.6;margin-top:10px;color:var(--text)}
+.signal-reasons{padding:14px 18px;margin-bottom:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.signal-reasons ul{padding-left:18px;margin:8px 0;font-size:12px;line-height:1.6;color:var(--text)}
 
 /* ── Layout ── */
 .main-chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}
@@ -141,6 +152,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .footer{margin-top:12px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--muted)}
 
 @media(max-width:900px){.subcharts-grid{grid-template-columns:1fr}.bottom-row{grid-template-columns:1fr}.hm-strip{grid-template-columns:repeat(7,1fr)}}
+@media(max-width:600px){.timing-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -171,6 +183,32 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
   <!-- Content (hidden until loaded) -->
   <div id="content" style="display:none">
+
+    <div class="timing-grid">
+      <div class="timing-card">
+        <div class="timing-label">Entry Timing Score</div>
+        <div class="timing-value" id="entryNum">—</div>
+        <div class="timing-copy">Momentum recovery, position within the trend and volume confirmation. A higher score indicates a stronger entry setup.</div>
+        <div class="timing-parts" id="entryParts"></div>
+      </div>
+      <div class="timing-card">
+        <div class="timing-label">Trend Score</div>
+        <div class="timing-value" id="trendNum">—</div>
+        <div class="timing-copy">Direction and strength, with correlated moving averages evaluated as one group. A bullish trend can have weak entry timing.</div>
+        <div class="timing-parts" id="trendDesc"></div>
+      </div>
+      <div class="timing-card">
+        <div class="timing-label">Exit Pressure Score</div>
+        <div class="timing-value" id="exitNum">—</div>
+        <div class="timing-copy">Deteriorating momentum, position below support and selling pressure. A higher score signals more caution for a long position.</div>
+        <div class="timing-parts" id="exitParts"></div>
+      </div>
+    </div>
+    <div class="signal-reasons">
+      <div class="timing-label">Why this signal</div>
+      <ul id="signalReasons"></ul>
+      <div class="timing-copy">Scores range from 0 to 100 and are rule-based, not probabilities. Oversold alone does not confirm a buy. Strong signals require a confirmed daily candle. Composite presets do not change timing signals.</div>
+    </div>
 
     <!-- Main chart: Enhanced with full controls -->
     <div class="main-chart-wrap">
@@ -332,6 +370,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         <canvas id="gaugeChart" width="200" height="110"></canvas>
         <div class="score-number" id="scoreNum">—</div>
         <div class="score-label" id="scoreDesc">—</div>
+        <div class="timing-copy" style="text-align:center">Configurable indicator blend. Uses the weights saved in the scanner; independent of the timing signal.</div>
       </div>
       <div class="stats-card">
         <div class="chart-title"><span class="dot" style="background:var(--text)"></span>Key Statistics</div>
@@ -341,7 +380,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
     <!-- Heatmap strip: all 14 indicators -->
     <div class="heatmap-wrap">
-      <div class="chart-title"><span class="dot" style="background:var(--text)"></span>All Indicator Signals</div>
+      <div class="chart-title"><span class="dot" style="background:var(--text)"></span>Composite Indicator Inputs</div>
       <div class="hm-strip" id="hmStrip"></div>
     </div>
 
@@ -437,11 +476,41 @@ const INDICATORS = [
   {id:"williams", group:"Mom",      name:"%R",        weight:1,grpColor:"var(--hold)"},
   {id:"bb",       group:"Vol",      name:"Bollinger", weight:2,grpColor:"#a855f7"},
   {id:"atr",      group:"Vol",      name:"ATR",       weight:1,grpColor:"#a855f7"},
-  {id:"obv",      group:"Volume",   name:"OBV",       weight:1,grpColor:"#00b894"},
+  {id:"obv",      group:"Volume",   name:"Vol Balance",weight:1,grpColor:"#00b894"},
   {id:"vol_avg",  group:"Volume",   name:"Vol/Avg",   weight:1,grpColor:"#00b894"},
   {id:"candle",   group:"Candles",  name:"Candle",    weight:2,grpColor:"#fd79a8"},
   {id:"gap",      group:"Candles",  name:"Gap",       weight:1,grpColor:"#fd79a8"},
 ];
+
+function restoreCompositeWeights(){
+  try{
+    const saved=JSON.parse(localStorage.getItem("marketScanner.compositeWeights.v1")||"null");
+    if(saved&&saved.weights)INDICATORS.forEach(ind=>{
+      const weight=saved.weights[ind.id];
+      if(Number.isInteger(weight)&&weight>=0&&weight<=3)ind.weight=weight;
+    });
+  }catch(e){}
+}
+function timingColor(value,kind){
+  if(value==null)return "var(--muted)";
+  if(kind==="trend")return value>=55?"var(--buy)":value<=45?"var(--sell)":"var(--hold)";
+  if(kind==="exit")return value>=60?"var(--sell)":"var(--muted)";
+  return value>=60?"var(--buy)":"var(--hold)";
+}
+function renderTiming(analysis){
+  [["entryNum","entryScore","entry"],["trendNum","trendScore","trend"],["exitNum","exitScore","exit"]].forEach(([id,key,kind])=>{
+    const el=document.getElementById(id),value=analysis[key];
+    el.textContent=value==null?"—":value+" / 100";
+    el.style.color=timingColor(value,kind);
+  });
+  const c=analysis.components;
+  const parts=(momentum,position,volume)=>momentum==null?"Awaiting usable data":
+    "Momentum "+momentum+" · Position "+position+" · Volume "+volume;
+  document.getElementById("entryParts").textContent=parts(c.momentum,c.position,c.volume);
+  document.getElementById("exitParts").textContent=parts(c.exitMomentum,c.exitPosition,c.exitVolume);
+  document.getElementById("trendDesc").textContent=analysis.trendLabel+(analysis.stale?" · OUTDATED DATA":"");
+  document.getElementById("signalReasons").innerHTML=analysis.reasons.map(reason=>"<li>"+escapeHtml(reason)+"</li>").join("");
+}
 
 // ── Chart.js global defaults ──────────────────────────────────────────────────
 Chart.defaults.color = "#4a6278";
@@ -495,13 +564,18 @@ async function init(refreshQuotes=true) {
     const last    = raw[raw.length-1];
     const prev    = raw[raw.length-2];
     const chgPct  = prev ? ((last.close-prev.close)/prev.close*100).toFixed(2) : null;
-    const enoughHistory = raw.length >= MARKET_SETTINGS.minSignalDays;
-    const sigs    = enoughHistory ? computeSignals(raw) : {};
-    const score   = enoughHistory ? computeScore(sigs, INDICATORS) : null;
-    const signal  = !enoughHistory ? "WAIT" : score>=70?"BUY":score<=30?"SELL":"HOLD";
     const provisional=result.provisionalTickers.includes(ticker);
     const candidate=result.quoteByTicker.get(ticker);
     const quote=candidate&&candidate.fecha===last.date&&(provisional||candidate.is_final)?candidate:null;
+    const freshProvisional=provisional&&quote&&!quote.outdated;
+    const stale=Boolean(provisional&&quote&&quote.outdated)||
+      (Boolean(result.quality&&result.quality.laggingTickers.includes(ticker))&&!freshProvisional);
+    const analysis=MarketScoring.analyze(raw,{minSignalDays:MARKET_SETTINGS.minSignalDays,provisional,stale});
+    const enoughHistory=analysis.trendScore!==null;
+    restoreCompositeWeights();
+    const sigs=enoughHistory?computeSignals(raw):{};
+    const score=enoughHistory?computeScore(sigs,INDICATORS):null;
+    const signal=analysis.signal;
     document.getElementById("quoteStatus").textContent=(quote?marketQuoteLabel(quote):"Confirmed daily close · "+last.date)+
       " · Latest confirmed close: "+(result.latestDate||"awaiting data")+
       (provisional?" · Today's candle is unfinished; all charts, indicators and signals include this provisional candle.":" · Charts, indicators and signals use confirmed closes.");
@@ -511,10 +585,11 @@ async function init(refreshQuotes=true) {
     chgEl.textContent = chgPct === null ? "—" : (chgPct>=0?"+":"")+chgPct+"%";
     chgEl.className   = "price-chg " + (chgPct === null ? "" : chgPct>=0?"up":"dn");
     const badgeEl = document.getElementById("sigBadge");
-    badgeEl.textContent = signal+(provisional?" · PROVISIONAL"+(quote&&quote.outdated?" · OUTDATED":""):""); badgeEl.className = "sig-badge "+signal;
-    document.getElementById("scoreVal").textContent  = "Score: " + (score === null ? "—" : score);
+    badgeEl.textContent = signal.replace(/_/g," ")+(provisional?" · PROVISIONAL":"")+(stale?" · OUTDATED":""); badgeEl.className = "sig-badge "+signal;
+    document.getElementById("scoreVal").textContent  = "Composite: " + (score === null ? "—" : score);
     document.getElementById("scoreNum").textContent  = score === null ? "—" : score;
-    document.getElementById("scoreDesc").textContent = enoughHistory ? signal : "Awaiting more history";
+    document.getElementById("scoreDesc").textContent = enoughHistory ? "Weighted indicator blend" : "Awaiting more history";
+    renderTiming(analysis);
     document.getElementById("footer").textContent    = ticker + " · " + result.finalizedData.length + " confirmed daily closes"+
       (provisional?" + today's provisional candle":"")+" · "+dates[0]+" → "+dates[dates.length-1]+" · Google Finance quotes may be delayed up to 20 min.";
 
@@ -539,10 +614,10 @@ async function init(refreshQuotes=true) {
     renderOBV(raw, dates);
     renderROC(closes, dates);
     renderATR(raw, dates);
-    if (enoughHistory) renderGauge(score, signal);
+    if (enoughHistory) renderGauge(score);
     renderStats(raw, closes, dates);
     if (enoughHistory) renderHeatmap(sigs);
-    else document.getElementById("hmStrip").textContent = "Signals require at least " + MARKET_SETTINGS.minSignalDays + " valid sessions.";
+    else document.getElementById("hmStrip").textContent = analysis.reasons.join(" ");
 
   } catch(e) {
     document.getElementById("loadState").innerHTML =
@@ -1424,11 +1499,15 @@ function renderMACD(closes, dates) {
   const m    = macdSeries(closes, dates);
   if (!m.macd.length) return;
   const lbls = m.macd.map(d=>d.time);
-  const histColors = m.hist.map(d=>d.value>=0?"rgba(0,230,118,.65)":"rgba(255,61,87,.65)");
+  const histogram=new Map(m.hist.map(d=>[d.time,d.value]));
+  const signal=new Map(m.signal.map(d=>[d.time,d.value]));
+  const histValues=lbls.map(time=>histogram.has(time)?histogram.get(time):null);
+  const signalValues=lbls.map(time=>signal.has(time)?signal.get(time):null);
+  const histColors = histValues.map(value=>value>=0?"rgba(0,230,118,.65)":"rgba(255,61,87,.65)");
   makeChart("macdChart","bar", labelEvery(lbls), [
-    { label:"Hist",   data:m.hist.map(d=>d.value),   backgroundColor:histColors, borderWidth:0, order:2 },
+    { label:"Hist",   data:histValues,   backgroundColor:histColors, borderWidth:0, order:2 },
     { label:"MACD",   data:m.macd.map(d=>d.value),   borderColor:"#00d4ff",      borderWidth:1.5, pointRadius:0, type:"line", order:1 },
-    { label:"Signal", data:m.signal.map(d=>d.value), borderColor:"#ff3d57",      borderWidth:1.5, pointRadius:0, type:"line", order:1 }
+    { label:"Signal", data:signalValues, borderColor:"#ff3d57",      borderWidth:1.5, pointRadius:0, type:"line", order:1 }
   ]);
 }
 
@@ -1516,9 +1595,9 @@ function renderATR(raw, dates) {
 }
 
 // ── Gauge (half-donut) ────────────────────────────────────────────────────────
-function renderGauge(score, signal) {
+function renderGauge(score) {
   const ctx = document.getElementById("gaugeChart").getContext("2d");
-  const clr = signal==="BUY"?"#00e676":signal==="SELL"?"#ff3d57":"#ffc107";
+  const clr = score>=60?"#00e676":score<=40?"#ff3d57":"#ffc107";
   const pct  = score/100;
   if(!window._cjs)window._cjs={};
   if(window._cjs.gaugeChart)window._cjs.gaugeChart.destroy();
@@ -1551,7 +1630,7 @@ function renderStats(raw, closes, dates) {
   const rsi    = rsiCalc(closes, 14);
   const bb     = bollingerSeries(closes, dates);
   const bbLast = bb.upper.length ? bb.upper[bb.upper.length-1].value : 0;
-  const bbPct  = bb.upper.length ? ((last.close-bb.lower[bb.lower.length-1].value)/(bb.upper[bb.upper.length-1].value-bb.lower[bb.lower.length-1].value)*100).toFixed(0) : "—";
+  const bbPct  = bb.upper.length ? (MarketScoring.bbPct(closes)*100).toFixed(0)+"%" : "—";
   const atr_v  = atrSeries(raw, dates);
   const atrLast = atr_v.length ? atr_v[atr_v.length-1].value.toFixed(2)+"%" : "—";
   const totalChg = ((last.close-first.close)/first.close*100).toFixed(1);
@@ -1560,8 +1639,8 @@ function renderStats(raw, closes, dates) {
     {l:"Days",        v:n},
     {l:"High 52W",    v:"$"+high52.toFixed(2)},
     {l:"Low 52W",     v:"$"+low52.toFixed(2)},
-    {l:"RSI (14)",    v:closes.length<15?"—":rsi.toFixed(1), c:rsi>70?"var(--sell)":rsi<30?"var(--buy)":"var(--text)"},
-    {l:"BB %B",       v:bbPct+"%"},
+    {l:"RSI (14)",    v:closes.length<15?"—":rsi.toFixed(1), c:rsi>70||rsi<30?"var(--hold)":"var(--text)"},
+    {l:"BB %B",       v:bbPct},
     {l:"ATR (norm)",  v:atrLast},
     {l:"Period Chg",  v:(totalChg>=0?"+":"")+totalChg+"%", c:totalChg>=0?"var(--buy)":"var(--sell)"},
     {l:"Avg Volume",  v:(raw.slice(-20).reduce((a,b)=>a+b.vol,0)/Math.min(20,raw.length)/1e6).toFixed(1)+"M"},
@@ -1590,6 +1669,7 @@ function hmTxt(v){
 
 function renderHeatmap(sigs) {
   document.getElementById("hmStrip").innerHTML = INDICATORS.map(ind => {
+    if(ind.weight===0)return '<div class="hm-item" style="background:var(--surface2)" title="'+escapeHtml(ind.name)+' — excluded from Composite"><div class="hm-label">'+escapeHtml(ind.name)+'</div><div class="hm-sym" style="color:var(--muted)">off</div><div class="hm-num">weight 0</div></div>';
     const v = sigs[ind.id]||0;
     return `<div class="hm-item" style="background:${hmBg(v)}" title="${ind.name}: ${v.toFixed(2)}">
       <div class="hm-label" style="color:${ind.grpColor}">${ind.name}</div>

@@ -1,0 +1,38 @@
+name: Market Scanner - scoring and application tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.html'
+      - 'js/**'
+      - 'apps-script/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'supabase/functions/**'
+      - 'supabase/calendar.json'
+      - '.github/workflows/scanner-tests.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scanner-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Verify scoring, pages, data client, worker and close audit offline
+        run: node --test tests/*.test.cjs tests/*.test.mjs

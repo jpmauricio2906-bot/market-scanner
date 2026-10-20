@@ -126,9 +126,9 @@ thead th{background:var(--surface);border-bottom:1px solid var(--border)}
 
 /* Sticky left columns */
 .sticky{position:sticky;z-index:5;background:var(--surface)}
-.s0{left:0}
-.s1{left:110px}
-.s2{left:180px}
+.s0{left:0;min-width:110px;width:110px}
+.s1{left:110px;min-width:70px;width:70px}
+.s2{left:180px;min-width:100px;width:100px}
 .s5{left:280px}
 .s6{left:360px}
 .s7{left:440px}
@@ -188,10 +188,14 @@ tbody tr.row-sell{background:var(--sell-bg);box-shadow:inset 3px 0 0 var(--sell)
 
 /* Signal badge */
 .sig{display:inline-block;padding:2px 7px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
-.sig.BUY{background:var(--buy-bg);color:var(--buy);border:1px solid rgba(0,230,118,.25)}
-.sig.SELL{background:var(--sell-bg);color:var(--sell);border:1px solid rgba(255,61,87,.25)}
+.sig.BUY,.sig.STRONG_BUY{background:var(--buy-bg);color:var(--buy);border:1px solid rgba(0,230,118,.25)}
+.sig.SELL,.sig.STRONG_SELL{background:var(--sell-bg);color:var(--sell);border:1px solid rgba(255,61,87,.25)}
 .sig.HOLD{background:var(--hold-bg);color:var(--hold);border:1px solid rgba(255,193,7,.2)}
 .sig.WAIT{color:var(--muted);border:1px solid var(--border)}
+.sig.STRONG_BUY,.sig.STRONG_SELL{font-weight:700;border-width:2px}
+.score-guide{font-size:12px;line-height:1.65;color:var(--muted);margin:0 0 14px;max-width:1100px}
+.score-guide strong{color:var(--text)}
+.reason-cell{min-width:260px;max-width:340px;white-space:normal;font-family:var(--sans);font-size:11px;line-height:1.5;text-align:left;color:var(--muted)}
 
 /* Sparkline */
 .spark-cell{padding:4px 6px}
@@ -250,6 +254,8 @@ svg.spark{display:block}
     <button class="fbtn on"   onclick="setFilter('ALL',this)">All</button>
     <button class="fbtn buy"  onclick="setFilter('BUY',this)">Buy</button>
     <button class="fbtn sell" onclick="setFilter('SELL',this)">Sell</button>
+    <button class="fbtn buy" onclick="setFilter('STRONG_BUY',this)">Strong buy</button>
+    <button class="fbtn sell" onclick="setFilter('STRONG_SELL',this)">Strong sell</button>
     <button class="fbtn"      onclick="setFilter('HOLD',this)">Hold</button>
     <button class="fbtn"      onclick="setFilter('WAIT',this)">Awaiting data</button>
   </div>
@@ -264,9 +270,9 @@ svg.spark{display:block}
 <!-- Config Panel -->
 <div class="cfg-panel" id="cfgPanel">
   <div class="cfg-header">
-    <div><div class="cfg-title">Indicator Configuration</div><div class="cfg-subtitle">Hover name for definition · Set weight 1–3 · 0 = off</div></div>
+    <div><div class="cfg-title">Composite Score Configuration</div><div class="cfg-subtitle">Weights and presets affect Composite only · Timing signals use fixed rules · Set weight 1–3 · 0 = off</div></div>
   </div>
-  <div class="presets-wrap"><div class="presets-label">Strategy Presets</div><div class="preset-cards" id="presetCards"></div></div>
+  <div class="presets-wrap"><div class="presets-label">Composite Weight Presets</div><div class="preset-cards" id="presetCards"></div></div>
   <div class="cfg-groups" id="cfgGroups"></div>
 </div>
 
@@ -279,13 +285,14 @@ svg.spark{display:block}
   <div class="card"><div class="card-lbl">Active indicators</div><div class="card-val i" id="cInd">—</div></div>
 </div>
 
+<p class="score-guide"><strong>Entry Timing</strong> ranks momentum recovery, position within the trend and volume confirmation. <strong>Trend</strong> measures direction and strength; a bullish trend can still have a weak entry. <strong>Exit Pressure</strong> measures deterioration and selling pressure. Scores run from 0 to 100; higher Exit means more caution. <strong>Composite</strong> keeps your weighted indicator view and does not set Buy/Sell signals. Strong signals require confirmed daily candles. These are rule-based signals, not probabilities.</p>
 <!-- Heatmap Legend -->
 <div class="legend">
-  <div class="legend-item"><span style="font-family:var(--mono);color:#00e676;font-size:11px">▲▲</span> Strong Buy</div>
-  <div class="legend-item"><span style="font-family:var(--mono);color:#00a855;font-size:11px">▲ △</span> Buy</div>
+  <div class="legend-item"><span style="font-family:var(--mono);color:#00e676;font-size:11px">▲▲</span> Strong positive input</div>
+  <div class="legend-item"><span style="font-family:var(--mono);color:#00a855;font-size:11px">▲ △</span> Positive input</div>
   <div class="legend-item"><span style="font-family:var(--mono);color:#2a3f52;font-size:11px">·</span> Neutral</div>
-  <div class="legend-item"><span style="font-family:var(--mono);color:#cc2240;font-size:11px">▽ ▼</span> Sell</div>
-  <div class="legend-item"><span style="font-family:var(--mono);color:#ff3d57;font-size:11px">▼▼</span> Strong Sell</div>
+  <div class="legend-item"><span style="font-family:var(--mono);color:#cc2240;font-size:11px">▽ ▼</span> Negative input</div>
+  <div class="legend-item"><span style="font-family:var(--mono);color:#ff3d57;font-size:11px">▼▼</span> Strong negative input</div>
   <div class="legend-item"><span style="font-family:var(--mono);color:var(--border);font-size:9px">off</span> Disabled</div>
   <div class="legend-sep"></div>
   <div class="legend-grp"><div class="legend-dot" style="background:var(--accent);border-radius:50%"></div>Trend</div>
@@ -311,6 +318,7 @@ svg.spark{display:block}
 <script src="js/config.js"></script>
 <script src="js/market-calendar.js?v=3"></script>
 <script src="js/data.js?v=3.2"></script>
+<script src="js/scoring.js?v=1"></script>
 <script>
 // ── Theme engine ──────────────────────────────────────────────────────────────
 var THEMES={
@@ -368,13 +376,13 @@ var INDICATORS = [
   {id:"ema_cross", group:"Trend",      grpCls:"trend",      name:"EMA 12/26",    weight:2, formula:"EMA(12) vs EMA(26)", desc:"Exponential MAs react faster to recent prices. Forms the basis of MACD.", signals:[{lbl:"BUY",cls:"buy",txt:"EMA12 crosses above EMA26"},{lbl:"HOLD",cls:"neu",txt:"EMA12 above EMA26"},{lbl:"SELL",cls:"sell",txt:"EMA12 crosses below EMA26"}]},
   {id:"sma50",     group:"Trend",      grpCls:"trend",      name:"vs SMA 50",    weight:1, formula:"(Close − SMA50) / SMA50", desc:"Whether price is above/below the 50-day MA. Key institutional reference level.", signals:[{lbl:"BUY",cls:"buy",txt:">5% above SMA50"},{lbl:"HOLD",cls:"neu",txt:"Near SMA50"},{lbl:"SELL",cls:"sell",txt:">5% below SMA50"}]},
   {id:"macd",      group:"Trend",      grpCls:"trend",      name:"MACD",         weight:2, formula:"EMA(12)−EMA(26) vs Signal EMA(9)", desc:"MACD histogram crossing zero is the buy/sell trigger. Measures momentum shift.", signals:[{lbl:"BUY",cls:"buy",txt:"Histogram crosses above zero"},{lbl:"HOLD",cls:"neu",txt:"Histogram positive, no fresh cross"},{lbl:"SELL",cls:"sell",txt:"Histogram crosses below zero"}]},
-  {id:"rsi",       group:"Momentum",   grpCls:"momentum",   name:"RSI 14",       weight:3, formula:"100−100/(1+AvgGain/AvgLoss)", desc:"Relative Strength Index on 0–100 scale. Below 30 = oversold. Above 70 = overbought.", signals:[{lbl:"BUY",cls:"buy",txt:"RSI < 30 (oversold)"},{lbl:"HOLD",cls:"neu",txt:"RSI 40–60"},{lbl:"SELL",cls:"sell",txt:"RSI > 70 (overbought)"}]},
-  {id:"stoch_rsi", group:"Momentum",   grpCls:"momentum",   name:"Stoch RSI",    weight:2, formula:"(RSI−MinRSI)/(MaxRSI−MinRSI)×100", desc:"Stochastic applied to RSI values. More sensitive than plain RSI.", signals:[{lbl:"BUY",cls:"buy",txt:"StochRSI < 20"},{lbl:"HOLD",cls:"neu",txt:"StochRSI 30–70"},{lbl:"SELL",cls:"sell",txt:"StochRSI > 80"}]},
+  {"id":"rsi","group":"Momentum","grpCls":"momentum","name":"RSI 14","weight":3,"formula":"100−100/(1+AvgGain/AvgLoss)","desc":"RSI extremes are setups, not trade confirmations. A directional contribution requires recovery or deterioration together with a matching price move.","signals":[{"lbl":"+","cls":"buy","txt":"Recovers from below 30 and price rises"},{"lbl":"0","cls":"neu","txt":"Oversold alone or no confirmed reversal"},{"lbl":"−","cls":"sell","txt":"Falls from above 70 and price falls"}]},
+  {"id":"stoch_rsi","group":"Momentum","grpCls":"momentum","name":"Stoch RSI","weight":2,"formula":"(RSI−MinRSI)/(MaxRSI−MinRSI)×100","desc":"Stochastic applied to RSI. An oversold reading alone contributes zero. A fresh recovery out of the extreme receives full positive weight.","signals":[{"lbl":"+","cls":"buy","txt":"Recovers from below 20 and price rises"},{"lbl":"0","cls":"neu","txt":"Still falling or no confirmed reversal"},{"lbl":"−","cls":"sell","txt":"Falls from above 80 and price falls"}]},
   {id:"roc",       group:"Momentum",   grpCls:"momentum",   name:"ROC 10d",      weight:1, formula:"(Close−Close₁₀)/Close₁₀×100", desc:"Rate of Change: percentage gain/loss over past 10 days.", signals:[{lbl:"BUY",cls:"buy",txt:"ROC > +5%"},{lbl:"HOLD",cls:"neu",txt:"ROC ±2%"},{lbl:"SELL",cls:"sell",txt:"ROC < −5%"}]},
-  {id:"williams",  group:"Momentum",   grpCls:"momentum",   name:"%R",           weight:1, formula:"(HH₁₄−Close)/(HH₁₄−LL₁₄)×−100", desc:"Williams %R: 0 to −100 scale. Below −80 = oversold. Above −20 = overbought.", signals:[{lbl:"BUY",cls:"buy",txt:"%R < −80"},{lbl:"HOLD",cls:"neu",txt:"%R −70 to −30"},{lbl:"SELL",cls:"sell",txt:"%R > −20"}]},
-  {id:"bb",        group:"Volatility", grpCls:"volatility", name:"Bollinger",    weight:2, formula:"(Close−Lower)/(Upper−Lower) | SMA20±2σ", desc:"Bollinger %B: 0=lower band, 1=upper band. Price at extremes signals reversal.", signals:[{lbl:"BUY",cls:"buy",txt:"%B < 0.15"},{lbl:"HOLD",cls:"neu",txt:"%B 0.25–0.75"},{lbl:"SELL",cls:"sell",txt:"%B > 0.85"}]},
-  {id:"atr",       group:"Volatility", grpCls:"volatility", name:"ATR",          weight:1, formula:"ATR(14)/Close×100", desc:"Normalized Average True Range. Low ATR = low volatility. High ATR = risk.", signals:[{lbl:"BUY",cls:"buy",txt:"ATR < 1% (low vol)"},{lbl:"HOLD",cls:"neu",txt:"ATR 1–5%"},{lbl:"SELL",cls:"sell",txt:"ATR > 5% (high risk)"}]},
-  {id:"obv",       group:"Volume",     grpCls:"volume",     name:"OBV",          weight:1, formula:"OBV±Vol by Close direction", desc:"On-Balance Volume trend. Rising OBV = accumulation. Falling = distribution.", signals:[{lbl:"BUY",cls:"buy",txt:"OBV trending up"},{lbl:"HOLD",cls:"neu",txt:"OBV flat"},{lbl:"SELL",cls:"sell",txt:"OBV trending down"}]},
+  {"id":"williams","group":"Momentum","grpCls":"momentum","name":"%R","weight":1,"formula":"(HH₁₄−Close)/(HH₁₄−LL₁₄)×−100","desc":"Williams %R on a 0 to −100 scale. Requires a turn from an extreme and confirmation in price.","signals":[{"lbl":"+","cls":"buy","txt":"Recovers from below −80 and price rises"},{"lbl":"0","cls":"neu","txt":"No confirmed reversal"},{"lbl":"−","cls":"sell","txt":"Falls from above −20 and price falls"}]},
+  {"id":"bb","group":"Volatility","grpCls":"volatility","name":"Bollinger","weight":2,"formula":"(Close−Lower)/(Upper−Lower) | SMA20±2σ","desc":"Bollinger %B: 0=lower band, 1=upper band. An extreme alone is neutral; a reversal must also confirm in price.","signals":[{"lbl":"+","cls":"buy","txt":"Recovers from below 0.15 and price rises"},{"lbl":"0","cls":"neu","txt":"No confirmed reversal"},{"lbl":"−","cls":"sell","txt":"Falls from above 0.85 and price falls"}]},
+  {"id":"atr","group":"Volatility","grpCls":"volatility","name":"ATR","weight":1,"formula":"Wilder ATR(14)/Close×100","desc":"Volatility measures risk, not trade direction. ATR normalizes distance from support for timing scores. Its Composite input is neutral.","signals":[{"lbl":"0","cls":"neu","txt":"Volatility alone has no directional vote"}]},
+  {"id":"obv","group":"Volume","grpCls":"volume","name":"Vol Balance","weight":1,"formula":"Sum(signed volume,20) / Sum(volume,20)","desc":"Rising-price volume minus falling-price volume, normalized by total volume over 20 sessions. Does not depend on an arbitrary OBV starting point.","signals":[{"lbl":"+","cls":"buy","txt":"Net accumulation"},{"lbl":"0","cls":"neu","txt":"Balanced volume"},{"lbl":"−","cls":"sell","txt":"Net distribution"}]},
   {id:"vol_avg",   group:"Volume",     grpCls:"volume",     name:"Vol/Avg",      weight:1, formula:"Volume / SMA(Vol,20)", desc:"Volume vs 20-day average. High volume on up day confirms bullish momentum.", signals:[{lbl:"BUY",cls:"buy",txt:"Vol>1.5× avg, up day"},{lbl:"HOLD",cls:"neu",txt:"Vol near average"},{lbl:"SELL",cls:"sell",txt:"Vol>1.5× avg, down day"}]},
   {id:"candle",    group:"Candles",    grpCls:"candles",    name:"Candle",       weight:2, formula:"|Close−Open|/(High−Low)", desc:"Hammer, Shooting Star, Bullish/Bearish Engulfing patterns using OHLC data.", signals:[{lbl:"BUY",cls:"buy",txt:"Hammer or Bullish Engulfing"},{lbl:"HOLD",cls:"neu",txt:"No pattern"},{lbl:"SELL",cls:"sell",txt:"Shooting Star or Bearish Engulfing"}]},
   {id:"gap",       group:"Candles",    grpCls:"candles",    name:"Gap",          weight:1, formula:"(Open−PrevClose)/PrevClose×100", desc:"Gap between previous close and current open. Large gaps tend to persist.", signals:[{lbl:"BUY",cls:"buy",txt:"Gap up > +2%"},{lbl:"HOLD",cls:"neu",txt:"Gap ±0.5%"},{lbl:"SELL",cls:"sell",txt:"Gap down > −2%"}]}
@@ -384,13 +392,13 @@ var GRP_COLOR = {trend:"var(--accent)", momentum:"var(--hold)", volatility:"#a85
 
 var PRESETS = [
   {id:"swing",     name:"Swing Trade",  hold:"3–10 days",    desc:"RSI/BB/Candles. Short-term reversals. SMA crosses excluded (too slow).",           ref:"Connors & Lindqvist",  weights:{sma_cross:0,ema_cross:1,sma50:0,macd:2,rsi:3,stoch_rsi:3,roc:2,williams:2,bb:3,atr:1,obv:1,vol_avg:2,candle:3,gap:2}, hi:["RSI 14","Stoch RSI","Bollinger","Candle"], off:["SMA 5/20","vs SMA 50"]},
-  {id:"trend",     name:"Trend Follow", hold:"Weeks–months", desc:"SMA/EMA/MACD/OBV. RSI low-weighted intentionally — stays overbought in trends.", ref:"Faber (2007), Siegel",  weights:{sma_cross:3,ema_cross:3,sma50:3,macd:3,rsi:1,stoch_rsi:0,roc:1,williams:0,bb:1,atr:1,obv:2,vol_avg:2,candle:0,gap:0}, hi:["SMA 5/20","EMA 12/26","MACD","OBV"],       off:["Stoch RSI","%R","Candle","Gap"]},
-  {id:"breakout",  name:"Breakout",     hold:"1–5 days",     desc:"Volume is primary confirmation. Gap+ROC signals institutional entry.",              ref:"O'Neil CANSLIM",       weights:{sma_cross:1,ema_cross:2,sma50:2,macd:2,rsi:1,stoch_rsi:0,roc:2,williams:0,bb:2,atr:2,obv:3,vol_avg:3,candle:2,gap:3}, hi:["OBV","Vol/Avg","Gap"],                      off:["Stoch RSI","%R"]},
-  {id:"reversion", name:"Mean Reversion",hold:"2–7 days",   desc:"Contrarian. SMA crosses OFF — oversold stock is already below MAs, would fake SELL.", ref:"Lo & MacKinlay (1988)",weights:{sma_cross:0,ema_cross:0,sma50:0,macd:1,rsi:3,stoch_rsi:3,roc:2,williams:3,bb:3,atr:0,obv:1,vol_avg:2,candle:3,gap:2}, hi:["RSI 14","%R","Bollinger","Candle"],         off:["SMA 5/20","EMA 12/26","vs SMA 50","ATR"]},
+  {id:"trend",     name:"Trend Follow", hold:"Weeks–months", desc:"SMA/EMA/MACD/volume balance. RSI low-weighted intentionally — stays overbought in trends.", ref:"Faber (2007), Siegel",  weights:{sma_cross:3,ema_cross:3,sma50:3,macd:3,rsi:1,stoch_rsi:0,roc:1,williams:0,bb:1,atr:1,obv:2,vol_avg:2,candle:0,gap:0}, hi:["SMA 5/20","EMA 12/26","MACD","Vol Balance"],       off:["Stoch RSI","%R","Candle","Gap"]},
+  {id:"breakout",  name:"Breakout",     hold:"1–5 days",     desc:"Volume is primary confirmation. Gap and ROC emphasize price expansion.",              ref:"O'Neil CANSLIM",       weights:{sma_cross:1,ema_cross:2,sma50:2,macd:2,rsi:1,stoch_rsi:0,roc:2,williams:0,bb:2,atr:2,obv:3,vol_avg:3,candle:2,gap:3}, hi:["Vol Balance","Vol/Avg","Gap"],                      off:["Stoch RSI","%R"]},
+  {id:"reversion", name:"Mean Reversion",hold:"2–7 days",   desc:"Contrarian. Moving averages excluded. Reversal inputs require momentum and price recovery.", ref:"Lo & MacKinlay (1988)",weights:{sma_cross:0,ema_cross:0,sma50:0,macd:1,rsi:3,stoch_rsi:3,roc:2,williams:3,bb:3,atr:0,obv:1,vol_avg:2,candle:3,gap:2}, hi:["RSI 14","%R","Bollinger","Candle"],         off:["SMA 5/20","EMA 12/26","vs SMA 50","ATR"]},
   {id:"reactive",  name:"Reactive",     hold:"1–3 days",     desc:"Fastest signals: EMA over SMA, ROC, Gap, Volume. Higher noise tolerance.",         ref:"Kaufman, Appel",       weights:{sma_cross:0,ema_cross:3,sma50:0,macd:2,rsi:1,stoch_rsi:2,roc:3,williams:2,bb:1,atr:1,obv:1,vol_avg:3,candle:2,gap:3}, hi:["EMA 12/26","ROC 10d","Vol/Avg","Gap"],     off:["SMA 5/20","vs SMA 50"]}
 ];
 
-var results=[], filter="ALL", sortCol="score", sortAsc=false, activePreset=null, companyUniverse=null;
+var results=[], filter="ALL", sortCol="entryScore", sortAsc=false, activePreset=null, companyUniverse=null;
 var loadingData=false, currentMarketResult=null;
 
 // ── Tooltip ───────────────────────────────────────────────────────────────────
@@ -454,62 +462,31 @@ function sparkline(prices){
   return '<svg class="spark" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'"><polyline points="'+pts+'" fill="none" stroke="'+clr+'" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 }
 
-// ── Math (optimized with typed arrays where possible) ─────────────────────────
-function sma(a,n){if(a.length<n)return null;var s=0;for(var i=a.length-n;i<a.length;i++)s+=a[i];return s/n;}
-function ema(a,n){if(a.length<n)return null;var k=2/(n+1),s=0;for(var i=0;i<n;i++)s+=a[i];var e=s/n;for(var i=n;i<a.length;i++)e=a[i]*k+e*(1-k);return e;}
-function emaArr(a,n){if(a.length<n)return[];var k=2/(n+1),out=new Array(a.length).fill(null),s=0;for(var i=0;i<n;i++)s+=a[i];out[n-1]=s/n;for(var i=n;i<a.length;i++)out[i]=a[i]*k+out[i-1]*(1-k);return out;}
-function rsiCalc(a,n){
-  if(a.length<n+1)return 50;
-  var g=0,l=0,d;
-  for(var i=1;i<=n;i++){d=a[i]-a[i-1];if(d>0)g+=d;else l-=d;}
-  var mg=g/n,ml=l/n;
-  for(var i=n+1;i<a.length;i++){d=a[i]-a[i-1];if(d>0){mg=(mg*(n-1)+d)/n;ml=ml*(n-1)/n;}else{mg=mg*(n-1)/n;ml=(ml*(n-1)-d)/n;}}
-  return ml===0?100:100-(100/(1+mg/ml));
+// One scoring engine serves both pages and the chart indicators.
+function computeSignals(data){return MarketScoring.computeSignals(data);}
+function computeScore(signals){return MarketScoring.computeScore(signals,INDICATORS);}
+function isBuy(signal){return signal==="BUY"||signal==="STRONG_BUY";}
+function isSell(signal){return signal==="SELL"||signal==="STRONG_SELL";}
+function signalText(signal){return signal.replace(/_/g," ");}
+function matchesSignal(signal,selected){return selected==="ALL"||(selected==="BUY"?isBuy(signal):selected==="SELL"?isSell(signal):signal===selected);}
+function scoreColor(value,key){
+  if(value==null)return "var(--muted)";
+  if(key==="trendScore")return value>=55?"var(--buy)":value<=45?"var(--sell)":"var(--hold)";
+  if(key==="exitScore")return value>=60?"var(--sell)":"var(--muted)";
+  if(key==="entryScore")return value>=60?"var(--buy)":"var(--hold)";
+  return value>=60?"var(--buy)":value<=40?"var(--sell)":"var(--hold)";
 }
-function macdFull(c){
-  var e12=emaArr(c,12),e26=emaArr(c,26);
-  if(!e12.length)return{hist:0,prevHist:0};
-  var vm=[];for(var i=0;i<c.length;i++){if(e12[i]!=null&&e26[i]!=null)vm.push(e12[i]-e26[i]);}
-  if(vm.length<9)return{hist:vm[vm.length-1]||0,prevHist:0};
-  var k9=2/10,s=0;for(var i=0;i<9;i++)s+=vm[i];var sig=s/9,ps=sig;
-  for(var i=9;i<vm.length;i++){ps=sig;sig=vm[i]*k9+sig*(1-k9);}
-  var cur=vm[vm.length-1],prev=vm.length>1?vm[vm.length-2]:cur;
-  return{hist:cur-sig,prevHist:prev-ps};
+function restoreCompositeWeights(){
+  try{
+    var saved=JSON.parse(localStorage.getItem("marketScanner.compositeWeights.v1")||"null");
+    if(!saved||!saved.weights)return;
+    INDICATORS.forEach(function(ind){var w=saved.weights[ind.id];if(Number.isInteger(w)&&w>=0&&w<=3)ind.weight=w;});
+    activePreset=PRESETS.some(function(p){return p.id===saved.preset&&INDICATORS.every(function(ind){return ind.weight===p.weights[ind.id];});})?saved.preset:null;
+  }catch(e){}
 }
-function bbPct(a){if(a.length<20)return 0.5;var sub=a.slice(-20),m=0;for(var i=0;i<20;i++)m+=sub[i];m/=20;var v=0;for(var i=0;i<20;i++)v+=(sub[i]-m)*(sub[i]-m);var std=Math.sqrt(v/20);if(std===0)return 0.5;return(a[a.length-1]-(m-2*std))/(4*std);}
-function atrN(d){if(d.length<15)return 0;var s=0;for(var i=d.length-14;i<d.length;i++){var tr=Math.max(d[i].high-d[i].low,Math.abs(d[i].high-d[i-1].close),Math.abs(d[i].low-d[i-1].close));s+=tr;}return(s/14)/d[d.length-1].close*100;}
-function obvT(d){if(d.length<2)return 0;var o=0,arr=[];for(var i=1;i<d.length;i++){if(d[i].close>d[i-1].close)o+=d[i].vol;else if(d[i].close<d[i-1].close)o-=d[i].vol;arr.push(o);}if(arr.length<20)return 0;var n=20,mid=10,f=0,s2=0;for(var i=arr.length-n;i<arr.length-mid;i++)f+=arr[i];f/=mid;for(var i=arr.length-mid;i<arr.length;i++)s2+=arr[i];s2/=mid;return f===0?0:(s2-f)/Math.abs(f);}
-function stochRSI(a){if(a.length<29)return 50;var rv=[];for(var i=14;i<a.length;i++)rv.push(rsiCalc(a.slice(0,i+1),14));if(rv.length<14)return 50;var sub=rv.slice(-14),mn=sub[0],mx=sub[0];for(var i=1;i<14;i++){if(sub[i]<mn)mn=sub[i];if(sub[i]>mx)mx=sub[i];}return mx===mn?50:((rv[rv.length-1]-mn)/(mx-mn))*100;}
-function willR(d){if(d.length<14)return-50;var r=d.slice(-14),hh=r[0].high,ll=r[0].low;for(var i=1;i<14;i++){if(r[i].high>hh)hh=r[i].high;if(r[i].low<ll)ll=r[i].low;}var c=d[d.length-1].close;return hh===ll?-50:((hh-c)/(hh-ll))*-100;}
-function roc10(a){if(a.length<11)return 0;return(a[a.length-1]-a[a.length-11])/a[a.length-11]*100;}
-function volAvg(d){if(d.length<21)return 0;var avg=0;for(var i=d.length-21;i<d.length-1;i++)avg+=d[i].vol;avg/=20;if(!avg)return 0;var rat=d[d.length-1].vol/avg,up=d[d.length-1].close>d[d.length-2].close;return rat>1.5?(up?1:-1):rat>1.2?(up?.5:-.5):0;}
-function candlePat(d){if(d.length<2)return 0;var c=d[d.length-1],p=d[d.length-2],body=Math.abs(c.close-c.open),rng=c.high-c.low;if(rng===0)return 0;var br=body/rng;if(br<0.1)return 0;var bull=c.close>c.open,ls=Math.min(c.close,c.open)-c.low,us=c.high-Math.max(c.close,c.open);if(ls>2*body&&us<0.3*body&&p.close<p.open)return 0.8;if(us>2*body&&ls<0.3*body&&p.close>p.open)return-0.8;if(bull&&p.close<p.open&&c.open<p.close&&c.close>p.open)return 1;if(!bull&&p.close>p.open&&c.open>p.close&&c.close<p.open)return-1;return bull&&br>0.6?.4:!bull&&br>0.6?-.4:0;}
-function gapSig(d){if(d.length<2)return 0;var g=(d[d.length-1].open-d[d.length-2].close)/d[d.length-2].close*100;return g>2?.8:g>.5?.3:g<-2?-.8:g<-.5?-.3:0;}
-
-function computeSignals(d){
-  var c=new Array(d.length),s={};
-  for(var i=0;i<d.length;i++)c[i]=d[i].close;
-  var sm5=sma(c,5),sm20=sma(c,20),pm5=sma(c.slice(0,-1),5),pm20=sma(c.slice(0,-1),20);
-  s.sma_cross=sm5!==null&&sm20!==null?(pm5<=pm20&&sm5>sm20?1:pm5>=pm20&&sm5<sm20?-1:sm5>sm20?.3:-.3):0;
-  var e12=ema(c,12),e26=ema(c,26),pe12=ema(c.slice(0,-1),12),pe26=ema(c.slice(0,-1),26);
-  s.ema_cross=e12!==null&&e26!==null&&pe12!==null&&pe26!==null?(pe12<=pe26&&e12>e26?1:pe12>=pe26&&e12<e26?-1:e12>e26?.3:-.3):0;
-  var s50=sma(c,50);s.sma50=s50!==null?(function(){var dv=(c[c.length-1]-s50)/s50;return dv>.05?.8:dv>0?.3:dv<-.05?-.8:-.3;})():0;
-  var m=macdFull(c);s.macd=m.prevHist<=0&&m.hist>0?1:m.prevHist>=0&&m.hist<0?-1:m.hist>0?.3:-.3;
-  var r=rsiCalc(c,14);s.rsi=r<30?1:r<40?.5:r>70?-1:r>60?-.5:0;
-  var sr=stochRSI(c);s.stoch_rsi=sr<20?1:sr<30?.5:sr>80?-1:sr>70?-.5:0;
-  var rc=roc10(c);s.roc=rc>10?1:rc>5?.5:rc>2?.2:rc<-10?-1:rc<-5?-.5:rc<-2?-.2:0;
-  var wr=willR(d);s.williams=wr<-80?1:wr<-70?.5:wr>-20?-1:wr>-30?-.5:0;
-  s.bb=(function(){var b=bbPct(c);return b<.15?1:b<.25?.5:b>.85?-1:b>.75?-.5:0;})();
-  var at=atrN(d);s.atr=at<1?.2:at>5?-.2:0;
-  var ov=obvT(d);s.obv=ov>.1?.7:ov>.02?.3:ov<-.1?-.7:ov<-.02?-.3:0;
-  s.vol_avg=volAvg(d);s.candle=candlePat(d);s.gap=gapSig(d);
-  return s;
-}
-
-function computeScore(sig){
-  var ws=0,mw=0;
-  INDICATORS.forEach(function(i){if(i.weight===0)return;ws+=(sig[i.id]||0)*i.weight;mw+=i.weight;});
-  return mw===0?50:Math.round(((ws/mw)+1)/2*100);
+function saveCompositeWeights(){
+  var weights={};INDICATORS.forEach(function(ind){weights[ind.id]=ind.weight;});
+  try{localStorage.setItem("marketScanner.compositeWeights.v1",JSON.stringify({weights:weights,preset:activePreset}));}catch(e){}
 }
 
 // ── Data loading ──────────────────────────────────────────────────────────────
@@ -535,7 +512,7 @@ async function loadData(refreshQuotes=true){
     setProgress(60);
     var grouped=groupByTicker(result.data);
     setProgress(75);
-    results=computeAll(grouped);
+    results=computeAll(grouped,result);
     results.forEach(function(row){
       row.provisional=Boolean(result.provisionalTickers&&result.provisionalTickers.includes(row.ticker));
       var quote=result.quoteByTicker?result.quoteByTicker.get(row.ticker):null;
@@ -593,26 +570,29 @@ function dateStrOffset(isoStr, calendarDays) {
   return dt.toISOString().slice(0, 10);
 }
 
-function computeAll(grouped){
+function computeAll(grouped,marketResult){
+  var pending=new Set(marketResult&&marketResult.provisionalTickers||[]);
+  var lagging=new Set(marketResult&&marketResult.quality&&marketResult.quality.laggingTickers||[]);
   return Array.from(companyUniverse.byTicker.keys()).map(function(tk){
     var d=grouped[tk]||[],c=d.map(function(x){return x.close;});
     var company=companyUniverse.byTicker.get(tk);
-    if(d.length<MARKET_SETTINGS.minSignalDays)return {ticker:tk,companyName:company.name,instrument:company,days:d.length,closes:c,close:c.length?c[c.length-1]:null,score:null,signal:"WAIT",signals:{},bb:null,rsi:null,chg1d:null,chg30d:null,chg1y:null,lastDate:d.length?d[d.length-1].date:null};
-    var sig=computeSignals(d),sc=computeScore(sig);
-    var last=c[c.length-1];
-    var lastDate=d[d.length-1].date;
-
-    var p1d  = closePriceAtDate(d, dateStrOffset(lastDate, 1));
-    var p30d = closePriceAtDate(d, dateStrOffset(lastDate, 30));
-    var p365d= closePriceAtDate(d, dateStrOffset(lastDate, 365));
-
-    // Only compute if we found a prior price AND it's meaningfully earlier
-    var chg1d  = (p1d  !== null)                   ? (last - p1d)   / p1d   * 100 : null;
-    var chg30d = (p30d !== null)                   ? (last - p30d)  / p30d  * 100 : null;
-    var chg1y  = (p365d!== null)                   ? (last - p365d) / p365d * 100 : null;
-
-    return{ticker:tk,companyName:company.name,instrument:company,days:d.length,closes:c,close:last,score:sc,signal:sc>=70?"BUY":sc<=30?"SELL":"HOLD",signals:sig,bb:bbPct(c),rsi:rsiCalc(c,14),chg1d:chg1d,chg30d:chg30d,chg1y:chg1y,lastDate:lastDate};
-  }).sort(function(a,b){return b.score-a.score;});
+    var quote=marketResult&&marketResult.quoteByTicker?marketResult.quoteByTicker.get(tk):null;
+    var provisional=pending.has(tk);
+    var freshProvisional=provisional&&quote&&!quote.outdated;
+    var stale=Boolean(provisional&&quote&&quote.outdated)||(lagging.has(tk)&&!freshProvisional);
+    var analysis=MarketScoring.analyze(d,{minSignalDays:MARKET_SETTINGS.minSignalDays,provisional:provisional,stale:stale});
+    var canScore=analysis.trendScore!==null;
+    var sig=canScore?computeSignals(d):{};
+    var last=c.length?c[c.length-1]:null,lastDate=d.length?d[d.length-1].date:null;
+    function change(days){
+      if(!lastDate)return null;
+      var previous=closePriceAtDate(d,dateStrOffset(lastDate,days));
+      return previous!==null&&previous>0?(last-previous)/previous*100:null;
+    }
+    return Object.assign({ticker:tk,companyName:company.name,instrument:company,days:d.length,closes:c,close:last,
+      score:canScore?computeScore(sig):null,signals:sig,
+      chg1d:change(1),chg30d:change(30),chg1y:change(365),lastDate:lastDate},analysis);
+  });
 }
 
 // ── Build table header (once) ─────────────────────────────────────────────────
@@ -621,10 +601,14 @@ function buildTableHeader(){
   html+='<th class="th-fixed sticky s0" onclick="sortBy(\'ticker\',this)">Ticker</th>';
   html+='<th class="th-fixed sticky s1">Spark</th>';
   html+='<th class="th-fixed right sticky s2" onclick="sortBy(\'close\',this)">Price</th>';
-  html+='<th class="th-fixed right sticky s5" onclick="sortBy(\'chg1d\',this)">1D %</th>';
-  html+='<th class="th-fixed right sticky s6" onclick="sortBy(\'chg30d\',this)">30D %</th>';
-  html+='<th class="th-fixed right sticky s7" onclick="sortBy(\'chg1y\',this)">1Y %</th>';
-  html+='<th class="th-fixed right sticky s3" onclick="sortBy(\'score\',this)">Score</th>';
+  html+='<th class="th-fixed right " onclick="sortBy(\'chg1d\',this)">1D %</th>';
+  html+='<th class="th-fixed right " onclick="sortBy(\'chg30d\',this)">30D %</th>';
+  html+='<th class="th-fixed right " onclick="sortBy(\'chg1y\',this)">1Y %</th>';
+  html+='<th class="th-fixed right" title="Momentum recovery, trend position and volume; higher is a better entry setup" onclick="sortBy(\'entryScore\',this)">Entry Timing</th>';
+  html+='<th class="th-fixed right" title="Direction and strength; a high trend score is not an entry signal" onclick="sortBy(\'trendScore\',this)">Trend</th>';
+  html+='<th class="th-fixed right" title="Higher means stronger deterioration or selling pressure" onclick="sortBy(\'exitScore\',this)">Exit Pressure</th>';
+  html+='<th class="th-fixed right" title="Your configurable weighted indicator view" onclick="sortBy(\'score\',this)">Composite</th>';
+  html+='<th class="th-fixed" onclick="sortBy(\'signal\',this)">Signal</th>';
 
   INDICATORS.forEach(function(ind){
     html+='<th style="padding:0;vertical-align:bottom">';
@@ -633,7 +617,7 @@ function buildTableHeader(){
     html+='<div class="th-vert grp-'+ind.grpCls+'" onmouseenter="showTooltip(this,\''+ind.id+'\')" onmouseleave="hideTooltip()" onclick="sortBy(\''+ind.id+'\',this)">'+ind.name+'</div>';
     html+='</div></th>';
   });
-  html+='<th class="th-fixed right sticky s4" onclick="sortBy(\'signal\',this)">Signal</th>';
+  html+='<th class="th-fixed">Why this signal</th>';
   html+='</tr>';
   document.getElementById("thead").innerHTML=html;
 }
@@ -643,22 +627,24 @@ function renderTable(){
   var q=document.getElementById("search").value.toUpperCase().trim();
   var type=document.getElementById("instrumentType").value;
   var rows=results
-    .filter(function(r){return filter==="ALL"||r.signal===filter;})
+    .filter(function(r){return matchesSignal(r.signal,filter);})
     .filter(function(r){return type==="ALL"||r.instrument.type===type;})
     .filter(function(r){return !q||r.ticker.includes(q)||r.companyName.toUpperCase().includes(q);});
 
   rows.sort(function(a,b){
     var id=sortCol;
-    if(id==="ticker") return sortAsc?a.ticker.localeCompare(b.ticker):b.ticker.localeCompare(a.ticker);
-    if(id==="signal")  return sortAsc?a.signal.localeCompare(b.signal):b.signal.localeCompare(a.signal);
-    if(id==="chg1d"||id==="chg30d"||id==="chg1y"){
-      var va=a[id]!=null?a[id]:-Infinity, vb=b[id]!=null?b[id]:-Infinity;
-      return sortAsc?va-vb:vb-va;
+    if(id==="ticker")return sortAsc?a.ticker.localeCompare(b.ticker):b.ticker.localeCompare(a.ticker);
+    var rank={STRONG_BUY:4,BUY:3,HOLD:2,SELL:1,STRONG_SELL:0};
+    var ind=INDICATORS.some(function(i){return i.id===id;});
+    var va=id==="signal"?rank[a.signal]:ind?(a.signal==="WAIT"?null:a.signals[id]):a[id];
+    var vb=id==="signal"?rank[b.signal]:ind?(b.signal==="WAIT"?null:b.signals[id]):b[id];
+    if(["entryScore","trendScore","exitScore","score"].includes(id)){
+      if(a.signal==="WAIT")va=null;
+      if(b.signal==="WAIT")vb=null;
     }
-    var ind=INDICATORS.find(function(i){return i.id===id;});
-    var va=ind?(a.signals[id]||0):(a[id]||0);
-    var vb=ind?(b.signals[id]||0):(b[id]||0);
-    return sortAsc?va-vb:vb-va;
+    var missingA=va==null||!Number.isFinite(va),missingB=vb==null||!Number.isFinite(vb);
+    if(missingA||missingB)return missingA===missingB?a.ticker.localeCompare(b.ticker):missingA?1:-1;
+    return (sortAsc?va-vb:vb-va)||a.ticker.localeCompare(b.ticker);
   });
 
 if(!rows.length){
@@ -671,8 +657,7 @@ hide();
   // Build HTML string for maximum speed
   var html="";
   rows.forEach(function(r){
-    var bc=r.signal==="BUY"?"var(--buy)":r.signal==="SELL"?"var(--sell)":"var(--hold)";
-    var rowCls=r.signal==="BUY"?"row-buy":r.signal==="SELL"?"row-sell":"";
+    var rowCls=isBuy(r.signal)?"row-buy":isSell(r.signal)?"row-sell":"";
     html+='<tr class="'+rowCls+'">';
 
     // Fixed: Ticker
@@ -691,27 +676,31 @@ hide();
     // Fixed: 1D %
     (function(){
       var v=r.chg1d,cls=v===null?"chg-neu":v>0?"chg-pos":v<0?"chg-neg":"chg-neu",txt=v===null?"—":(v>0?"+":"")+v.toFixed(2)+"%";
-      html+='<td class="td-fixed sticky s5"><span class="'+cls+'">'+txt+'</span></td>';
+      html+='<td class="td-fixed "><span class="'+cls+'">'+txt+'</span></td>';
     })();
     // Fixed: 30D %
     (function(){
       var v=r.chg30d,cls=v===null?"chg-neu":v>0?"chg-pos":v<0?"chg-neg":"chg-neu",txt=v===null?"—":(v>0?"+":"")+v.toFixed(2)+"%";
-      html+='<td class="td-fixed sticky s6"><span class="'+cls+'">'+txt+'</span></td>';
+      html+='<td class="td-fixed "><span class="'+cls+'">'+txt+'</span></td>';
     })();
     // Fixed: 1Y %
     (function(){
       var v=r.chg1y,cls=v===null?"chg-neu":v>0?"chg-pos":v<0?"chg-neg":"chg-neu",txt=v===null?"—":(v>0?"+":"")+v.toFixed(2)+"%";
-      html+='<td class="td-fixed sticky s7"><span class="'+cls+'">'+txt+'</span></td>';
+      html+='<td class="td-fixed "><span class="'+cls+'">'+txt+'</span></td>';
     })();
 
-    // Fixed: Score
-    html+='<td class="td-fixed sticky s3"><div class="score-wrap"><span style="font-size:12px">'+(r.score===null?"—":r.score)+'</span><div class="score-bar"><div class="score-fill" style="width:'+(r.score||0)+'%;background:'+bc+'"></div></div></div></td>';
+    ["entryScore","trendScore","exitScore","score"].forEach(function(key){
+      var value=r[key],color=scoreColor(value,key);
+      var detail=key==="trendScore"?r.trendLabel:key==="score"?"Configurable Composite":(r.reasons||[]).join(" · ");
+      html+='<td class="td-fixed" title="'+escapeHtml(detail||"")+'"><div class="score-wrap"><span style="color:'+color+'">'+(value==null?"—":value)+'</span><div class="score-bar"><div class="score-fill" style="width:'+(value||0)+'%;background:'+color+'"></div></div></div>'+(key==="trendScore"&&value!=null?'<div style="font-size:9px;color:var(--muted);margin-top:3px">'+escapeHtml(r.trendLabel)+'</div>':'')+'</td>';
+    });
+    html+='<td class="td-fixed"><span class="sig '+r.signal+'" title="'+escapeHtml((r.reasons||[]).join(" · "))+'">'+signalText(r.signal)+'</span></td>';
 
     // Heatmap cells
     INDICATORS.forEach(function(ind){
       var v=r.signals[ind.id]||0;
       if(r.signal==="WAIT"){
-        html+='<td><div class="hm-cell" title="Awaiting at least '+MARKET_SETTINGS.minSignalDays+' valid sessions" style="color:var(--muted)">—</div></td>';
+        html+='<td><div class="hm-cell" title="'+escapeHtml((r.reasons||[]).join(" · "))+'" style="color:var(--muted)">—</div></td>';
       } else if(ind.weight===0){
         // Disabled: hatched background, clearly OFF
         html+='<td style="padding:0"><div class="hm-cell hm-off" style="background:repeating-linear-gradient(45deg,rgba(255,255,255,.015) 0px,rgba(255,255,255,.015) 1px,transparent 1px,transparent 6px)" title="'+ind.name+' — disabled (weight 0)"><span style="color:var(--border);font-size:9px">off</span></div></td>';
@@ -722,7 +711,7 @@ hide();
     });
 
     // Fixed: Signal
-    html+='<td class="td-fixed sticky s4"><span class="sig '+r.signal+'">'+r.signal+'</span></td>';
+    html+='<td class="td-fixed reason-cell">'+escapeHtml((r.reasons||[]).join(" · "))+'</td>';
     html+='</tr>';
   });
   document.getElementById("tbody").innerHTML=html;
@@ -731,8 +720,8 @@ hide();
 // ── Summary & ind values ──────────────────────────────────────────────────────
 function updateSummary(){
   document.getElementById("cTotal").textContent=results.length;
-  document.getElementById("cBuy").textContent=results.filter(function(r){return r.signal==="BUY";}).length;
-  document.getElementById("cSell").textContent=results.filter(function(r){return r.signal==="SELL";}).length;
+  document.getElementById("cBuy").textContent=results.filter(function(r){return isBuy(r.signal);}).length;
+  document.getElementById("cSell").textContent=results.filter(function(r){return isSell(r.signal);}).length;
   document.getElementById("cHold").textContent=results.filter(function(r){return r.signal==="HOLD";}).length;
   document.getElementById("cInd").textContent=INDICATORS.filter(function(i){return i.weight>0;}).length+" / "+INDICATORS.length;
 }
@@ -816,8 +805,9 @@ function clearPreset(){activePreset=null;document.querySelectorAll(".preset-card
 function refreshW(id,w){var wrap=document.getElementById("w_"+id);if(!wrap)return;wrap.querySelectorAll(".wbtn").forEach(function(b,i){b.classList.toggle("sel",i+1===w);});}
 function toggleCfg(){var p=document.getElementById("cfgPanel"),b=document.getElementById("cfgToggle");p.classList.toggle("open");b.classList.toggle("open");b.textContent=p.classList.contains("open")?"✕ Close":"⚙ Indicators";}
 function recalc(){
+  saveCompositeWeights();
   if(!results.length)return;
-  results.forEach(function(r){if(r.days<MARKET_SETTINGS.minSignalDays)return;r.score=computeScore(r.signals);r.signal=r.score>=70?"BUY":r.score<=30?"SELL":"HOLD";});
+  results.forEach(function(r){if(r.score!==null)r.score=computeScore(r.signals);});
   renderTable();updateSummary();updateIndValues();
 }
 function setFilter(f,btn){filter=f;document.querySelectorAll(".fbtn").forEach(function(b){b.classList.remove("on");});btn.classList.add("on");renderTable();}
@@ -830,8 +820,10 @@ function sortBy(col,el){
 function show(h){var m=document.getElementById("stateMsg");m.style.display="block";m.innerHTML=h;}
 function hide(){document.getElementById("stateMsg").style.display="none";}
 
+restoreCompositeWeights();
 buildPresetCards();
 buildCfgPanel();
+if(activePreset)applyPreset(activePreset);
 buildThemeSwitcher();
 loadData();
 </script>

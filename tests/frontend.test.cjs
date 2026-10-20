@@ -7,6 +7,7 @@ const vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
 const clientSource = fs.readFileSync(path.join(root, "js/data.js"), "utf8");
 const calendarSource = fs.readFileSync(path.join(root, "js/market-calendar.js"), "utf8");
+const scoringSource = fs.readFileSync(path.join(root, "js/scoring.js"), "utf8");
 const calendar = vm.createContext({});
 vm.runInContext(calendarSource + "\nglobalThis.calendarSession = isMarketSession;", calendar);
 
@@ -286,6 +287,7 @@ test("the dashboard renders all 250 instruments, preserves 0% days, combines typ
   });
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
+  vm.runInContext(scoringSource, context);
   vm.runInContext(inline.replace(/loadData\(\);\s*$/, "globalThis.initialLoad = loadData();"), context);
   await context.initialLoad;
   assert.equal(element("cTotal").textContent, 250);
@@ -350,6 +352,7 @@ test("both pages use the same data client and all inline scripts compile", () =>
     assert.ok(html.includes('<script src="js/config.js"></script>'));
     assert.ok(html.includes('<script src="js/market-calendar.js?v=3"></script>'));
     assert.ok(html.includes('<script src="js/data.js?v=3.2"></script>'));
+    assert.match(html, /<script src="js\/scoring\.js\?v=[^"]+"><\/script>/);
     assert.ok(!html.includes("const SUPABASE_KEY") && !html.includes("var SUPABASE_KEY"));
     for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(match[1], { filename });
   }
@@ -645,12 +648,14 @@ test("ticker detail sends the provisional candle to every chart and signal and l
     tickerBars:client.tickerBars, marketQuoteLabel:client.marketQuoteLabel, marketQualityMessages:client.marketQualityMessages,
     instrumentDescription:client.instrumentDescription,instrumentTypeLabel:client.instrumentTypeLabel,escapeHtml:client.escapeHtml,
     MARKET_SETTINGS:{minSignalDays:50},INDICATORS:[],computeSignals:raw=>{renders.set('signals',raw);return {};},computeScore:()=>80,
+    restoreCompositeWeights(){},renderTiming:analysis=>renders.set('timing',analysis),
     buildThemeSwitcher_t(){},_renderCompareTags(){},console
   });
   for(const name of ['renderMainChart','renderRSI','renderMACD','renderStochRSI','renderWilliams','renderVolume','renderOBV','renderROC','renderATR','renderGauge','renderStats','renderHeatmap'])
     context[name]=(...args)=>renders.set(name,args);
   const html=fs.readFileSync(path.join(root,'ticker.html'),'utf8');
   const start=html.indexOf('let tickerLoading=false;'),end=html.indexOf('// ── Main candlestick + Bollinger',start);
+  vm.runInContext(scoringSource,context);
   vm.runInContext(html.slice(start,end),context);
   await context.init();
   assert.equal(renders.get('signals').length,501);
@@ -665,7 +670,8 @@ test("ticker detail sends the provisional candle to every chart and signal and l
   await context.init(false);
   assert.equal(renders.get('signals').length,500);
   assert.equal(element('priceVal').textContent,'$103.00');
-  assert.equal(element('sigBadge').textContent,'BUY');
+  assert.equal(element('sigBadge').textContent,'HOLD');
+  assert.equal(renders.get('timing').trendScore,50,'flat closes remain neutral regardless of Composite');
   assert.match(element('quoteStatus').textContent,/confirmed closes/);
 });
 
