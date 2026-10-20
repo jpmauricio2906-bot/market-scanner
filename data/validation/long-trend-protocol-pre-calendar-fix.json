@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "experiment": "long-trend-200-v1",
+  "decisionDateNewYork": "2026-10-20",
+  "hypothesis": "Exiting only after a persistent loss of the long-term trend reduces premature exits relative to v3.",
+  "candidateCountThisExperiment": 1,
+  "parameterSearch": false,
+  "priorExperiments": "v1/v2 and v3 have already been evaluated. This is an additional sequential hypothesis, not the first trial of this research program.",
+  "rule": {
+    "averageBars": 200,
+    "consecutiveCloses": 3,
+    "sell": "Three finalized closes strictly below each date's contemporaneous SMA200. The three closes must be consecutive expected exchange sessions. Equality, a non-final bar, or a gap resets the streak. SMA uses the last 200 observed closes; no lookahead.",
+    "minimumSellBars": 202,
+    "buy": "Retain literal BUY or STRONG_BUY of frozen v3 unless the long-term SELL condition has priority. Convert v3 SELL or STRONG_SELL to HOLD when no long-term exit exists. Do not reconstruct hidden buy conditions. Preserve WAIT.",
+    "otherExits": "None: no SMA50, ATR, momentum, volume or emergency override. Final liquidation is only an accounting convention shared by all strategies.",
+    "strongSell": "No new strong/confirmed SELL category in this experimental variant.",
+    "production": "Experimental tool only; production v3 is unchanged."
+  },
+  "baseline": {"version": "3.0.0", "sourceSha256": "78e24a07358bf6c707b792fc6457f7f760014e3b5d75829bfd9ab119515d14fa", "repositoryCommit": "3a7dfbd5b3c46429726a0ce10bf691b3b7c5de36"},
+  "periods": [
+    {"id": "reserved_2008_2015", "classification": "previously_unexamined_historical_holdout_NOT_prospective", "warmupStart": "2006-01-01", "start": "2008-01-02", "end": "2015-12-31", "subperiods": [{"id": "2008_2011", "start": "2008-01-02", "end": "2011-12-30"}, {"id": "2012_2015", "start": "2012-01-03", "end": "2015-12-31"}]},
+    {"id": "known_2018_2023", "classification": "previously_examined_NOT_OOS", "warmupStart": "2016-01-01", "start": "2018-01-02", "end": "2023-12-29", "subperiods": []},
+    {"id": "known_2025_2026", "classification": "previously_examined_NOT_OOS", "warmupStart": "2024-01-01", "start": "2025-01-02", "end": "2026-10-16", "subperiods": []}
+  ],
+  "execution": {"initialCapital": 100000, "commissionBpsPerSide": 0, "primarySlippageBpsPerSide": 5, "sensitivitySlippageBpsPerSide": [0, 10, 25], "primaryWarmupBars": 202, "sensitivityWarmupBars": 50, "allocation": "All 250 current instruments: equal initial independent cash sleeves, fractional shares, no rebalance, no shorts, no cash interest. Explicit not-listed instruments retain cash. Download errors are never treated as not-listed.", "orders": "Signal after close, execute at next contiguous expected-session open, terminal close liquidation with costs.", "warmupExplanation": "The main comparison delays all three strategies until 202 completed bars. The fixed 50-bar sensitivity permits earlier v3 and variant entries, but the variant cannot exit on SMA200 until 202 bars exist."},
+  "comparators": ["v3", "long_trend_200", "buy_hold_same_eligibility"],
+  "priceBasis": "Original provider quote OHLC for all signals. Adjusted OHLC=quote*adjclose/close for execution/valuation as a synthetic dividend-reinvestment proxy; not literal executable prices. Exact ticker/date alignment. Known 2025-2026 snapshot is quote-price only and is reported separately.",
+  "sensitivities": ["slippage_0_10_25bps", "warmup_50", "forced_initial_buy", "quote_prices_without_dividends", "stocks", "etf_1x", "leveraged_inverse_etf", "SPY", "fixed_holdout_subperiods_reset_cash"],
+  "primaryCriterion": "At 5bps per side, the variant must exceed BOTH v3 and same-eligibility buy-and-hold net cumulative returns in reserved_2008_2015. Separately report whether it exceeds both at 10bps and in BOTH fixed subperiods. Lower turnover or drawdown alone is not a pass.",
+  "statistics": {"bootstrap": "Paired aggregate daily-return differences; 20-session circular blocks, 2000 repetitions, seed20261019; exploratory intervals, not selection-bias correction."},
+  "independence": "Rules fixed before any returns are calculated in this experiment. The 2008-2015 history is reserved for this candidate, but later 2018-2026 observations motivated the hypothesis. It is NOT chronologically independent or prospective out-of-sample validation. Universe chosen in 2026 introduces hindsight and survivorship; provider data may be revised. Reusing known periods does not create new OOS evidence.",
+  "prospective": {"status": "pending_future_observations", "firstEligibleExecution": "2026-10-21", "minimumSessions": 126, "note": "No future returns exist yet. No scheduling or automated trading is created by this experiment."},
+  "freezePolicy": "Publish the rule/protocol and all relevant source/input hashes before computing any returns, including known periods. Any bug correction must preserve prior artifacts and be disclosed. Never adjust rules or choose a period/cost to favor results.",
+  "publication": "Publish all outcomes and limitations, including adverse results. Keep production v3 unchanged while testing this variant."
+}
