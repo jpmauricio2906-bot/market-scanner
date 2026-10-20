@@ -70,7 +70,7 @@ node tools/audit-scoring.mjs --input /ruta/history.json --output /ruta/audit.jso
 node --test tests/*.test.cjs tests/*.test.mjs
 ```
 
-Los resultados de distribución no son un backtest de rentabilidad. Faltan evaluación temporal fuera de muestra, costes, deslizamiento y análisis de resultados posteriores antes de concluir que una señal tiene ventaja económica. No se han ajustado los umbrales para obtener un número deseado de señales.
+Los resultados de distribución no son un backtest de rentabilidad. La [evaluación histórica posterior con costes y deslizamiento](BACKTEST.md) reduce Hold del 99,999% al 70,02% de las observaciones elegibles, pero no demuestra una mejora del timing frente a comprar y mantener. Las ventas, incluidas las fuertes, tienen una ventaja media negativa a 5, 10 y 20 sesiones. Sigue faltando validación sobre datos realmente fuera de muestra. No se han ajustado los umbrales para obtener un número deseado de señales ni para mejorar ese backtest.
 
 GitHub Actions ejecuta las pruebas sin credenciales ni acceso a mercado con [scanner-tests.yml](../.github/workflows/scanner-tests.yml). El flujo existente de revisión diaria de cierres sigue separado.
 
