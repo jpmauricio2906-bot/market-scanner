@@ -1,6 +1,6 @@
-import { staticTranslations } from './static-translations.mjs';
-import { dynamicTranslations } from './dynamic-translations.mjs';
-import { localizeMessage } from './message-translations.mjs';
+import { staticTranslations } from './static-translations.mjs?v=2';
+import { dynamicTranslations } from './dynamic-translations.mjs?v=2';
+import { localizeMessage } from './message-translations.mjs?v=2';
 import '../i18n.js';
 
 const shared = globalThis.MarketI18n;

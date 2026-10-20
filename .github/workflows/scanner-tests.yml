@@ -10,7 +10,9 @@ on:
       - 'tests/**'
       - 'tools/**'
       - 'data/validation/**'
+      - 'data/backtest-calendar.json'
       - 'supabase/functions/**'
+      - 'supabase/backtest_history.sql'
       - 'supabase/calendar.json'
       - '.github/workflows/scanner-tests.yml'
   pull_request:

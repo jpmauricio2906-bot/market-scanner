@@ -2,9 +2,9 @@
 // and production scoring remain immutable; this is a separate experiment API.
 import {runPortfolio} from './execution.mjs';
 import {validateStrategy, strategyWarmup, buildStrategySignals} from './strategies.mjs';
-import {EXCHANGE_CALENDAR} from './calendar.mjs';
+import {EXCHANGE_CALENDAR} from './calendar.mjs?v=2';
 
-export const ENGINE_VERSION = 'backtest-lab-1.0.0';
+export const ENGINE_VERSION = 'backtest-lab-1.1.0';
 const baseStrategy = {preset:'custom', entryScore:60, trendScore:55, momentum:55,
   maxEntryExtensionAtr:3, minEntryDistanceAtr:-1.5, relativeVolume:1.2,
   strongOnly:false, exitMode:'long_trend', exitPeriod:200, exitConfirmations:3, exitScore:60};
@@ -65,11 +65,11 @@ export function validateConfig(config) {
     initialCapital:result.initialCapital,commissionBps:result.commissionBps,slippageBps:result.slippageBps};
 }
 
-// Ingress is finalizedData from the existing read-only data client. Arrays have
+// Ingress is finalizedData from the dedicated read-only history client. Arrays have
 // no intrinsic finality field; runExperiment requires an explicit source claim.
 // There is no upload path that treats arbitrary OHLC arrays as confirmed data.
 function normalizeRows(rows,weights,endDate=null) {
-  if (!Array.isArray(rows) || rows.length>250000) throw new Error('El historial debe contener como máximo 250.000 barras.');
+  if (!Array.isArray(rows) || rows.length>800000) throw new Error('El historial debe contener como máximo 800.000 barras.');
   const grouped = new Map(Object.keys(weights).map(ticker=>[ticker,[]]));
   const seen = new Set();
   for (const row of rows) {
@@ -151,6 +151,9 @@ export async function runExperiment({rows,config:requested,source},onProgress=nu
   }
   if (evaluationDates.length<252) warnings.push('Muestra menor de un año bursátil: la rentabilidad anualizada y el Sharpe pueden ser poco representativos.');
   if (source.quality?.invalidRows || source.quality?.duplicateRows) warnings.push('El proveedor filtró filas inválidas o duplicadas; se comprobó la continuidad de los activos seleccionados.');
+  for (const item of source.coverage || []) {
+    if (Object.hasOwn(config.weights,item.ticker) && item.last_error) warnings.push(`${item.ticker}: la última actualización falló; se conserva el historial confirmado hasta ${item.last_date}.`);
+  }
   const panel={series:[]};
   for (let index=0;index<series.length;index++) {
     const item=series[index];
@@ -169,8 +172,11 @@ export async function runExperiment({rows,config:requested,source},onProgress=nu
   const configurationHash=await sha256({engineVersion:ENGINE_VERSION,config,dataHash});
   return {schemaVersion:1,createdAt:new Date().toISOString(),engineVersion:ENGINE_VERSION,configurationHash,config,
     data:{hash:dataHash,firstDate,lastDate:endDate,coverage,warmupBars,warnings,
-      source:'confirmed_market_history',loadedAt:typeof source.loadedAt==='string'?source.loadedAt:null,
-      priceBasis:'price_only',calendarYears:[EXCHANGE_CALENDAR.firstYear,EXCHANGE_CALENDAR.lastYear]},
+      source:source.kind==='backtest_history'?'confirmed_backtest_history':'confirmed_market_history',
+      loadedAt:typeof source.loadedAt==='string'?source.loadedAt:null,
+      priceBasis:source.priceBasis || 'price_only',
+      ...(Array.isArray(source.coverage)?{provider:source.provider,sourceSnapshots:source.coverage.filter(item=>Object.hasOwn(config.weights,item.ticker))}:{}),
+      calendarYears:[EXCHANGE_CALENDAR.firstYear,EXCHANGE_CALENDAR.lastYear]},
     snapshot:{format:'finalizedData-v1',confirmedOnly:true,rows:series.flatMap(({ticker,bars})=>
       bars.map(bar=>[bar.date,ticker,bar.open,bar.high,bar.low,bar.close,bar.vol]))},
     strategy,benchmark};

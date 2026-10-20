@@ -11,12 +11,16 @@ Estado de v3: backend desplegado, 86 pruebas JavaScript aprobadas y 140 comproba
 | Yahoo en segundo plano | Aportar barras recientes para cierres y continuidad |
 | RPC de ingesta | Validar por separado Google Finance y Yahoo, y devolver el estado de cada ticker |
 | Almacenamiento privado | Provisionales, control de calidad, auditorías y cola de reparaciones |
-| `public.market_history` | Barras diarias confirmadas que consume la aplicación |
+| `public.market_history` | Hasta 500 barras diarias confirmadas por activo para el scanner y las fichas |
+| `public.backtest_history` | Archivo independiente de once años para Backtesting, descargado por activos seleccionados |
+| `public.backtest_history_coverage` | Cobertura, versión y estado del archivo largo por ticker |
 | `public.market_latest_quotes` | Proyección pequeña y pública de cotizaciones aprobadas, con fuente, hora y condición provisional/final |
 | Worker privado | Descargar historia de los tickers reclamados y solicitar su sustitución validada |
 | Cron | Auditorías, retención e invocación del worker |
 
 El universo mantiene 200 empresas y 50 ETF. El frontend conserva la selección en `data/universe.json` y la clave pública de lectura. Los cierres siguen filtrados con `is_final=true`; v3 añade una lectura de las cotizaciones aprobadas. El navegador no necesita acceso a RPC de escritura, payloads ni cola.
+
+El archivo de Backtesting tiene su propia cola y worker. Su ampliación no cambia la retención, la descarga ni el cálculo del scanner. [Alcance, calidad y mantenimiento del histórico largo](HISTORICO_LARGO.md).
 
 ## Fórmulas y captura rápida de Google
 

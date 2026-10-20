@@ -2,3 +2,7 @@
 # Platform JWT validation is deliberately replaced by this mandatory private authentication.
 [functions.market-history-worker]
 verify_jwt = false
+
+# Independent archive worker uses the same mandatory private token verification.
+[functions.backtest-history-worker]
+verify_jwt = false

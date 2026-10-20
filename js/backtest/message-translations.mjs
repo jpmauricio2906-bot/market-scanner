@@ -21,7 +21,8 @@ const pairs = [
   ['Selecciona fechas válidas: inicio anterior o igual al final.', 'Select valid dates: the start must be on or before the end.'],
   ['El capital debe ser mayor que 0 y no superar un billón.', 'Capital must be greater than 0 and no greater than one trillion.'],
   ['Comisión y deslizamiento deben estar entre 0% y 10% por lado.', 'Commission and slippage must be between 0% and 10% per side.'],
-  ['El historial debe contener como máximo 250.000 barras.', 'History must contain no more than 250,000 bars.'],
+  ['El historial debe contener como máximo 800.000 barras.', 'History must contain no more than 800,000 bars.'],
+  ['Selecciona entre 1 y 250 activos únicos para cargar el historial largo.', 'Select between 1 and 250 unique assets to load long history.'],
   ['Formato de historial inválido: se requieren cierres confirmados.', 'Invalid history format: confirmed closing bars are required.'],
   ['Se necesita HTTPS o localhost para registrar la huella del experimento.', 'HTTPS or localhost is required to record the experiment fingerprint.'],
   ['El backtest requiere un historial de cierres confirmados; las velas provisionales no son válidas.', 'The backtest requires confirmed closing history; provisional bars are not valid.'],
@@ -94,6 +95,18 @@ const exact = new Map(MESSAGE_TRANSLATIONS.flatMap(pair=>[[pair.es,pair],[pair.e
 
 // Captured tickers, dates, counts and HTTP statuses pass through unchanged.
 const patterns = [
+  [/^(.+): el historial largo no ha superado los controles de calidad\. Prueba otra selección mientras se revisan los datos\.$/, /^(.+): long history has not passed quality checks\. Try another selection while the data is reviewed\.$/,
+    ticker=>`${ticker}: el historial largo no ha superado los controles de calidad. Prueba otra selección mientras se revisan los datos.`, ticker=>`${ticker}: long history has not passed quality checks. Try another selection while the data is reviewed.`],
+  [/^(.+): la última actualización falló; se conserva el historial confirmado hasta (\S+)\.$/, /^(.+): the latest refresh failed; confirmed history through (\S+) is retained\.$/,
+    (ticker,date)=>`${ticker}: la última actualización falló; se conserva el historial confirmado hasta ${date}.`, (ticker,date)=>`${ticker}: the latest refresh failed; confirmed history through ${date} is retained.`],
+  [/^(.+): el historial largo todavía no está disponible\. Vuelve a intentarlo cuando termine su actualización\.$/, /^(.+): long history is not available yet\. Retry after its update finishes\.$/,
+    ticker=>`${ticker}: el historial largo todavía no está disponible. Vuelve a intentarlo cuando termine su actualización.`, ticker=>`${ticker}: long history is not available yet. Retry after its update finishes.`],
+  [/^(.+): la cobertura del historial largo no es válida\. No se ejecutará el backtest\.$/, /^(.+): long-history coverage is invalid\. The backtest will not run\.$/,
+    ticker=>`${ticker}: la cobertura del historial largo no es válida. No se ejecutará el backtest.`, ticker=>`${ticker}: long-history coverage is invalid. The backtest will not run.`],
+  [/^(.+): la descarga no coincide con la cobertura publicada\. Vuelve a cargar el historial\.$/, /^(.+): the download does not match published coverage\. Load history again\.$/,
+    ticker=>`${ticker}: la descarga no coincide con la cobertura publicada. Vuelve a cargar el historial.`, ticker=>`${ticker}: the download does not match published coverage. Load history again.`],
+  [/^(.+): el historial cambió durante la descarga\. Vuelve a cargarlo para obtener una copia consistente\.$/, /^(.+): history changed during the download\. Reload it to obtain a consistent copy\.$/,
+    ticker=>`${ticker}: el historial cambió durante la descarga. Vuelve a cargarlo para obtener una copia consistente.`, ticker=>`${ticker}: history changed during the download. Reload it to obtain a consistent copy.`],
   [/^Fechas fuera del calendario revisado \((\d{4})–(\d{4})\)\.$/, /^Dates outside the reviewed calendar \((\d{4})–(\d{4})\)\.$/,
     (a,b)=>`Fechas fuera del calendario revisado (${a}–${b}).`, (a,b)=>`Dates outside the reviewed calendar (${a}–${b}).`],
   [/^Barra inválida o no confirmada: (.+) (.+)\.$/, /^Invalid or unconfirmed bar: (.+) (.+)\.$/,

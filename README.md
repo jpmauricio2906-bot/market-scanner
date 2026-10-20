@@ -1,6 +1,6 @@
 # Market Scanner — 200 empresas y 50 ETF
 
-**Backtesting interactivo:** [abrir el módulo](backtest.html) para simular acciones, carteras y subcarteras con pesos personalizados, presets v3/SMA200 o parámetros experimentales, costes por lado y comparación con comprar y mantener. Utiliza los cierres disponibles (hasta 500 sesiones), muestra cobertura y permite exportar resultados y datos. Las carteras se guardan en el navegador. [Uso, reglas y límites](docs/BACKTESTING_MODULE.md).
+**Backtesting interactivo:** [abrir el módulo](backtest.html) para simular acciones, carteras y subcarteras con pesos personalizados, presets v3/SMA200 o parámetros experimentales, costes por lado y comparación con comprar y mantener. Consulta un archivo independiente de once años para disponer de diez años de evaluación y datos previos para los indicadores, sujeto a la historia real de cada activo. Descarga solo los activos seleccionados, muestra cobertura y permite exportar resultados y datos. El scanner conserva sus 500 sesiones. Las carteras se guardan en el navegador. [Uso, reglas y límites](docs/BACKTESTING_MODULE.md) · [Datos históricos y actualización](docs/HISTORICO_LARGO.md).
 
 **Español / English:** el selector del encabezado comparte el idioma entre el scanner, las fichas y Backtesting. Conserva filtros, parámetros y resultados al cambiar; la preferencia anterior de Backtesting se migra automáticamente. Los enlaces admiten `?lang=es` o `?lang=en`, también junto con `ticker`. Se traducen controles, explicaciones, gráficos y avisos en la presentación; los identificadores de señales y los datos de cálculo/exportación mantienen su formato original.
 
@@ -35,6 +35,8 @@ flowchart LR
   Cola --> Worker
   Worker --> Historial
   Historial --> Web
+  ArchivoWorker[Worker privado · archivo de once años] --> Archivo[Supabase · histórico para backtesting]
+  Archivo --> Backtest[Backtesting · activos seleccionados]
 ```
 
 El universo contiene **250 instrumentos: 200 compañías y 50 ETF**. La selección de empresas usa capitalización del screener oficial de Nasdaq, admite compañías extranjeras cotizadas en EE. UU. y conserva una acción por compañía identificada por CIK SEC. La captura de selección es del 15/10/2026, con precios fechados por Nasdaq al 14/10. Los ETF son una selección curada verificada con sus emisores, no un ranking por patrimonio. Criterio y lista: [data/README.md](data/README.md).
@@ -70,6 +72,8 @@ La arquitectura y los límites están en [ARQUITECTURA_SUPABASE.md](docs/ARQUITE
 | `data/instrument-history-starts.json` | Fechas verificadas de inicio de las tres historias de IPO cortas |
 | `apps-script/` | Descarga reciente, envío al servidor, `Precios` y temporizadores Google |
 | `supabase/` | Esquema, RPC, calidad, cola, worker y programación del servidor |
+| `supabase/backtest_history.sql`, `supabase/functions/backtest-history-worker/` | Archivo histórico largo y actualización independiente para Backtesting |
+| `data/backtest-calendar.json` | Calendario histórico revisado, separado del scanner |
 | `tests/`, `tools/` | Pruebas y actualización reproducible de datos y universo |
 | `docs/WORKBOOK_AUDIT.md` | Auditoría de la captura Excel anterior, conservada como registro histórico |
 

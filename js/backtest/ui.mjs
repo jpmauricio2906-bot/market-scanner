@@ -1,9 +1,10 @@
-import { inspectHistory, DEFAULT_CONFIG, PRESET_STRATEGIES } from './lab.mjs';
+import { inspectHistory, DEFAULT_CONFIG, PRESET_STRATEGIES } from './lab.mjs?v=2';
+import { fetchBacktestHistory, defaultHistoryStart } from './history.mjs';
 import { validateWeights, normalizeWeights, equalWeights, readPortfolios, savePortfolio, deletePortfolio, toCsv } from './storage.mjs';
-import { t, translateMessage, getLanguage, setLanguage, onLanguageChange, languageLink, applyTranslations, formatNumber } from './i18n.mjs?v=2';
+import { t, translateMessage, getLanguage, setLanguage, onLanguageChange, languageLink, applyTranslations, formatNumber } from './i18n.mjs?v=3';
 
 const $ = id => document.getElementById(id);
-const state = { universe: null, weights: {}, portfolios: [], storageReady: true, rows: [], scope: null, source: null,
+const state = { universe: null, weights: {}, portfolios: [], storageReady: true, rows: [], scope: new Set(), source: null, download: null,
   worker: null, busy: false, request: 0, revision: 0, resultRevision: null, result: null, tradePage: 0, inspection: null,
   message: null, statuses: new Map(), universeFailed: false };
 const PAGE_SIZE = 25;
@@ -46,7 +47,7 @@ function changed() {
 }
 function hasHistory() {
   const tickers = selectedTickers();
-  return tickers.length > 0 && state.rows.length > 0 && (state.scope === '*' || tickers.length === 1 && state.scope === tickers[0]);
+  return tickers.length > 0 && state.rows.length > 0 && tickers.every(ticker => state.scope.has(ticker));
 }
 function currentStrategy() {
   const preset = $('strategy-preset').value;
@@ -148,9 +149,12 @@ function refreshCoverage(resetDates) {
     // Inspection only needs the selected symbols; unfinished weights stay editable.
     const weights = equalWeights(selectedTickers());
     const info = inspectHistory(state.rows, { weights, strategy: currentStrategy() });
+    for (const item of state.source?.coverage || []) {
+      if (Object.hasOwn(weights, item.ticker) && item.last_error) info.warnings.push(`${item.ticker}: la última actualización falló; se conserva el historial confirmado hasta ${item.last_date}.`);
+    }
     state.inspection = info;
     renderCoverage();
-    if (resetDates || !$('start-date').value) $('start-date').value = info.startDate || '';
+    if (resetDates || !$('start-date').value) $('start-date').value = defaultHistoryStart(info.endDate, info.startDate);
     if (resetDates || !$('end-date').value) $('end-date').value = info.endDate || '';
     status('history-status', info.coverage.length === 1 ? '{count} activo cargado · {warmup} sesiones de preparación · cierres confirmados.' : '{count} activos cargados · {warmup} sesiones de preparación · cierres confirmados.', () => ({ count: number(info.coverage.length, 0), warmup: number(info.warmupBars, 0) }));
     status('run-status', 'Historial listo. Revisa las fechas y ejecuta la simulación.');
@@ -162,23 +166,26 @@ function refreshCoverage(resetDates) {
 }
 async function loadHistory() {
   if (!selectedTickers().length) return message('Selecciona al menos un activo.', 'error');
-  const request = ++state.request, tickers = selectedTickers(), scope = tickers.length === 1 ? tickers[0] : '*';
+  const request = ++state.request, tickers = selectedTickers();
+  const controller = new AbortController(); state.download = controller;
   message(''); setBusy(true); $('run-progress').removeAttribute('value');
   status('run-status', 'Descargando únicamente sesiones confirmadas…');
   try {
-    const response = await globalThis.fetchMarketData(scope === '*' ? null : scope, count => {
-      if (request === state.request) status('run-status', 'Cargando historial: {count} barras recibidas…', () => ({ count: number(count, 0) }));
-    }, { includeRecent: false, refreshQuotes: false, forceHistory: true });
+    const response = await fetchBacktestHistory({tickers, baseUrl: SUPABASE_URL, headers: globalThis._publicReadHeaders(), signal: controller.signal,
+      onProgress: progress => {
+        if (request === state.request) status('run-status', 'Cargando historial largo: {count} barras · {completed} de {total} activos listos…',
+          () => ({count: number(progress.received, 0), completed: number(progress.completed, 0), total: number(progress.total, 0)}));
+      }});
     if (request !== state.request) return;
     if (!Array.isArray(response.finalizedData)) throw new Error('La fuente no devolvió un historial confirmado. No se ejecutará el backtest.');
     state.rows = response.finalizedData;
-    state.scope = scope;
-    state.source = { kind: 'market_history', confirmedOnly: true, loadedAt: response.historyLoadedAt || new Date().toISOString(), quality: response.quality };
+    state.scope = new Set(tickers);
+    state.source = response.source;
     changed(); refreshCoverage(true);
     if (!state.inspection) throw new Error(state.statuses.get('history-status')?.source || 'No se pudo comprobar el historial.');
     message('Historial cargado. Las fechas sugeridas respetan el historial mínimo de la estrategia.', 'success');
-  } catch (error) { if (request === state.request) fail(error); }
-  finally { if (request === state.request) { setBusy(false); $('run-progress').value = 0; } }
+  } catch (error) { if (request === state.request) { fail(error); status('run-status', 'No se pudo cargar el historial de esta selección.'); } }
+  finally { if (state.download === controller) state.download = null; if (request === state.request) { setBusy(false); $('run-progress').value = 0; } }
 }
 function readConfig() {
   for (const element of document.querySelectorAll('.setup input[type=number]:not(:disabled), .setup input[type=date]:not(:disabled)')) {
@@ -196,7 +203,7 @@ function run() {
   message(''); setBusy(true); $('run-progress').value = 0;
   status('run-status', 'Calculando señales y ejecuciones…');
   try {
-    const worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
+    const worker = new Worker(new URL('./worker.mjs?v=2', import.meta.url), { type: 'module' });
     state.worker = worker;
     const finish = () => { worker.terminate(); if (state.worker === worker) state.worker = null; if (request === state.request) setBusy(false); };
     worker.onmessage = event => {
@@ -214,7 +221,7 @@ function run() {
       } else if (response.type === 'error') { finish(); fail(response.error); status('run-status', 'No se completó esta ejecución.'); }
     };
     worker.onerror = event => { finish(); if (request === state.request) { fail(event.message || 'No se pudo iniciar el motor. Recarga la página e inténtalo de nuevo.'); status('run-status', 'La ejecución falló.'); } };
-    worker.postMessage({ type: 'run', id: String(request), payload: { rows: state.rows, config, source: state.source } });
+    worker.postMessage({ type: 'run', id: String(request), payload: { rows: state.rows.filter(row => Object.hasOwn(config.weights, row[1])), config, source: state.source } });
   } catch (error) { state.worker?.terminate(); state.worker = null; setBusy(false); fail(error); }
 }
 
@@ -336,7 +343,7 @@ for (const id of [...Object.values(strategyFields), 'strong-only', 'exit-mode', 
 $('load-history').addEventListener('click', loadHistory);
 $('run').addEventListener('click', run);
 $('cancel').addEventListener('click', () => {
-  state.request++; state.worker?.terminate(); state.worker = null; setBusy(false);
+  state.request++; state.download?.abort(); state.download = null; state.worker?.terminate(); state.worker = null; setBusy(false);
   status('run-status', 'Operación cancelada. Los resultados anteriores se conservan.');
 });
 $('trades-strategy').addEventListener('change', () => { state.tradePage = 0; renderTrades(); });
