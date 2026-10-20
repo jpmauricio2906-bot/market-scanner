@@ -69,3 +69,22 @@ test('complete exchange calendar is required independently of observed ticker ba
   assert.throws(() => evaluateLongTrend(missing, { protocol, period: { start: dates[202], end: dates.at(-1), subperiods: [] }, calendar,
     universe: { instruments: [] } }), /SPY dates/);
 });
+
+test('known rolling snapshot may start SPY later but cannot use future bars or hide internal gaps', () => {
+  const protocol = JSON.parse(fs.readFileSync(new URL('../data/validation/long-trend-protocol.json', import.meta.url)));
+  const other = { ticker: 'OTHER', bars, signals };
+  const rolling = { ...panel, series: [{ ticker: 'SPY', bars: bars.slice(1), signals: signals.slice(1) }, other] };
+  const period = { id: 'known_2025_2026', start: dates[205], end: dates[400], subperiods: [] };
+  const universe = { instruments: [{ ticker: 'SPY', type: 'ETF', dailyLeverage: 1 }, { ticker: 'OTHER', type: 'STOCK' }] };
+  const a = evaluateLongTrend(rolling, { protocol, period, calendar, universe });
+  const changed = structuredClone(rolling);
+  for (const s of changed.series) for (const bar of s.bars) if (bar.date > period.end) bar.close *= 100;
+  const b = evaluateLongTrend(changed, { protocol, period, calendar, universe });
+  for (const key of ['v3', 'long_trend_200', 'buy_hold']) {
+    assert.deepEqual(a.main[key].metrics, b.main[key].metrics);
+    assert.deepEqual(a.main[key].trades, b.main[key].trades);
+    assert.equal(a.main[key].equityCurve.at(-1).date, period.end);
+  }
+  rolling.series[0].bars.splice(250, 1); rolling.series[0].signals.splice(250, 1);
+  assert.throws(() => evaluateLongTrend(rolling, { protocol, period, calendar, universe }), /SPY dates/);
+});

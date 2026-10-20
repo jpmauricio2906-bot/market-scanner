@@ -1,9 +1,11 @@
 {
-  "createdAt": "2026-10-20T19:01:23.002Z",
-  "beforeAnyExperimentReturns": true,
-  "fingerprintHash": "1f07fbde52cc925faf5dcc108137162f236779f72a81f219e48ffe94a479a683",
+  "createdAt": "2026-10-20T19:10:01.665Z",
+  "beforeAnyExperimentReturns": false,
+  "beforeCorrectedRerun": true,
+  "originalFingerprint": "1f07fbde52cc925faf5dcc108137162f236779f72a81f219e48ffe94a479a683",
+  "fingerprintHash": "969d3757bd0eac2e439c5e1a4546fbd98d09cfce930a12cf1742ea886f0233f1",
   "sources": {
-    "tools/validate-long-trend.mjs": "502159d46554db762d69f0b432d663382ee33c87b62789a6d1cead67348cb98d",
+    "tools/validate-long-trend.mjs": "d1c5250005e6728b622352966bb734f180b3f360815839e2fb11f237da402f1c",
     "tools/long-trend-signals.mjs": "8f31fcc3bbba94ae36038cd59bad8b11f27c886a1090b5aad8d41cb47c95699d",
     "tools/long-trend-calendar.mjs": "d7349e5a972db5690c6b8c2c52d9311d6a97f92a6994f6e04273374b25705e7d",
     "tools/validation-calendar.mjs": "c9c3ba378fd2160e55c6ab12a287c78ec1530ca7ea664a3778a8c0dd13f673ab",
@@ -16,7 +18,7 @@
     "tools/baselines/scoring-v2.cjs": "4780c5aec98a969c77d597972c0034f89b40cd6418e56ad61d26a2646ab83794",
     "js/scoring.js": "78e24a07358bf6c707b792fc6457f7f760014e3b5d75829bfd9ab119515d14fa",
     "tools/fetch-validation-history.mjs": "18d80749ce3bc4f275fa4f925b3078779c651ecd900b3b1500c9bfb27a55ffb9",
-    "data/validation/long-trend-protocol.json": "4585ea5e0c377f2989e5778eecddc5f801b8b7d4fddffc9ce09d967cc6952f84",
+    "data/validation/long-trend-protocol.json": "e2b8b4367f82797fdeface01846ace72e841aae86dc48fb9eacdc6d384157941",
     "data/universe.json": "d7c4ea71141a69dfebad01ded6263358a4ce49ff7d88ca8fbd57a2b74f2694f9",
     "supabase/calendar.json": "3c19590a580b648240d3762627e633a13403d5c2d77583a0f048716145a4e70b"
   },

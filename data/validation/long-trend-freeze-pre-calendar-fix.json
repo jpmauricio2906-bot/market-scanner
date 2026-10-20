@@ -1,0 +1,48 @@
+{
+  "createdAt": "2026-10-20T19:01:23.002Z",
+  "beforeAnyExperimentReturns": true,
+  "fingerprintHash": "1f07fbde52cc925faf5dcc108137162f236779f72a81f219e48ffe94a479a683",
+  "sources": {
+    "tools/validate-long-trend.mjs": "502159d46554db762d69f0b432d663382ee33c87b62789a6d1cead67348cb98d",
+    "tools/long-trend-signals.mjs": "8f31fcc3bbba94ae36038cd59bad8b11f27c886a1090b5aad8d41cb47c95699d",
+    "tools/long-trend-calendar.mjs": "d7349e5a972db5690c6b8c2c52d9311d6a97f92a6994f6e04273374b25705e7d",
+    "tools/validation-calendar.mjs": "c9c3ba378fd2160e55c6ab12a287c78ec1530ca7ea664a3778a8c0dd13f673ab",
+    "tools/validation-panel.mjs": "d7db0f5fd4f2046f9262464d5d9360de5a0417f4ab4f4571a8cd0043964cc3f0",
+    "tools/audit-scoring.mjs": "6cb71cd9a0daae705bf2789edbb3b75859da9e1e35a0f162ce2029c2b447a9ea",
+    "tools/validate-exits.mjs": "262f62b36752e31515e1becdcfd7dba32b9199d32dd558f06e902061123fa75a",
+    "tools/backtest.mjs": "0801fde3ace7717dd6f50c3e4e771cbf3ec57729b11818c471ffc9e1b00118b6",
+    "tools/backtest-execution.mjs": "7b5b5384d07f4a93f8ffadf1a0cb24cd16337e75abcba1d8cf7cc4043e01663c",
+    "tools/backtest-signals.mjs": "4b8e4d1103d8c887e55c19430784a9f667df95950c93e1a65ba2b7c477f6e664",
+    "tools/baselines/scoring-v2.cjs": "4780c5aec98a969c77d597972c0034f89b40cd6418e56ad61d26a2646ab83794",
+    "js/scoring.js": "78e24a07358bf6c707b792fc6457f7f760014e3b5d75829bfd9ab119515d14fa",
+    "tools/fetch-validation-history.mjs": "18d80749ce3bc4f275fa4f925b3078779c651ecd900b3b1500c9bfb27a55ffb9",
+    "data/validation/long-trend-protocol.json": "4585ea5e0c377f2989e5778eecddc5f801b8b7d4fddffc9ce09d967cc6952f84",
+    "data/universe.json": "d7c4ea71141a69dfebad01ded6263358a4ce49ff7d88ca8fbd57a2b74f2694f9",
+    "supabase/calendar.json": "3c19590a580b648240d3762627e633a13403d5c2d77583a0f048716145a4e70b"
+  },
+  "inputs": [
+    {
+      "id": "reserved_2008_2015",
+      "hashes": {
+        "quote": "4c418629be09ed92e4f07e4de50af78fade2faf6346cfa3e2195e5b26fd67184",
+        "adjusted": "e09f0bdac6611cec518f2573177509f6e40b1b42269c9bff22546d3ffa87e76f"
+      }
+    },
+    {
+      "id": "known_2018_2023",
+      "hashes": {
+        "quote": "e8c042509e1de84f9d60f28bebf1a217da5a6587f54dd104e44ac7b6362cdcec",
+        "adjusted": "d8c8c3e665eab37d54ee40ec279cddb748c8e427ef1c73270628532ac1f626c1",
+        "v3Cache": "38421ac850a7ad71c954e203305098e1a752e9118b4f7056d804b0cfd626f6a8"
+      }
+    },
+    {
+      "id": "known_2025_2026",
+      "hashes": {
+        "quote": "aa7b82d79068ea400ee1c352019431a57347c9419e6a6acd5be09ce8d37160bb",
+        "v3Cache": "2ffc9b089f6e7346f5562da7d34e362a7221a2eee0e6e5f0a279797c2f142093"
+      }
+    }
+  ],
+  "protocolVersion": "long-trend-200-v1"
+}

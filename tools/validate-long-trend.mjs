@@ -59,10 +59,20 @@ function runsAt(panel, options, basis) {
 }
 
 export function evaluateLongTrend(quotePanel, { adjustedDocument = null, protocol, period, calendar, universe }) {
+  // Captured rolling histories can end after the fixed evaluation cutoff and
+  // begin on different dates per instrument. Trim causally, never fill gaps.
+  quotePanel = { ...quotePanel, series: quotePanel.series.map(s => {
+    const count = s.bars.filter(b => b.date <= period.end).length;
+    return { ...s, bars: s.bars.slice(0, count), signals: s.signals.slice(0, count) };
+  }) };
+  if (adjustedDocument) adjustedDocument = { ...adjustedDocument,
+    rows: adjustedDocument.rows.filter(b => (b.date ?? b.fecha) <= period.end) };
   const earliest = quotePanel.series.flatMap(s => s.bars.length ? [s.bars[0].date] : []).sort()[0];
   const calendarDates = marketDates(calendar, earliest, period.end);
   const spy = quotePanel.series.find(s => s.ticker === 'SPY');
-  if (!spy || JSON.stringify(spy.bars.map(b => b.date)) !== JSON.stringify(calendarDates)) throw Error('SPY dates do not match the expected complete calendar.');
+  const expectedSpyDates = period.id === 'known_2025_2026' && spy?.bars.length
+    ? marketDates(calendar, spy.bars[0].date, period.end) : calendarDates;
+  if (!spy || JSON.stringify(spy.bars.map(b => b.date)) !== JSON.stringify(expectedSpyDates)) throw Error('SPY dates do not match the expected complete calendar.');
   const candidate = buildLongTrendPanel(quotePanel, { normalizedBarsAreFinal: true, calendarDates });
   const valuation = adjustedDocument ? adjustedPanel(candidate, adjustedDocument) : candidate;
   const basis = adjustedDocument ? 'adjusted_proxy' : 'quote_only';
@@ -153,7 +163,10 @@ export async function main(args = process.argv.slice(2)) {
   try { freeze = JSON.parse(await fs.readFile(freezePath, 'utf8')); }
   catch (error) {
     if (error.code !== 'ENOENT' || !prepareOnly) throw error;
-    freeze = { createdAt: new Date().toISOString(), beforeAnyExperimentReturns: true, fingerprintHash, ...fingerprint };
+    const correction = protocol.technicalCorrectionAfterPrimaryMetricInspection;
+    freeze = { createdAt: new Date().toISOString(), beforeAnyExperimentReturns: !correction,
+      beforeCorrectedRerun: Boolean(correction), originalFingerprint: correction?.originalFingerprint ?? null,
+      fingerprintHash, ...fingerprint };
     await fs.writeFile(freezePath, JSON.stringify(freeze, null, 2) + '\n', { flag: 'wx' });
   }
   if (freeze.fingerprintHash !== fingerprintHash) throw Error('Frozen sources/inputs changed. Preserve experiment and disclose any correction.');
