@@ -1,7 +1,7 @@
 {
-  "createdAt": "2026-10-20T01:56:38.946Z",
+  "createdAt": "2026-10-20T02:05:19.283Z",
   "beforeComputingHoldoutReturns": true,
-  "fingerprintHash": "d339758b31ffd4824baf80bfade27fe00459198307ead59ff27e160aad7e9e1d",
+  "fingerprintHash": "423da45fc4d66edd78539bc6e1a89daaaa293f37581e17176752c9217f900488",
   "sources": {
     "js/scoring.js": "78e24a07358bf6c707b792fc6457f7f760014e3b5d75829bfd9ab119515d14fa",
     "tools/baselines/scoring-v2.cjs": "4780c5aec98a969c77d597972c0034f89b40cd6418e56ad61d26a2646ab83794",
@@ -10,9 +10,9 @@
     "tools/audit-scoring.mjs": "6cb71cd9a0daae705bf2789edbb3b75859da9e1e35a0f162ce2029c2b447a9ea",
     "tools/backtest.mjs": "0801fde3ace7717dd6f50c3e4e771cbf3ec57729b11818c471ffc9e1b00118b6",
     "tools/validation-calendar.mjs": "c9c3ba378fd2160e55c6ab12a287c78ec1530ca7ea664a3778a8c0dd13f673ab",
-    "tools/validate-exits.mjs": "d8156d91d709adb59997278427316ebdacf33f21518137ca9e964b90f8b0e358",
+    "tools/validate-exits.mjs": "262f62b36752e31515e1becdcfd7dba32b9199d32dd558f06e902061123fa75a",
     "tools/fetch-validation-history.mjs": "18d80749ce3bc4f275fa4f925b3078779c651ecd900b3b1500c9bfb27a55ffb9",
-    "data/validation/exit-v3-protocol.json": "8ea4a525cc607020140daf351015421b0f7e653acb124705c7b1656ce37afc78",
+    "data/validation/exit-v3-protocol.json": "751712cd212b20bcf2bd128f265706b3cf6ba0b1821016edf506aef6833a63f3",
     "data/universe.json": "d7c4ea71141a69dfebad01ded6263358a4ce49ff7d88ca8fbd57a2b74f2694f9",
     "supabase/calendar.json": "3c19590a580b648240d3762627e633a13403d5c2d77583a0f048716145a4e70b"
   },
