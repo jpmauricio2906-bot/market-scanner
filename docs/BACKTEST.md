@@ -13,7 +13,7 @@ La comparación principal cubre **02/01/2025–16/10/2026: 449 sesiones**. El 16
 - Capital inicial ilustrativo: **$100.000**, distribuido en 250 cuentas independientes de **$400**. Se admiten fracciones de acciones; no se reasigna efectivo entre instrumentos ni se rebalancea. Esto prueba las señales de cada instrumento, **no una cartera que compra los primeros N del ranking**.
 - Ambas estrategias empiezan en efectivo. Buy o Strong Buy invierte todo el saldo de su cuenta; Sell o Strong Sell vende toda la posición. Hold y Wait conservan la posición existente. No hay ventas en corto ni apalancamiento adicional; los ETF mantienen su exposición incorporada.
 - Cada señal usa únicamente barras hasta su cierre, con un máximo de 500 y un mínimo de 50. Se ejecuta a la **apertura de la siguiente sesión**, nunca al cierre que produjo la señal. Se usa exactamente el motor de producción v2 y una copia congelada de la lógica anterior, incluidos sus defectos y pesos por defecto; no se sustituyen por aproximaciones de indicadores.
-- Comprar y mantener usa las mismas fechas de elegibilidad y costes. SNDK puede entrar desde el 28/04/2025, SPCX desde el 25/08/2026 y SKHY desde el 21/09/2026; sus cuentas esperan en efectivo antes. No se inventa historia de las IPO.
+- Comprar y mantener usa las mismas fechas de elegibilidad y costes. SNDK puede entrar desde el 28/04/2025, SPCX desde el 25/08/2026 y SKHY desde el 21/09/2026; sus cuentas esperan en efectivo antes. No se inventa historia anterior a estos listados.
 - Comisión del bróker indicada por el usuario: **$0**. Deslizamiento principal: **5 puntos básicos (0,05%) por cada compra y cada venta**. Es un supuesto de ejecución adversa frente a la apertura, no una comisión ni una medición del spread real.
 - Todas las posiciones se liquidan al cierre del 16/10, con costes, por una regla común de fin del experimento. La señal del propio cierre final no puede ejecutar una orden ese día.
 - Se usan precios OHLC almacenados del proveedor: **rentabilidad de precio, sin dividendos**, intereses sobre efectivo, impuestos ni cargos regulatorios. Los gastos internos de los ETF ya están reflejados en sus precios.
@@ -69,7 +69,7 @@ En las 111.482 observaciones instrumento/día existentes dentro del período:
 | Hold | 111.334 | 77.952 |
 | Sell | 0 | 9.929 |
 | Strong Sell | 0 | 3.793 |
-| Wait, calentamiento de IPO | 147 | 147 |
+| Wait, calentamiento de listados recientes | 147 | 147 |
 
 Excluido Wait, Hold pasa del **99,999% al 70,02%**. Contar días de señal no equivale a contar operaciones: una posición no vuelve a comprarse porque aparezca otro Buy.
 
@@ -141,7 +141,7 @@ El universo es la selección actual de octubre de 2026, aplicada retrospectivame
 
 Las ejecuciones son hipotéticas, sin simulación de capacidad, liquidez o spread real. No se incluyen dividendos ni rendimiento del efectivo. No se han buscado parámetros para maximizar este backtest. Como explica [Investor.gov sobre resultados de inversión](https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins-47), los resultados hipotéticos deben distinguirse de un historial real.
 
-**Decisión:** conservar la separación conceptual entre tendencia, entrada y presión de salida, pero tratar sus etiquetas como reglas técnicas pendientes de validación económica. Esta prueba encuentra más actividad y menor caída máxima frente a mantener, **sin una mejora general del timing**. Las ventas son el principal punto a investigar en una siguiente versión con reglas fijadas antes de evaluarlas sobre datos realmente no usados. No se modifica producción para perseguir este resultado histórico.
+**Decisión:** conservar la separación conceptual entre tendencia, entrada y presión de salida, pero tratar sus etiquetas como reglas técnicas pendientes de validación económica. Esta prueba encuentra más actividad y menor caída máxima frente a mantener, **sin demostrar una mejora general del timing**. Las ventas son el principal punto a investigar en una siguiente versión con reglas fijadas antes de evaluarlas sobre datos realmente no usados. No se modifica producción para perseguir este resultado histórico.
 
 ## Reproducibilidad y archivos
 
