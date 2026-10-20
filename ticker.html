@@ -160,6 +160,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <!-- Header -->
   <div class="page-header">
     <a class="back-btn" href="index.html">← Scanner</a>
+    <a class="back-btn" id="backtestLink" href="backtest.html">Backtest</a>
     <button class="back-btn" type="button" onclick="init()">⟳ Refresh</button>
     <label style="font-size:11px;display:flex;align-items:center;gap:5px"><input id="includeIntraday" type="checkbox" checked onchange="init(false)"> Today's provisional candle</label>
     <div class="ticker-hero">
@@ -533,6 +534,7 @@ const CHART_OPTIONS = {
 
 // ── Get ticker from URL ───────────────────────────────────────────────────────
 const ticker = (new URLSearchParams(window.location.search).get("ticker") || "AAPL").trim().toUpperCase();
+document.getElementById('backtestLink').href = 'backtest.html?ticker=' + encodeURIComponent(ticker);
 document.title = ticker + " — Market Scanner";
 document.getElementById("tickerName").textContent = ticker;
 

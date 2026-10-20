@@ -8,7 +8,7 @@ const snapshot=process.argv.includes('--snapshot');
 const snapshotFile=['history-250.json','history.json'].map(name=>path.join(root,'outputs/yahoo',name)).find(file=>fs.existsSync(file));
 if(snapshot&&!snapshotFile)throw new Error('Download a Yahoo history capture before starting --snapshot.');
 const history=snapshot?JSON.parse(fs.readFileSync(snapshotFile,'utf8')).rows.sort((a,b)=>a.ticker.localeCompare(b.ticker)||a.fecha.localeCompare(b.fecha)):[];
-const types={'.html':'text/html','.js':'application/javascript','.json':'application/json','.csv':'text/csv','.css':'text/css'};
+const types={'.html':'text/html','.js':'application/javascript','.mjs':'application/javascript','.json':'application/json','.csv':'text/csv','.css':'text/css'};
 http.createServer((request,response)=>{
   const url=new URL(request.url,'http://127.0.0.1:8765');
   if(snapshot&&url.pathname==='/__history'){
@@ -26,7 +26,7 @@ http.createServer((request,response)=>{
   }
   const relative=decodeURIComponent(url.pathname==='/'?'index.html':url.pathname.slice(1));
   const file=path.resolve(root,relative);
-  if(!file.startsWith(root)||!['index.html','ticker.html','js','data'].includes(relative.split('/')[0])){response.writeHead(404);response.end();return;}
+  if(!file.startsWith(root)||!['index.html','ticker.html','backtest.html','js','data'].includes(relative.split('/')[0])){response.writeHead(404);response.end();return;}
   try{
     let body=fs.readFileSync(file);
     if(snapshot&&relative==='js/config.js'){
