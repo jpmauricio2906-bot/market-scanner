@@ -22,6 +22,16 @@ forward and erase known in-window data. A failed refresh preserves the previousl
 accepted series and its `ready` status, while `last_error` records the failure.
 An instrument without an accepted download stays `pending`.
 
+There is one bounded bootstrap exception for an empty archive. If its first
+download fails OHLC validation, attempt two may request a new complete download
+ending on the immediately previous confirmed session. Every row in that download
+must pass the same checks; historical defects still reject it. A successful
+bootstrap is `ready` with `last_error=LATEST_SESSION_UNAVAILABLE` and its actual
+older end date. A failure returns attempt three to the current session. Already
+accepted archives never use this bootstrap; daily refreshes retry the current
+session and preserve their accepted snapshot if validation fails. No source row
+is removed or modified to make a download pass.
+
 The separate private queue exposes these service-only RPCs:
 
 - `backtest_claim_history(p_limit)` returns at most two jobs, with an eleven-year

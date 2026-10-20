@@ -36,6 +36,20 @@ Yahoo entrega dos aperturas inferiores al mínimo de la misma sesión, con difer
 
 Una segunda consulta al host `query2.finance.yahoo.com`, realizada a las **21:12:37 UTC**, devolvió los mismos errores. No son diferencias de redondeo. El normalizador conserva la incidencia y omite esas barras en los archivos locales; la auditoría bloquea el instrumento completo. El cargador de producción debe rechazar la publicación de este historial y conservar cualquier versión previamente aceptada. No se han sustituido ni corregido manualmente esos precios.
 
+## Verificación posterior del cierre de BMO del 20 de octubre
+
+Al ampliar la solicitud para incluir **2026-10-20**, apareció una incidencia adicional que no estaba dentro del corte original. A las **21:23:11–21:23:12 UTC**, las consultas de once años en ambos hosts de Yahoo y las consultas recientes de cinco días y tres años devolvieron el mismo OHLC incoherente de BMO:
+
+| Fecha | Apertura | Mínimo | Máximo | Cierre | Volumen |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 2026-10-20 | 168,8500061 | 166,5399933 | 168,1100006 | 167,4700012 | 628.623 |
+
+La apertura supera al máximo en aproximadamente **0,74 USD**. El resto de las 2.766 barras de esa consulta larga pasó la comprobación OHLCV. Esta incidencia también debe bloquear la publicación hasta que llegue una respuesta válida; no justifica aumentar la tolerancia ni cambiar precios. Las cuatro respuestas y sus hashes están guardados localmente en `BMO-probes-2026-10-20.json` y los archivos originales asociados. Los totales iniciales de esta auditoría siguen refiriéndose al cierre del día 19.
+
+Las consultas recientes de BNS y BNY a las **21:25:54 UTC** identificaron otras dos aperturas por debajo del mínimo de 2026-10-20. BNS: apertura 90,9300003 y mínimo 91,1500015; BNY: apertura 142,0500031 y mínimo 142,1750031. Las otras cuatro sesiones de cada respuesta de cinco días eran coherentes. La evidencia local está en `BNS-BNY-probes-2026-10-20.json`. Estos errores también se rechazan, sin modificar ni interpolar precios.
+
+Para la primera carga puede solicitarse una captura independiente que termine exactamente en la sesión confirmada anterior. Solo se publica si **todo ese intervalo** pasa la validación, y su cobertura muestra que falta la última sesión. No se recorta una respuesta inválida ni se declara reparado el cierre del día 20. Esta alternativa tampoco resuelve los errores históricos de SHEL: siguen dentro del intervalo y continúan bloqueándolo.
+
 ## Precios, ajustes y límites
 
 El archivo `price-only.json` conserva el OHLC del proveedor sin multiplicarlo por `adjclose/close`. Esta base mantiene la metodología de precios del scanner y excluye el rendimiento de los dividendos en efectivo. El archivo compañero `history.json` aplica la razón de cierre ajustado a todo el OHLC; se conserva por separado y no se mezcla con la base de producción. Yahoo documenta que el cierre ajustado incorpora distribuciones y splits: [explicación del proveedor](https://es-us.ayuda.yahoo.com/kb/finance-app-for-ios/%C2%BFQu%C3%A9-es-el-cierre-ajustado-sln28256.html).

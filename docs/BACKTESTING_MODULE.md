@@ -4,6 +4,8 @@ Abrir **Backtesting** desde el scanner, o **Backtest** desde la ficha de una acc
 
 El selector **Español / English** del encabezado cambia el idioma de controles, resultados, gráficos, avisos y errores. La preferencia es compartida con el scanner y las fichas de acciones en este navegador, incluidas las pestañas abiertas; se conserva la elección de la versión anterior. Los enlaces `backtest.html?lang=es` y `backtest.html?lang=en` abren un idioma concreto; pueden combinarse con `&ticker=VLO`. Cambiar de idioma conserva la configuración y el resultado actual sin repetir el cálculo. Los nombres de carteras, tickers y datos originales no se traducen. El formato de pantalla se adapta al idioma; JSON y CSV mantienen su esquema y sus valores numéricos para conservar la reproducibilidad.
 
+El módulo comparte con el scanner la tipografía IBM Plex, las tarjetas, tablas, controles y ocho plantillas de color: Medianoche, Ártico, Tableau, Bosque, Atardecer, Pizarra, Lavanda y Solarizado. Los círculos del encabezado seleccionan el tema y reutilizan la preferencia `ms-theme` que ya leen el scanner y las fichas. El tema se aplica antes de mostrar la página; cambiarlo actualiza también los gráficos sin volver a descargar ni calcular. La selección persiste al navegar entre las tres páginas.
+
 ## Selección de activos y carteras
 
 Seleccionar uno o varios instrumentos del universo, escribir sus pesos iniciales y hacer que sumen 100%. Igualar reparte el capital por igual; Normalizar conserva la proporción introducida y la convierte explícitamente a 100%. No se normalizan errores de asignación de forma silenciosa.

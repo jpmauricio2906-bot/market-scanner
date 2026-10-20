@@ -24,6 +24,7 @@ $$;
 do $regression$
 declare clock_at timestamptz:=clock_timestamp();end_day date;start_day date;p jsonb;r jsonb;bad jsonb;bars jsonb;jobs jsonb;
  before_short text;before_long text;before_snapshot uuid;fn text;blocked boolean;job_id bigint;n integer;ipo_day date;later_day date;
+ previous_day date;previous_start date;too_old date;fallback_job jsonb;
  lease uuid:='ac04a657-684f-480e-91d6-aae2cb334e8c';wrong uuid:='042077c2-71e5-430e-9b6a-928bb5eb3d03';
 begin
  end_day:=market_scanner.expected_session(clock_at);start_day:=(end_day-interval '11 years')::date;
@@ -138,6 +139,65 @@ begin
  bad:=pg_temp.bt_fixture('BTTEST',later_day,start_day,end_day,clock_at);
  r:=market_scanner.parse_backtest_payload(bad,start_day,end_day,clock_at);
  perform pg_temp.bt_assert(r->>'error'='LISTING_DATE_REGRESSION','provider_listing_date_cannot_truncate_known_archive');
+
+ -- Bootstrap only: a first-load latest-day defect permits exactly one complete
+ -- download ending on the immediately previous confirmed session.
+ update market_scanner.backtest_history_queue set status='completed',lease_until=null;
+ insert into market_scanner.instruments(ticker,yahoo_symbol,instrument_type,exchange_name,currency,active)
+ values('BTFALL','BTFALL','STOCK','NASDAQ','USD',true);
+ insert into public.backtest_history_coverage(ticker,requested_start,requested_end) values('BTFALL',start_day,end_day);
+ insert into market_scanner.backtest_history_queue(ticker,reason,status,attempts,requested_start,requested_end,lease_token,lease_until)
+ values('BTFALL','ROLLBACK_FALLBACK','running',1,start_day,end_day,lease,now()+interval '10 minutes') returning id into job_id;
+ p:=pg_temp.bt_fixture('BTFALL',ipo_day,start_day,end_day,clock_at);
+ bad:=jsonb_set(p,array['rows',(jsonb_array_length(p->'rows')-1)::text,'high'],'50');
+ r:=public.backtest_replace_history(job_id,lease,bad);
+ perform pg_temp.bt_assert(r->>'reason'='INCOHERENT_OHLCV' and not exists(select 1 from public.backtest_history where ticker='BTFALL'),
+  'bad_latest_first_load_publishes_no_partial_rows');
+ update market_scanner.backtest_history_queue set next_attempt_at=now()-interval '1 second' where id=job_id;
+ jobs:=public.backtest_claim_history(2);fallback_job:=jobs->0;
+ select max(session_date) into previous_day from market_scanner.backtest_sessions where session_date<end_day;
+ previous_start:=(previous_day-interval '11 years')::date;
+ perform pg_temp.bt_assert(jsonb_array_length(jobs)=1 and fallback_job->>'ticker'='BTFALL'
+  and (fallback_job->>'requested_end')::date=previous_day and (fallback_job->>'requested_start')::date=previous_start,
+  'second_attempt_claims_exact_previous_session_for_empty_archive');
+ p:=pg_temp.bt_fixture('BTFALL',ipo_day,previous_start,previous_day,clock_at);
+ bad:=jsonb_set(p,'{rows,0,high}','50');
+ r:=market_scanner.parse_backtest_payload(bad,previous_start,previous_day,clock_at);
+ perform pg_temp.bt_assert(r->>'error'='INCOHERENT_OHLCV','fallback_does_not_hide_invalid_historical_rows');
+ select max(session_date) into too_old from market_scanner.backtest_sessions where session_date<previous_day;
+ bad:=pg_temp.bt_fixture('BTFALL',ipo_day,(too_old-interval '11 years')::date,too_old,clock_at);
+ r:=market_scanner.parse_backtest_payload(bad,(too_old-interval '11 years')::date,too_old,clock_at);
+ perform pg_temp.bt_assert(r->>'error'='INVALID_HISTORY_WINDOW','fallback_cannot_step_back_more_than_one_session');
+ update market_scanner.backtest_history_queue set last_error=null where id=job_id;
+ r:=public.backtest_replace_history(job_id,(fallback_job->>'lease_token')::uuid,p);
+ perform pg_temp.bt_assert(r->>'reason'='INVALID_FALLBACK_WINDOW','missing_prior_error_does_not_bypass_fallback_gate');
+ update market_scanner.backtest_history_queue set status='running',last_error='INCOHERENT_OHLCV',lease_until=now()+interval '10 minutes' where id=job_id;
+ r:=public.backtest_replace_history(job_id,(fallback_job->>'lease_token')::uuid,p);
+ perform pg_temp.bt_assert(r->>'status'='completed' and (select status='ready' and last_date=previous_day and row_count=9
+  and last_error='LATEST_SESSION_UNAVAILABLE' from public.backtest_history_coverage where ticker='BTFALL'),
+  'validated_previous_session_snapshot_is_ready_with_explicit_warning');
+ -- A later failed refresh must never use the bootstrap fallback again.
+ update market_scanner.backtest_history_queue set status='failed',attempts=1,last_error='INCOHERENT_OHLCV',
+  next_attempt_at=now()-interval '1 second',lease_until=null where id=job_id;
+ jobs:=public.backtest_claim_history(2);fallback_job:=jobs->0;
+ perform pg_temp.bt_assert((fallback_job->>'requested_end')::date=end_day,'accepted_archive_retries_current_session_without_bootstrap');
+ -- Server publication independently enforces the first-load/attempt gate.
+ update market_scanner.backtest_history_queue set requested_start=previous_start,requested_end=previous_day where id=job_id;
+ r:=public.backtest_replace_history(job_id,(fallback_job->>'lease_token')::uuid,p);
+ perform pg_temp.bt_assert(r->>'reason'='INVALID_FALLBACK_WINDOW','ready_archive_cannot_publish_a_bootstrap_window');
+ insert into market_scanner.instruments(ticker,yahoo_symbol,instrument_type,exchange_name,currency,active)
+ values('BTHIST','BTHIST','STOCK','NASDAQ','USD',true);
+ insert into public.backtest_history_coverage(ticker,requested_start,requested_end) values('BTHIST',start_day,end_day);
+ insert into market_scanner.backtest_history_queue(ticker,reason,status,attempts,requested_start,requested_end,lease_token,lease_until,last_error)
+ values('BTHIST','ROLLBACK_HISTORIC_BAD','running',2,previous_start,previous_day,lease,now()+interval '10 minutes','INCOHERENT_OHLCV') returning id into job_id;
+ p:=pg_temp.bt_fixture('BTHIST',ipo_day,previous_start,previous_day,clock_at);
+ bad:=jsonb_set(p,'{rows,0,high}','50');r:=public.backtest_replace_history(job_id,lease,bad);
+ perform pg_temp.bt_assert(r->>'reason'='INCOHERENT_OHLCV' and not exists(select 1 from public.backtest_history where ticker='BTHIST'),
+  'historical_defect_still_rejects_full_fallback_publication');
+ update market_scanner.backtest_history_queue set next_attempt_at=now()-interval '1 second' where id=job_id;
+ jobs:=public.backtest_claim_history(2);fallback_job:=jobs->0;
+ perform pg_temp.bt_assert(fallback_job->>'ticker'='BTHIST' and (fallback_job->>'requested_end')::date=end_day,
+  'failed_second_attempt_returns_to_current_session_on_attempt_three');
  perform pg_temp.bt_assert((select md5(string_agg(concat_ws('|',fecha,ticker,open,high,low,close,volumen,is_final),E'\n' order by ticker,fecha))=before_short
   from public.market_history),'scanner_history_unchanged_by_all_archive_operations');
 end $regression$;

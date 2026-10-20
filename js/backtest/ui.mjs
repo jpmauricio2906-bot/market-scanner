@@ -19,6 +19,20 @@ const money = value => Number.isFinite(value) ? '$' + number(value) : '—';
 const signClass = value => value > 0 ? 'positive' : value < 0 ? 'negative' : '';
 const uuid = () => globalThis.crypto?.randomUUID?.() ?? 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2);
 const selectedTickers = () => Object.keys(state.weights);
+const themeNames = {midnight:'🌙 Medianoche', arctic:'❄️ Ártico', tableau:'📊 Tableau', forest:'🌿 Bosque',
+  sunset:'🌅 Atardecer', slate:'🪨 Pizarra', lavender:'💜 Lavanda', solarized:'☀️ Solarizado'};
+function renderThemes() {
+  const themes = globalThis.MarketBacktestTheme;
+  $('themeSwitcher').innerHTML = Object.entries(themes.THEMES).map(([id,theme]) =>
+    `<button type="button" class="theme-dot${themes.getTheme() === id ? ' active' : ''}" data-theme="${id}" style="background:${theme.color}" title="${escape(t(themeNames[id]))}" aria-label="${escape(t(themeNames[id]))}" aria-pressed="${themes.getTheme() === id}"></button>`).join('');
+}
+function updateThemeButtons() {
+  const selected = globalThis.MarketBacktestTheme.getTheme();
+  for (const button of $('themeSwitcher').querySelectorAll('[data-theme]')) {
+    button.classList.toggle('active', button.dataset.theme === selected);
+    button.setAttribute('aria-pressed', String(button.dataset.theme === selected));
+  }
+}
 
 function translated(descriptor) {
   const params = typeof descriptor.params === 'function' ? descriptor.params() : descriptor.params;
@@ -381,7 +395,7 @@ function renderLanguage() {
   const weightInputs = new Map([...document.querySelectorAll('[data-weight]')].map(input => [input.dataset.weight, input.value]));
   applyTranslations();
   $('language').value = getLanguage();
-  renderPresetDescription(); renderUniverse(); renderSelection(); renderPortfolios(); renderCoverage();
+  renderThemes(); renderPresetDescription(); renderUniverse(); renderSelection(); renderPortfolios(); renderCoverage();
   for (const input of document.querySelectorAll('[data-weight]')) {
     if (weightInputs.has(input.dataset.weight)) input.value = weightInputs.get(input.dataset.weight);
   }
@@ -391,7 +405,13 @@ function renderLanguage() {
   setBusy(state.busy);
 }
 $('language').addEventListener('change', event => setLanguage(event.target.value));
+$('themeSwitcher').addEventListener('click', event => {
+  const id = event.target.closest('[data-theme]')?.dataset.theme;
+  if (id) globalThis.MarketBacktestTheme.setTheme(id);
+});
+globalThis.MarketBacktestTheme.onChange(updateThemeButtons);
 onLanguageChange(renderLanguage);
 $('language').value = getLanguage();
 applyTranslations();
+renderThemes();
 initialize();

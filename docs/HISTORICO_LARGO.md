@@ -12,6 +12,7 @@ El archivo solicita once años naturales de precios diarios. El año adicional p
 - Un calendario separado y versionado cubre 2015–2028, incluidos cierres extraordinarios. No modifica los calendarios de los experimentos históricos congelados.
 - La ingesta valida identidad, moneda, zona horaria, fechas, precios, volumen y continuidad. Un dato ausente o inválido no se convierte en cero ni se interpola.
 - La sustitución se realiza por ticker, en una transacción, después de validar la descarga completa. Un fallo conserva el último archivo aceptado y registra el motivo.
+- En la carga inicial, si la última sesión contiene OHLC incoherentes, se permite un único intento hasta la sesión bursátil anterior. Se vuelve a descargar y validar todo ese intervalo; no se omiten barras dentro del período. La cobertura y un aviso indican la fecha anterior utilizada. Esto no permite saltar errores históricos como los de SHEL.
 - La cobertura pública incluye fechas, número de barras, versión, fuente y última actualización. El cliente comprueba la versión antes y después de descargar para evitar mezclar dos revisiones.
 
 El proveedor puede corregir la historia. Por ello, se renueva la serie completa y se actualizan solo las filas que hayan cambiado; añadir exclusivamente el último cierre podría mezclar precios de antes y después de un split. Las exportaciones del backtest conservan los datos utilizados y sus huellas para poder reproducir esa ejecución. El archivo operativo no es una base de datos *point-in-time* de todas las revisiones históricas.
@@ -29,6 +30,7 @@ Antes de la ampliación, la base ocupaba aproximadamente 181 MB en un plan Free 
 ## Instalación y verificación
 
 1. Aplicar `supabase/backtest_history.sql` sobre la instalación existente.
+   Si ya se instaló la primera versión del archivo, aplicar `supabase/backtest_history_bootstrap_fallback.sql` para habilitar el único intento inicial hasta la sesión anterior. La instalación nueva ya incorpora esa lógica.
 2. Desplegar `supabase/functions/backtest-history-worker/` con autenticación privada obligatoria en el cuerpo de la función.
 3. Ejecutar las pruebas SQL de rollback y las pruebas Node del repositorio.
 4. Activar los horarios independientes del archivo y encolar la carga inicial.

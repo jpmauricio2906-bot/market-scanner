@@ -1,5 +1,13 @@
 // Spanish source text is the stable key; parameters remain untranslated user/data values.
 export const dynamicTranslations = {
+  '🌙 Medianoche': '🌙 Midnight',
+  '❄️ Ártico': '❄️ Arctic',
+  '📊 Tableau': '📊 Tableau',
+  '🌿 Bosque': '🌿 Forest',
+  '🌅 Atardecer': '🌅 Sunset',
+  '🪨 Pizarra': '🪨 Slate',
+  '💜 Lavanda': '💜 Lavender',
+  '☀️ Solarizado': '☀️ Solarized',
   'Scanner v3': 'Scanner v3',
   'Tendencia larga · SMA200': 'Long-term trend · SMA200',
   'Estrategia personalizada': 'Custom strategy',
