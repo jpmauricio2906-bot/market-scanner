@@ -254,8 +254,8 @@ svg.spark{display:block}
     <button class="fbtn on"   onclick="setFilter('ALL',this)">All</button>
     <button class="fbtn buy"  onclick="setFilter('BUY',this)">Buy</button>
     <button class="fbtn sell" onclick="setFilter('SELL',this)">Sell</button>
-    <button class="fbtn buy" onclick="setFilter('STRONG_BUY',this)">Strong buy</button>
-    <button class="fbtn sell" onclick="setFilter('STRONG_SELL',this)">Strong sell</button>
+    <button class="fbtn buy" onclick="setFilter('STRONG_BUY',this)">Confirmed buy</button>
+    <button class="fbtn sell" onclick="setFilter('STRONG_SELL',this)">Confirmed sell</button>
     <button class="fbtn"      onclick="setFilter('HOLD',this)">Hold</button>
     <button class="fbtn"      onclick="setFilter('WAIT',this)">Awaiting data</button>
   </div>
@@ -285,7 +285,7 @@ svg.spark{display:block}
   <div class="card"><div class="card-lbl">Active indicators</div><div class="card-val i" id="cInd">—</div></div>
 </div>
 
-<p class="score-guide"><strong>Entry Timing</strong> ranks momentum recovery, position within the trend and volume confirmation. <strong>Trend</strong> measures direction and strength; a bullish trend can still have a weak entry. <strong>Exit Pressure</strong> measures deterioration and selling pressure. Scores run from 0 to 100; higher Exit means more caution. <strong>Composite</strong> keeps your weighted indicator view and does not set Buy/Sell signals. Strong signals require confirmed daily candles. These are rule-based signals, not probabilities.</p>
+<p class="score-guide"><strong>Entry Timing</strong> ranks momentum recovery, position within the trend and volume confirmation. <strong>Trend</strong> measures direction and strength; a bullish trend can still have a weak entry. <strong>Exit Pressure</strong> measures persistent loss of 50-day support, with a faster exit for severe high-volume breakdowns. Ordinary pullbacks can remain Hold. Exits require a completed daily candle. <strong>Confirmed buy/sell</strong> adds two closes holding a breakout level and volume confirmation; it does not mean higher expected returns. <strong>Composite</strong> keeps your weighted indicator view and does not set Buy/Sell signals. Scores run from 0 to 100 and are not probabilities.</p>
 <!-- Heatmap Legend -->
 <div class="legend">
   <div class="legend-item"><span style="font-family:var(--mono);color:#00e676;font-size:11px">▲▲</span> Strong positive input</div>
@@ -318,7 +318,7 @@ svg.spark{display:block}
 <script src="js/config.js"></script>
 <script src="js/market-calendar.js?v=3"></script>
 <script src="js/data.js?v=3.2"></script>
-<script src="js/scoring.js?v=1"></script>
+<script src="js/scoring.js?v=3"></script>
 <script>
 // ── Theme engine ──────────────────────────────────────────────────────────────
 var THEMES={
@@ -467,7 +467,7 @@ function computeSignals(data){return MarketScoring.computeSignals(data);}
 function computeScore(signals){return MarketScoring.computeScore(signals,INDICATORS);}
 function isBuy(signal){return signal==="BUY"||signal==="STRONG_BUY";}
 function isSell(signal){return signal==="SELL"||signal==="STRONG_SELL";}
-function signalText(signal){return signal.replace(/_/g," ");}
+function signalText(signal){return signal==="STRONG_BUY"?"CONFIRMED BUY":signal==="STRONG_SELL"?"CONFIRMED SELL":signal.replace(/_/g," ");}
 function matchesSignal(signal,selected){return selected==="ALL"||(selected==="BUY"?isBuy(signal):selected==="SELL"?isSell(signal):signal===selected);}
 function scoreColor(value,key){
   if(value==null)return "var(--muted)";

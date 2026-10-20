@@ -54,11 +54,11 @@ test("oversold recovery receives credit only after price and momentum turn upwar
   assert.equal(analysis.signal, "BUY", "normal volume cannot produce a strong signal");
 });
 
-test("confirmed bullish and bearish setups can produce both strong signal classes", () => {
+test("one high-volume candle alone no longer produces either strong signal class", () => {
   const buy = scoring.analyze(cycle(95, false, true));
   const sell = scoring.analyze(cycle(95, true, true));
-  assert.equal(buy.signal, "STRONG_BUY");
-  assert.equal(sell.signal, "STRONG_SELL");
+  assert.equal(buy.signal, "BUY");
+  assert.equal(sell.signal, "SELL");
   assert.ok(buy.metrics.bullVolumeConfirmed);
   assert.ok(sell.metrics.bearVolumeConfirmed);
 });
@@ -73,9 +73,9 @@ test("ordinary and unavailable volume cannot claim strong confirmation", () => {
   assert.ok(unavailable.reasons.some(reason => reason.includes("unavailable")));
 });
 
-test("provisional candles can never publish strong signals", () => {
+test("provisional candles can never publish strong signals or exits", () => {
   assert.equal(scoring.analyze(cycle(95, false, true), { provisional: true }).signal, "BUY");
-  assert.equal(scoring.analyze(cycle(95, true, true), { provisional: true }).signal, "SELL");
+  assert.equal(scoring.analyze(cycle(95, true, true), { provisional: true }).signal, "HOLD");
 });
 
 test("an extended bullish move is a poor entry but not a sell by itself", () => {
@@ -93,7 +93,7 @@ test("a bounce inside a bearish trend does not become a falling-knife buy", () =
   assert.ok(analysis.trendScore < 30);
   assert.equal(analysis.metrics.priceDirection, 1);
   assert.ok(analysis.entryScore < 50);
-  assert.equal(analysis.signal, "HOLD");
+  assert.equal(analysis.signal, "SELL", "a small bounce does not cancel an established structural exit");
 });
 
 test("stale data reports WAIT while preserving scores for inspection", () => {

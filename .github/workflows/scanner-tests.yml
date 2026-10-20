@@ -9,6 +9,7 @@ on:
       - 'apps-script/**'
       - 'tests/**'
       - 'tools/**'
+      - 'data/validation/**'
       - 'supabase/functions/**'
       - 'supabase/calendar.json'
       - '.github/workflows/scanner-tests.yml'

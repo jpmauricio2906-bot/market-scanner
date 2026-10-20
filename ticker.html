@@ -9,7 +9,7 @@
 <script src="js/config.js"></script>
 <script src="js/market-calendar.js?v=3"></script>
 <script src="js/data.js?v=3.2"></script>
-<script src="js/scoring.js?v=1"></script>
+<script src="js/scoring.js?v=3"></script>
 <script>
 // Shared indicators keep charts and scanner signals consistent.
 const sma = MarketScoring.sma;
@@ -200,14 +200,14 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <div class="timing-card">
         <div class="timing-label">Exit Pressure Score</div>
         <div class="timing-value" id="exitNum">—</div>
-        <div class="timing-copy">Deteriorating momentum, position below support and selling pressure. A higher score signals more caution for a long position.</div>
+        <div class="timing-copy">Depth and persistence below 50-day support, together with the slope of SMA50. A confirmed structural break raises pressure to exit a long position.</div>
         <div class="timing-parts" id="exitParts"></div>
       </div>
     </div>
     <div class="signal-reasons">
       <div class="timing-label">Why this signal</div>
       <ul id="signalReasons"></ul>
-      <div class="timing-copy">Scores range from 0 to 100 and are rule-based, not probabilities. Oversold alone does not confirm a buy. Strong signals require a confirmed daily candle. Composite presets do not change timing signals.</div>
+      <div class="timing-copy">Scores range from 0 to 100 and are not probabilities. Oversold alone does not confirm a buy. Sell requires persistent loss of 50-day support or a severe high-volume breakdown, on a completed daily candle. Confirmed buy/sell adds a breakout held for two closes with volume; it does not imply superior returns. Composite presets do not change timing signals.</div>
     </div>
 
     <!-- Main chart: Enhanced with full controls -->
@@ -507,7 +507,8 @@ function renderTiming(analysis){
   const parts=(momentum,position,volume)=>momentum==null?"Awaiting usable data":
     "Momentum "+momentum+" · Position "+position+" · Volume "+volume;
   document.getElementById("entryParts").textContent=parts(c.momentum,c.position,c.volume);
-  document.getElementById("exitParts").textContent=parts(c.exitMomentum,c.exitPosition,c.exitVolume);
+  document.getElementById("exitParts").textContent=c.exitPosition==null?"Awaiting usable data":
+    "Support depth "+c.exitPosition+" · Persistence "+c.exitPersistence+" · SMA50 slope "+c.exitSlope;
   document.getElementById("trendDesc").textContent=analysis.trendLabel+(analysis.stale?" · OUTDATED DATA":"");
   document.getElementById("signalReasons").innerHTML=analysis.reasons.map(reason=>"<li>"+escapeHtml(reason)+"</li>").join("");
 }
@@ -585,7 +586,7 @@ async function init(refreshQuotes=true) {
     chgEl.textContent = chgPct === null ? "—" : (chgPct>=0?"+":"")+chgPct+"%";
     chgEl.className   = "price-chg " + (chgPct === null ? "" : chgPct>=0?"up":"dn");
     const badgeEl = document.getElementById("sigBadge");
-    badgeEl.textContent = signal.replace(/_/g," ")+(provisional?" · PROVISIONAL":"")+(stale?" · OUTDATED":""); badgeEl.className = "sig-badge "+signal;
+    badgeEl.textContent = (signal==="STRONG_BUY"?"CONFIRMED BUY":signal==="STRONG_SELL"?"CONFIRMED SELL":signal.replace(/_/g," "))+(provisional?" · PROVISIONAL":"")+(stale?" · OUTDATED":""); badgeEl.className = "sig-badge "+signal;
     document.getElementById("scoreVal").textContent  = "Composite: " + (score === null ? "—" : score);
     document.getElementById("scoreNum").textContent  = score === null ? "—" : score;
     document.getElementById("scoreDesc").textContent = enoughHistory ? "Weighted indicator blend" : "Awaiting more history";

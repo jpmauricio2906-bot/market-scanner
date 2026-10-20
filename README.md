@@ -1,8 +1,10 @@
 # Market Scanner — 200 empresas y 50 ETF
 
-El ranking separa **Composite, Trend, Entry Timing y Exit Pressure**. El Composite conserva su fórmula configurable, con correcciones para exigir recuperación antes de premiar la sobreventa. Buy/Sell y Strong Buy/Strong Sell se determinan mediante tendencia, momentum, posición y volumen; los datos atrasados quedan en Wait. [Reglas, umbrales, limitaciones y auditoría de los 250 instrumentos](docs/SCORING.md).
+El ranking separa **Composite, Trend, Entry Timing y Exit Pressure**. La versión 3 exige pérdida persistente del soporte de 50 sesiones para vender, con una salida rápida ante rupturas severas con volumen. Las ventas requieren el cierre diario confirmado. Las etiquetas **Confirmed buy/sell** añaden una ruptura sostenida durante dos cierres y volumen, sin implicar mayor rentabilidad esperada; los datos atrasados quedan en Wait. [Reglas y fórmulas](docs/SCORING.md) y [evaluación histórica reservada de v3 con costes](docs/EXIT_VALIDATION.md).
 
-El [backtest comparativo con costes](docs/BACKTEST.md) obtiene +38,91% para la nueva lógica frente a +0,36% de la anterior iniciada en efectivo, pero +75,60% para comprar y mantener. La nueva reduce la caída máxima; las ventas no muestran una ventaja media a 5, 10 ni 20 sesiones. Es una evaluación retrospectiva del universo actual, no una validación de rentabilidad futura.
+**Resultado 2018–2023:** v3 obtiene +54,82%, v2 +49,60% y comprar y mantener +126,32%, con comisión $0 y deslizamiento 0,05% por lado. V3 reduce las operaciones 35,83%, pero empeora la caída máxima frente a v2 (−21,20% frente a −15,41%). No supera comprar y mantener ni acredita una ventaja consistente de las señales confirmadas. Es una prueba histórica reservada sobre el universo actual, con sesgo de supervivencia; la validación prospectiva permanece pendiente.
+
+El [primer backtest, conservado como informe histórico de v2](docs/BACKTEST.md), obtuvo +38,91% para v2 frente a +0,36% de la lógica original iniciada en efectivo y +75,60% de comprar y mantener. Sus salidas prematuras motivaron la revisión v3; ese período ya examinado no se presenta como una prueba independiente fuera de muestra.
 
 Aplicación estática con 200 empresas y 50 ETF. **Precios recupera las fórmulas GOOGLEFINANCE y un envío rápido de 250 cotizaciones. Los gráficos y análisis incorporan la vela provisional del día, identificada como tal. Supabase valida los datos y mantiene los cierres confirmados.**
 

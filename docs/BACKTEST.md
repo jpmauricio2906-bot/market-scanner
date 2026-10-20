@@ -1,5 +1,7 @@
 # Backtest comparativo: lógica anterior y Entry/Exit v2
 
+Informe histórico de **v1 frente a v2**. La revisión vigente de ventas y sus resultados se documentan en [Ventas v3 y validación histórica reservada](EXIT_VALIDATION.md). Las herramientas de este primer experimento utilizan ahora una copia congelada de v2 para preservar su comparación.
+
 **La nueva lógica supera a la anterior cuando ambas empiezan en efectivo, pero no demuestra una mejora del timing frente a comprar y mantener.** En esta captura obtiene **+38,91% neto**, frente a **+0,36%** de la anterior y **+75,60%** de comprar y mantener los mismos instrumentos. Reduce la caída máxima frente a mantener, a cambio de una exposición menor. Las señales de venta, incluidas las fuertes, no aportan una ventaja media a 5, 10 ni 20 sesiones.
 
 El resultado justifica corregir el exceso de Hold, pero **no permite presentar Buy/Sell ni Strong Buy/Strong Sell como señales de rentabilidad validada**. Los umbrales de producción no se han recalibrado con estos resultados.
