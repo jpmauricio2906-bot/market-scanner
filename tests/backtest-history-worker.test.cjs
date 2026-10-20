@@ -111,7 +111,13 @@ test('two leased jobs run concurrently and send complete source payloads to SQL 
       { timestamp: 1792147800, open: null, high: null, low: null, close: null, volume: null },
     ], splits: [{ timestamp: 1598880600, numerator: 4, denominator: 1 }],
   });
-  assert.equal(replacements[0].args.p_lease_token, job.lease_token);
+  // Concurrent downloads and SHA-256 operations may finish in either order.
+  // The lease must follow its own job, independent of arrival order at the RPC.
+  for (const leased of [job, second]) {
+    const replacement = replacements.find(call => call.args.p_job_id === leased.id);
+    assert.equal(replacement?.args.p_lease_token, leased.lease_token);
+    assert.equal(replacement?.args.p_payload.ticker, leased.ticker);
+  }
   assert.equal(h.calls.filter(c => c.name === 'backtest_fail_history').length, 0);
   for (const call of h.calls) {
     assert.equal(call.options.redirect, 'error');
