@@ -4,6 +4,8 @@ El ranking separa **Composite, Trend, Entry Timing y Exit Pressure**. La versió
 
 **Resultado 2018–2023:** v3 obtiene +54,82%, v2 +49,60% y comprar y mantener +126,32%, con comisión $0 y deslizamiento 0,05% por lado. V3 reduce las operaciones 35,83%, pero empeora la caída máxima frente a v2 (−21,20% frente a −15,41%). No supera comprar y mantener ni acredita una ventaja consistente de las señales confirmadas. Es una prueba histórica reservada sobre el universo actual, con sesgo de supervivencia; la validación prospectiva permanece pendiente.
 
+**Experimento SMA200, producción sin cambios:** una única variante vende después de tres cierres bajo la media de 200 sesiones. En la muestra reservada 2008–2015 obtiene +72,94%, frente a v3 +68,49% y mantener +100,93%, con comisión $0, deslizamiento 0,05% por lado y elegibilidad común de 202 barras. Reduce la caída máxima en esa muestra, pero no supera mantener, no prolonga todas las posiciones y su menor caída no se mantiene en 2025–2026. [Protocolo, comparación completa y límites de independencia](docs/LONG_TREND_VALIDATION.md).
+
 El [primer backtest, conservado como informe histórico de v2](docs/BACKTEST.md), obtuvo +38,91% para v2 frente a +0,36% de la lógica original iniciada en efectivo y +75,60% de comprar y mantener. Sus salidas prematuras motivaron la revisión v3; ese período ya examinado no se presenta como una prueba independiente fuera de muestra.
 
 Aplicación estática con 200 empresas y 50 ETF. **Precios recupera las fórmulas GOOGLEFINANCE y un envío rápido de 250 cotizaciones. Los gráficos y análisis incorporan la vela provisional del día, identificada como tal. Supabase valida los datos y mantiene los cierres confirmados.**
