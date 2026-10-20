@@ -3,13 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ticker Detail — Market Scanner</title>
+<title data-i18n="Ticker Detail — Market Scanner">Ticker Detail — Market Scanner</title>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/market-calendar.js?v=3"></script>
 <script src="js/data.js?v=3.2"></script>
 <script src="js/scoring.js?v=3"></script>
+<script src="js/i18n.js"></script>
+<script src="js/market-translations.js"></script>
+<script src="js/ticker-translations.js"></script>
 <script>
 // Shared indicators keep charts and scanner signals consistent.
 const sma = MarketScoring.sma;
@@ -45,6 +48,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .page-header{display:flex;align-items:center;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap}
 .back-btn{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:6px 14px;border-radius:4px;cursor:pointer;border:1px solid var(--muted);color:var(--muted);background:transparent;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
 .back-btn:hover{border-color:var(--accent);color:var(--accent)}
+.language-picker{font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;gap:6px;align-items:center}.language-picker select{font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:6px 8px;cursor:pointer}
 .ticker-hero{display:flex;align-items:baseline;gap:12px;flex:1;flex-wrap:wrap}
 .ticker-name{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--accent);letter-spacing:.05em}
 .company-name{font-size:14px;color:var(--muted)}
@@ -159,10 +163,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 <div class="page">
   <!-- Header -->
   <div class="page-header">
-    <a class="back-btn" href="index.html">← Scanner</a>
-    <a class="back-btn" id="backtestLink" href="backtest.html">Backtest</a>
-    <button class="back-btn" type="button" onclick="init()">⟳ Refresh</button>
-    <label style="font-size:11px;display:flex;align-items:center;gap:5px"><input id="includeIntraday" type="checkbox" checked onchange="init(false)"> Today's provisional candle</label>
+    <a class="back-btn" id="scannerLink" href="index.html"><span data-i18n="← Scanner">← Scanner</span></a>
+    <a class="back-btn" id="backtestLink" href="backtest.html"><span data-i18n="Backtest">Backtest</span></a>
+    <button class="back-btn" type="button" onclick="init()"><span data-i18n="⟳ Refresh">⟳ Refresh</span></button>
+    <label style="font-size:11px;display:flex;align-items:center;gap:5px"><input id="includeIntraday" type="checkbox" checked onchange="init(false)"> <span data-i18n="Today&#x27;s provisional candle">Today's provisional candle</span></label>
+    <label class="language-picker"><span data-i18n="Language">Language</span><select id="language" data-i18n-aria-label="Language" aria-label="Language"><option value="es">Español</option><option value="en">English</option></select></label>
     <div class="ticker-hero">
       <span class="ticker-name" id="tickerName">—</span>
       <span class="company-name" id="companyName"></span>
@@ -178,7 +183,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   </div>
 
   <!-- Loading state -->
-  <div id="loadState" class="state-msg"><div class="spinner"></div>Loading data…</div>
+  <div id="loadState" class="state-msg"><div class="spinner"></div><span data-i18n="Loading data…">Loading data…</span></div>
   <div id="dataQuality" role="status" style="font-size:12px;color:var(--hold);margin:0 0 12px;line-height:1.6" hidden></div>
   <div id="quoteStatus" role="status" style="font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.6"></div>
 
@@ -187,28 +192,28 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
     <div class="timing-grid">
       <div class="timing-card">
-        <div class="timing-label">Entry Timing Score</div>
+        <div class="timing-label"><span data-i18n="Entry Timing Score">Entry Timing Score</span></div>
         <div class="timing-value" id="entryNum">—</div>
-        <div class="timing-copy">Momentum recovery, position within the trend and volume confirmation. A higher score indicates a stronger entry setup.</div>
+        <div class="timing-copy"><span data-i18n="Momentum recovery, position within the trend and volume confirmation. A higher score indicates a stronger entry setup.">Momentum recovery, position within the trend and volume confirmation. A higher score indicates a stronger entry setup.</span></div>
         <div class="timing-parts" id="entryParts"></div>
       </div>
       <div class="timing-card">
-        <div class="timing-label">Trend Score</div>
+        <div class="timing-label"><span data-i18n="Trend Score">Trend Score</span></div>
         <div class="timing-value" id="trendNum">—</div>
-        <div class="timing-copy">Direction and strength, with correlated moving averages evaluated as one group. A bullish trend can have weak entry timing.</div>
+        <div class="timing-copy"><span data-i18n="Direction and strength, with correlated moving averages evaluated as one group. A bullish trend can have weak entry timing.">Direction and strength, with correlated moving averages evaluated as one group. A bullish trend can have weak entry timing.</span></div>
         <div class="timing-parts" id="trendDesc"></div>
       </div>
       <div class="timing-card">
-        <div class="timing-label">Exit Pressure Score</div>
+        <div class="timing-label"><span data-i18n="Exit Pressure Score">Exit Pressure Score</span></div>
         <div class="timing-value" id="exitNum">—</div>
-        <div class="timing-copy">Depth and persistence below 50-day support, together with the slope of SMA50. A confirmed structural break raises pressure to exit a long position.</div>
+        <div class="timing-copy"><span data-i18n="Depth and persistence below 50-day support, together with the slope of SMA50. A confirmed structural break raises pressure to exit a long position.">Depth and persistence below 50-day support, together with the slope of SMA50. A confirmed structural break raises pressure to exit a long position.</span></div>
         <div class="timing-parts" id="exitParts"></div>
       </div>
     </div>
     <div class="signal-reasons">
-      <div class="timing-label">Why this signal</div>
+      <div class="timing-label"><span data-i18n="Why this signal">Why this signal</span></div>
       <ul id="signalReasons"></ul>
-      <div class="timing-copy">Scores range from 0 to 100 and are not probabilities. Oversold alone does not confirm a buy. Sell requires persistent loss of 50-day support or a severe high-volume breakdown, on a completed daily candle. Confirmed buy/sell adds a breakout held for two closes with volume; it does not imply superior returns. Composite presets do not change timing signals.</div>
+      <div class="timing-copy"><span data-i18n="Scores range from 0 to 100 and are not probabilities. Oversold alone does not confirm a buy. Sell requires persistent loss of 50-day support or a severe high-volume breakdown, on a completed daily candle. Confirmed buy/sell adds a breakout held for two closes with volume; it does not imply superior returns. Composite presets do not change timing signals.">Scores range from 0 to 100 and are not probabilities. Oversold alone does not confirm a buy. Sell requires persistent loss of 50-day support or a severe high-volume breakdown, on a completed daily candle. Confirmed buy/sell adds a breakout held for two closes with volume; it does not imply superior returns. Composite presets do not change timing signals.</span></div>
     </div>
 
     <!-- Main chart: Enhanced with full controls -->
@@ -217,71 +222,71 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <!-- Row 1: Chart type + Range + Frequency -->
       <div class="mc-toolbar">
         <div class="mc-toolbar-row">
-          <span class="mc-label">Type</span>
+          <span class="mc-label"><span data-i18n="Type">Type</span></span>
           <div class="mc-btn-group" id="chartTypeGroup">
-            <button class="mc-btn active" data-chart-type="candle" title="Candlestick">Candle</button>
-            <button class="mc-btn" data-chart-type="ohlc" title="OHLC Bars">OHLC</button>
-            <button class="mc-btn" data-chart-type="line" title="Line">Line</button>
-            <button class="mc-btn" data-chart-type="area" title="Area">Area</button>
-            <button class="mc-btn" data-chart-type="heikin" title="Heikin Ashi">Heikin</button>
+            <button class="mc-btn active" data-chart-type="candle" title="Candlestick" data-i18n-title="Candlestick"><span data-i18n="Candle">Candle</span></button>
+            <button class="mc-btn" data-chart-type="ohlc" title="OHLC Bars" data-i18n-title="OHLC Bars">OHLC</button>
+            <button class="mc-btn" data-chart-type="line" title="Line" data-i18n-title="Line"><span data-i18n="Line">Line</span></button>
+            <button class="mc-btn" data-chart-type="area" title="Area" data-i18n-title="Area"><span data-i18n="Area">Area</span></button>
+            <button class="mc-btn" data-chart-type="heikin" title="Heikin Ashi" data-i18n-title="Heikin Ashi"><span data-i18n="Heikin">Heikin</span></button>
           </div>
           <div class="mc-divider"></div>
-          <span class="mc-label">Range</span>
+          <span class="mc-label"><span data-i18n="Range">Range</span></span>
           <div class="mc-btn-group" id="rangeGroup">
             <button class="mc-btn" data-range="5">5D</button>
             <button class="mc-btn" data-range="21">1M</button>
             <button class="mc-btn" data-range="63">3M</button>
             <button class="mc-btn" data-range="126">6M</button>
-            <button class="mc-btn" data-range="252">1Y</button>
-            <button class="mc-btn" data-range="504">2Y</button>
-            <button class="mc-btn active" data-range="0">All</button>
+            <button class="mc-btn" data-range="252"><span data-i18n="1Y">1Y</span></button>
+            <button class="mc-btn" data-range="504"><span data-i18n="2Y">2Y</span></button>
+            <button class="mc-btn active" data-range="0"><span data-i18n="All">All</span></button>
           </div>
           <div class="mc-divider"></div>
-          <span class="mc-label">Freq</span>
+          <span class="mc-label"><span data-i18n="Freq">Freq</span></span>
           <div class="mc-btn-group" id="freqGroup">
-            <button class="mc-btn active" data-freq="daily">Daily</button>
-            <button class="mc-btn" data-freq="weekly">Weekly</button>
-            <button class="mc-btn" data-freq="monthly">Monthly</button>
+            <button class="mc-btn active" data-freq="daily"><span data-i18n="Daily">Daily</span></button>
+            <button class="mc-btn" data-freq="weekly"><span data-i18n="Weekly">Weekly</span></button>
+            <button class="mc-btn" data-freq="monthly"><span data-i18n="Monthly">Monthly</span></button>
           </div>
           <div class="mc-divider"></div>
-          <span class="mc-label">Scale</span>
+          <span class="mc-label"><span data-i18n="Scale">Scale</span></span>
           <div class="mc-btn-group" id="scaleGroup">
-            <button class="mc-btn active" data-scale="price" title="Price level">$</button>
-            <button class="mc-btn" data-scale="log" title="Logarithmic">Log</button>
-            <button class="mc-btn" data-scale="pct" title="% change from range start">%Chg</button>
+            <button class="mc-btn active" data-scale="price" title="Price level" data-i18n-title="Price level">$</button>
+            <button class="mc-btn" data-scale="log" title="Logarithmic" data-i18n-title="Logarithmic">Log</button>
+            <button class="mc-btn" data-scale="pct" title="% change from range start" data-i18n-title="% change from range start"><span data-i18n="%Chg">%Chg</span></button>
           </div>
         </div>
 
         <!-- Row 2: Overlays + Compare + Volume toggle -->
         <div class="mc-toolbar-row" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
-          <span class="mc-label">Overlays</span>
+          <span class="mc-label"><span data-i18n="Overlays">Overlays</span></span>
           <div class="mc-btn-group" id="overlayGroup">
-            <button class="mc-btn active" data-overlay="bb" title="Bollinger Bands (20,2)">BB(20)</button>
-            <button class="mc-btn" data-overlay="sma20" title="SMA 20">SMA20</button>
-            <button class="mc-btn" data-overlay="sma50" title="SMA 50">SMA50</button>
-            <button class="mc-btn" data-overlay="sma200" title="SMA 200">SMA200</button>
-            <button class="mc-btn" data-overlay="ema12" title="EMA 12">EMA12</button>
-            <button class="mc-btn" data-overlay="ema26" title="EMA 26">EMA26</button>
-            <button class="mc-btn" data-overlay="vwap" title="Approx VWAP">VWAP</button>
+            <button class="mc-btn active" data-overlay="bb" title="Bollinger Bands (20,2)" data-i18n-title="Bollinger Bands (20,2)">BB(20)</button>
+            <button class="mc-btn" data-overlay="sma20" title="SMA 20" data-i18n-title="SMA 20">SMA20</button>
+            <button class="mc-btn" data-overlay="sma50" title="SMA 50" data-i18n-title="SMA 50">SMA50</button>
+            <button class="mc-btn" data-overlay="sma200" title="SMA 200" data-i18n-title="SMA 200">SMA200</button>
+            <button class="mc-btn" data-overlay="ema12" title="EMA 12" data-i18n-title="EMA 12">EMA12</button>
+            <button class="mc-btn" data-overlay="ema26" title="EMA 26" data-i18n-title="EMA 26">EMA26</button>
+            <button class="mc-btn" data-overlay="vwap" title="Approx VWAP" data-i18n-title="Approx VWAP">VWAP</button>
           </div>
           <div class="mc-divider"></div>
-          <button class="mc-btn active" id="toggleVol" title="Toggle volume bars">&#x1F4CA; Vol</button>
-          <button class="mc-btn" id="toggleVP" data-vp title="Volume Profile — volume at price histogram">VP</button>
+          <button class="mc-btn active" id="toggleVol" title="Toggle volume bars" data-i18n-title="Toggle volume bars">&#x1F4CA; Vol</button>
+          <button class="mc-btn" id="toggleVP" data-vp title="Volume Profile — volume at price histogram" data-i18n-title="Volume Profile — volume at price histogram">VP</button>
           <div class="mc-divider"></div>
-          <span class="mc-label">Compare</span>
+          <span class="mc-label"><span data-i18n="Compare">Compare</span></span>
           <div class="mc-compare-wrap">
-            <input class="mc-compare-input" id="compareInput" placeholder="Add stock or ETF…" maxlength="15" list="companyTickers"><datalist id="companyTickers"></datalist>
+            <input class="mc-compare-input" id="compareInput" placeholder="Add stock or ETF…" data-i18n-placeholder="Add stock or ETF…" data-i18n-aria-label="Add stock or ETF…" aria-label="Add stock or ETF…" maxlength="15" list="companyTickers"><datalist id="companyTickers"></datalist>
             <button class="mc-btn" id="compareAddBtn">+Add</button>
             <div id="compareTagsWrap" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-            <span id="compareModeTag" style="display:none;font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);color:var(--accent)">% mode</span>
+            <span id="compareModeTag" style="display:none;font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);color:var(--accent)"><span data-i18n="% mode">% mode</span></span>
           </div>
           <div class="mc-ohlcv-bar mc-crosshair-info" id="ohlcvBar">
             <span id="ohlcvDate" style="color:var(--muted)"></span>
-            <span><span class="lbl">O </span><span id="ohlcvO">—</span></span>
-            <span><span class="lbl">H </span><span id="ohlcvH">—</span></span>
-            <span><span class="lbl">L </span><span id="ohlcvL">—</span></span>
-            <span><span class="lbl">C </span><span id="ohlcvC">—</span></span>
-            <span><span class="lbl">Vol </span><span id="ohlcvV">—</span></span>
+            <span><span class="lbl"><span data-i18n="O">O</span> </span><span id="ohlcvO">—</span></span>
+            <span><span class="lbl"><span data-i18n="H">H</span> </span><span id="ohlcvH">—</span></span>
+            <span><span class="lbl"><span data-i18n="L">L</span> </span><span id="ohlcvL">—</span></span>
+            <span><span class="lbl"><span data-i18n="C">C</span> </span><span id="ohlcvC">—</span></span>
+            <span><span class="lbl"><span data-i18n="Vol">Vol</span> </span><span id="ohlcvV">—</span></span>
           </div>
         </div>
       </div><!-- end toolbar -->
@@ -300,8 +305,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         <div class="chart-title"><span class="dot" style="background:var(--hold)"></span>RSI (14)
           <div class="chart-legend" style="margin-left:auto">
             <div class="leg-item"><div class="leg-dot" style="background:var(--hold)"></div>RSI</div>
-            <div class="leg-item"><div class="leg-dot" style="background:rgba(255,61,87,.4)"></div>OB 70</div>
-            <div class="leg-item"><div class="leg-dot" style="background:rgba(0,230,118,.4)"></div>OS 30</div>
+            <div class="leg-item"><div class="leg-dot" style="background:rgba(255,61,87,.4)"></div><span data-i18n="OB 70">OB 70</span></div>
+            <div class="leg-item"><div class="leg-dot" style="background:rgba(0,230,118,.4)"></div><span data-i18n="OS 30">OS 30</span></div>
           </div>
         </div>
         <div class="subchart-inner"><canvas id="rsiChart"></canvas></div>
@@ -312,7 +317,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         <div class="chart-title"><span class="dot" style="background:var(--accent)"></span>MACD (12,26,9)
           <div class="chart-legend" style="margin-left:auto">
             <div class="leg-item"><div class="leg-dot" style="background:var(--accent)"></div>MACD</div>
-            <div class="leg-item"><div class="leg-dot" style="background:var(--sell)"></div>Signal</div>
+            <div class="leg-item"><div class="leg-dot" style="background:var(--sell)"></div><span data-i18n="Signal">Signal</span></div>
           </div>
         </div>
         <div class="subchart-inner"><canvas id="macdChart"></canvas></div>
@@ -320,9 +325,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
       <!-- Stochastic RSI -->
       <div class="subchart-card">
-        <div class="chart-title"><span class="dot" style="background:#a855f7"></span>Stochastic RSI
+        <div class="chart-title"><span class="dot" style="background:#a855f7"></span><span data-i18n="Stochastic RSI">Stochastic RSI</span>
           <div class="chart-legend" style="margin-left:auto">
-            <div class="leg-item"><div class="leg-dot" style="background:#a855f7"></div>StochRSI</div>
+            <div class="leg-item"><div class="leg-dot" style="background:#a855f7"></div><span data-i18n="StochRSI">StochRSI</span></div>
           </div>
         </div>
         <div class="subchart-inner"><canvas id="stochChart"></canvas></div>
@@ -340,25 +345,25 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
       <!-- Volume -->
       <div class="subchart-card">
-        <div class="chart-title"><span class="dot" style="background:#00b894"></span>Volume + 20d Avg</div>
+        <div class="chart-title"><span class="dot" style="background:#00b894"></span><span data-i18n="Volume + 20d Avg">Volume + 20d Avg</span></div>
         <div class="subchart-inner"><canvas id="volChart"></canvas></div>
       </div>
 
       <!-- OBV -->
       <div class="subchart-card">
-        <div class="chart-title"><span class="dot" style="background:#00b894"></span>On-Balance Volume (OBV)</div>
+        <div class="chart-title"><span class="dot" style="background:#00b894"></span><span data-i18n="On-Balance Volume (OBV)">On-Balance Volume (OBV)</span></div>
         <div class="subchart-inner"><canvas id="obvChart"></canvas></div>
       </div>
 
       <!-- ROC -->
       <div class="subchart-card">
-        <div class="chart-title"><span class="dot" style="background:#fdcb6e"></span>Rate of Change (10d)</div>
+        <div class="chart-title"><span class="dot" style="background:#fdcb6e"></span><span data-i18n="Rate of Change (10d)">Rate of Change (10d)</span></div>
         <div class="subchart-inner"><canvas id="rocChart"></canvas></div>
       </div>
 
       <!-- ATR -->
       <div class="subchart-card">
-        <div class="chart-title"><span class="dot" style="background:#b2bec3"></span>ATR Normalized (%)</div>
+        <div class="chart-title"><span class="dot" style="background:#b2bec3"></span><span data-i18n="ATR Normalized (%)">ATR Normalized (%)</span></div>
         <div class="subchart-inner"><canvas id="atrChart"></canvas></div>
       </div>
 
@@ -367,21 +372,21 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <!-- Bottom: Score + Stats -->
     <div class="bottom-row">
       <div class="score-card">
-        <div class="score-label">Composite Score</div>
+        <div class="score-label"><span data-i18n="Composite Score">Composite Score</span></div>
         <canvas id="gaugeChart" width="200" height="110"></canvas>
         <div class="score-number" id="scoreNum">—</div>
         <div class="score-label" id="scoreDesc">—</div>
-        <div class="timing-copy" style="text-align:center">Configurable indicator blend. Uses the weights saved in the scanner; independent of the timing signal.</div>
+        <div class="timing-copy" style="text-align:center"><span data-i18n="Configurable indicator blend. Uses the weights saved in the scanner; independent of the timing signal.">Configurable indicator blend. Uses the weights saved in the scanner; independent of the timing signal.</span></div>
       </div>
       <div class="stats-card">
-        <div class="chart-title"><span class="dot" style="background:var(--text)"></span>Key Statistics</div>
+        <div class="chart-title"><span class="dot" style="background:var(--text)"></span><span data-i18n="Key Statistics">Key Statistics</span></div>
         <div class="stats-grid" id="statsGrid"></div>
       </div>
     </div>
 
     <!-- Heatmap strip: all 14 indicators -->
     <div class="heatmap-wrap">
-      <div class="chart-title"><span class="dot" style="background:var(--text)"></span>Composite Indicator Inputs</div>
+      <div class="chart-title"><span class="dot" style="background:var(--text)"></span><span data-i18n="Composite Indicator Inputs">Composite Indicator Inputs</span></div>
       <div class="hm-strip" id="hmStrip"></div>
     </div>
 
@@ -390,6 +395,10 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </div>
 
 <script>
+
+const T = (source, params) => MarketI18n.t(source, params);
+const N = (value, digits=2) => MarketI18n.number(value, digits);
+const M = value => MarketI18n.message(value);
 
 // ── Theme engine ──────────────────────────────────────────────────────────────
 const THEMES_T={
@@ -444,7 +453,7 @@ function buildThemeSwitcher_t(){
   Object.keys(THEMES_T).forEach(id=>{
     const t=THEMES_T[id];
     const active=id===_activeTheme_t?" active":"";
-    html+=`<button class="theme-dot${active}" data-theme="${id}" style="background:${t.color}" title="${t.name}"></button>`;
+    html+=`<button class="theme-dot${active}" data-theme="${id}" style="background:${t.color}" title="${escapeHtml(T(t.name))}" aria-label="${escapeHtml(T(t.name))}"></button>`;
   });
   el.innerHTML=html;
   el.querySelectorAll(".theme-dot").forEach(b=>{
@@ -501,17 +510,17 @@ function timingColor(value,kind){
 function renderTiming(analysis){
   [["entryNum","entryScore","entry"],["trendNum","trendScore","trend"],["exitNum","exitScore","exit"]].forEach(([id,key,kind])=>{
     const el=document.getElementById(id),value=analysis[key];
-    el.textContent=value==null?"—":value+" / 100";
+    el.textContent=value==null?"—":N(value,0)+" / 100";
     el.style.color=timingColor(value,kind);
   });
   const c=analysis.components;
-  const parts=(momentum,position,volume)=>momentum==null?"Awaiting usable data":
-    "Momentum "+momentum+" · Position "+position+" · Volume "+volume;
+  const parts=(momentum,position,volume)=>momentum==null?T("Awaiting usable data"):
+    T("Momentum {momentum} · Position {position} · Volume {volume}",{momentum:N(momentum,0),position:N(position,0),volume:N(volume,0)});
   document.getElementById("entryParts").textContent=parts(c.momentum,c.position,c.volume);
-  document.getElementById("exitParts").textContent=c.exitPosition==null?"Awaiting usable data":
-    "Support depth "+c.exitPosition+" · Persistence "+c.exitPersistence+" · SMA50 slope "+c.exitSlope;
-  document.getElementById("trendDesc").textContent=analysis.trendLabel+(analysis.stale?" · OUTDATED DATA":"");
-  document.getElementById("signalReasons").innerHTML=analysis.reasons.map(reason=>"<li>"+escapeHtml(reason)+"</li>").join("");
+  document.getElementById("exitParts").textContent=c.exitPosition==null?T("Awaiting usable data"):
+    T("Support depth {depth} · Persistence {persistence} · SMA50 slope {slope}",{depth:N(c.exitPosition,0),persistence:N(c.exitPersistence,0),slope:N(c.exitSlope,0)});
+  document.getElementById("trendDesc").textContent=M(analysis.trendLabel)+(analysis.stale?" · "+T("OUTDATED DATA"):"");
+  document.getElementById("signalReasons").innerHTML=analysis.reasons.map(reason=>"<li>"+escapeHtml(M(reason))+"</li>").join("");
 }
 
 // ── Chart.js global defaults ──────────────────────────────────────────────────
@@ -534,31 +543,26 @@ const CHART_OPTIONS = {
 
 // ── Get ticker from URL ───────────────────────────────────────────────────────
 const ticker = (new URLSearchParams(window.location.search).get("ticker") || "AAPL").trim().toUpperCase();
-document.getElementById('backtestLink').href = 'backtest.html?ticker=' + encodeURIComponent(ticker);
+document.getElementById('backtestLink').href = MarketI18n.link('backtest.html?ticker=' + encodeURIComponent(ticker));
 document.title = ticker + " — Market Scanner";
 document.getElementById("tickerName").textContent = ticker;
 
 // ── Fetch and render ──────────────────────────────────────────────────────────
 let tickerLoading=false;
+let tickerView=null, tickerError=null;
 async function init(refreshQuotes=true) {
   if(tickerLoading)return;
   tickerLoading=true;
   try {
     document.getElementById("loadState").style.display="block";
-    document.getElementById("loadState").innerHTML = '<div class="spinner"></div>Loading '+escapeHtml(ticker)+' from Supabase…';
+    tickerError=null;
+    renderTickerLoadState();
 
     const includeRecent=document.getElementById("includeIntraday").checked!==false;
     const result = await fetchMarketData(ticker,null,{includeRecent,refreshQuotes});
     const raw = tickerBars(result, ticker);
     const company = result.universe.byTicker.get(ticker);
-    document.getElementById("companyName").textContent = instrumentDescription(company);
-    document.getElementById("companyTickers").innerHTML = Array.from(result.universe.byTicker.values()).map(item =>
-      '<option value="'+item.ticker+'">'+escapeHtml(item.name+" · "+instrumentTypeLabel(item))+'</option>'
-    ).join("");
     if (!raw.length) throw new Error("Accepted daily data for " + ticker + " is not available yet.");
-    const warnings = marketQualityMessages(result), qualityEl = document.getElementById("dataQuality");
-    qualityEl.hidden = warnings.length === 0;
-    qualityEl.textContent = warnings.join(" · ");
 
     const dates  = raw.map(d => d.date);
     const closes = raw.map(d => d.close);
@@ -566,7 +570,7 @@ async function init(refreshQuotes=true) {
     // Header info
     const last    = raw[raw.length-1];
     const prev    = raw[raw.length-2];
-    const chgPct  = prev ? ((last.close-prev.close)/prev.close*100).toFixed(2) : null;
+    const chgPct  = prev ? (last.close-prev.close)/prev.close*100 : null;
     const provisional=result.provisionalTickers.includes(ticker);
     const candidate=result.quoteByTicker.get(ticker);
     const quote=candidate&&candidate.fecha===last.date&&(provisional||candidate.is_final)?candidate:null;
@@ -579,22 +583,8 @@ async function init(refreshQuotes=true) {
     const sigs=enoughHistory?computeSignals(raw):{};
     const score=enoughHistory?computeScore(sigs,INDICATORS):null;
     const signal=analysis.signal;
-    document.getElementById("quoteStatus").textContent=(quote?marketQuoteLabel(quote):"Confirmed daily close · "+last.date)+
-      " · Latest confirmed close: "+(result.latestDate||"awaiting data")+
-      (provisional?" · Today's candle is unfinished; all charts, indicators and signals include this provisional candle.":" · Charts, indicators and signals use confirmed closes.");
-
-    document.getElementById("priceVal").textContent  = "$" + last.close.toFixed(2);
-    const chgEl = document.getElementById("priceChg");
-    chgEl.textContent = chgPct === null ? "—" : (chgPct>=0?"+":"")+chgPct+"%";
-    chgEl.className   = "price-chg " + (chgPct === null ? "" : chgPct>=0?"up":"dn");
-    const badgeEl = document.getElementById("sigBadge");
-    badgeEl.textContent = (signal==="STRONG_BUY"?"CONFIRMED BUY":signal==="STRONG_SELL"?"CONFIRMED SELL":signal.replace(/_/g," "))+(provisional?" · PROVISIONAL":"")+(stale?" · OUTDATED":""); badgeEl.className = "sig-badge "+signal;
-    document.getElementById("scoreVal").textContent  = "Composite: " + (score === null ? "—" : score);
-    document.getElementById("scoreNum").textContent  = score === null ? "—" : score;
-    document.getElementById("scoreDesc").textContent = enoughHistory ? "Weighted indicator blend" : "Awaiting more history";
-    renderTiming(analysis);
-    document.getElementById("footer").textContent    = ticker + " · " + result.finalizedData.length + " confirmed daily closes"+
-      (provisional?" + today's provisional candle":"")+" · "+dates[0]+" → "+dates[dates.length-1]+" · Google Finance quotes may be delayed up to 20 min.";
+    tickerView={result,raw,dates,closes,company,last,chgPct,provisional,quote,stale,analysis,enoughHistory,sigs,score,signal};
+    renderTickerSummary();
 
     // Show content
     document.getElementById("loadState").style.display = "none";
@@ -620,12 +610,81 @@ async function init(refreshQuotes=true) {
     if (enoughHistory) renderGauge(score);
     renderStats(raw, closes, dates);
     if (enoughHistory) renderHeatmap(sigs);
-    else document.getElementById("hmStrip").textContent = analysis.reasons.join(" ");
+    else document.getElementById("hmStrip").textContent = analysis.reasons.map(M).join(" ");
 
   } catch(e) {
-    document.getElementById("loadState").innerHTML =
-      '<div style="color:var(--sell);font-size:15px">⚠ Error</div><div class="err">'+escapeHtml(e.message)+'</div><br><a href="index.html" class="back-btn" style="display:inline-flex;margin-top:12px">← Back to Scanner</a>';
+    tickerError=e.message;
+    renderTickerLoadState();
   } finally {tickerLoading=false;}
+}
+
+// Text has a cached view model so a language change never reloads market data.
+function renderTickerLoadState(){
+  const el=document.getElementById("loadState");
+  if(tickerError){
+    el.innerHTML='<div style="color:var(--sell);font-size:15px">⚠ '+escapeHtml(T("Error"))+'</div><div class="err">'+escapeHtml(M(tickerError))+'</div><br><a href="'+escapeHtml(MarketI18n.link('index.html'))+'" class="back-btn" style="display:inline-flex;margin-top:12px">'+escapeHtml(T("← Back to Scanner"))+'</a>';
+  }else if(tickerLoading){
+    el.innerHTML='<div class="spinner"></div>'+escapeHtml(T("Loading {ticker} from Supabase…",{ticker}));
+  }
+}
+function renderTickerSummary(){
+  if(!tickerView)return;
+  const {result,raw,dates,company,last,chgPct,provisional,quote,stale,analysis,enoughHistory,score,signal}=tickerView;
+  document.getElementById("companyName").textContent=MarketPresentation.description(company);
+  document.getElementById("companyTickers").innerHTML=Array.from(result.universe.byTicker.values()).map(item=>
+    '<option value="'+escapeHtml(item.ticker)+'">'+escapeHtml(item.name+" · "+MarketPresentation.type(item))+'</option>'
+  ).join("");
+  const warnings=marketQualityMessages(result), qualityEl=document.getElementById("dataQuality");
+  qualityEl.hidden=warnings.length===0;
+  qualityEl.textContent=warnings.map(M).join(" · ");
+  document.getElementById("quoteStatus").textContent=(quote?M(marketQuoteLabel(quote)):T("Confirmed daily close · {date}",{date:last.date}))+" · "+
+    T("Latest confirmed close: {date}",{date:result.latestDate||T("awaiting data")})+" · "+
+    T(provisional?"Today's candle is unfinished; all charts, indicators and signals include this provisional candle.":"Charts, indicators and signals use confirmed closes.");
+  document.getElementById("priceVal").textContent="$"+N(last.close);
+  const chgEl=document.getElementById("priceChg");
+  chgEl.textContent=chgPct===null?"—":(chgPct>=0?"+":"")+N(chgPct)+"%";
+  chgEl.className="price-chg "+(chgPct===null?"":chgPct>=0?"up":"dn");
+  const badgeEl=document.getElementById("sigBadge");
+  badgeEl.textContent=M(signal==="STRONG_BUY"?"CONFIRMED BUY":signal==="STRONG_SELL"?"CONFIRMED SELL":signal.replace(/_/g," "))+
+    (provisional?" · "+M("PROVISIONAL"):"")+(stale?" · "+M("OUTDATED"):"");
+  badgeEl.className="sig-badge "+signal;
+  document.getElementById("scoreVal").textContent=T("Composite: {score}",{score:score===null?"—":N(score,0)});
+  document.getElementById("scoreNum").textContent=score===null?"—":N(score,0);
+  document.getElementById("scoreDesc").textContent=T(enoughHistory?"Weighted indicator blend":"Awaiting more history");
+  renderTiming(analysis);
+  document.getElementById("footer").textContent=T("{ticker} · {count} confirmed daily closes",{ticker,count:N(result.finalizedData.length,0)})+
+    (provisional?" "+T("+ today's provisional candle"):"")+" · "+dates[0]+" → "+dates[dates.length-1]+" · "+T("Google Finance quotes may be delayed up to 20 min.");
+}
+function applyTickerLanguage(){
+  MarketI18n.apply();
+  document.title=ticker+" — Market Scanner";
+  document.getElementById("language").value=MarketI18n.getLanguage();
+  document.getElementById("scannerLink").href=MarketI18n.link('index.html');
+  document.getElementById("backtestLink").href=MarketI18n.link('backtest.html?ticker='+encodeURIComponent(ticker));
+  renderTickerLoadState();
+  renderTickerSummary();
+  buildThemeSwitcher_t();
+  _renderCompareTags();
+  document.getElementById("compareAddBtn").textContent=_mc.compareLoading?"…":T("+Add");
+  if(tickerView){
+    const {raw,closes,dates,enoughHistory,sigs,analysis}=tickerView;
+    renderStats(raw,closes,dates);
+    if(enoughHistory)renderHeatmap(sigs);
+    else document.getElementById("hmStrip").textContent=analysis.reasons.map(M).join(" ");
+  }
+  // Updating options in place retains zoom, series, comparisons and each user's chart settings.
+  if(_mc.chart)_mc.chart.applyOptions({localization:mainChartLocalization()});
+  Object.values(window._cjs||{}).forEach(chart=>{
+    chart.options.locale=MarketI18n.locale();
+    chart.data.datasets.forEach(dataset=>{if(dataset._sourceLabel)dataset.label=T(dataset._sourceLabel);});
+    chart.update("none");
+  });
+  if(_mc.crosshairCallback&&_mc.crosshairParam)_mc.crosshairCallback(_mc.crosshairParam);
+  if(_mc.showVP)_drawVP();
+}
+function mainChartLocalization(){
+  const percent=_mc.compareTickers.length>0||_mc.scale==="pct";
+  return {locale:MarketI18n.locale(),priceFormatter:value=>percent?(value>=0?"+":"")+N(value)+"%":N(value)};
 }
 
 // ── Main candlestick + Bollinger ──────────────────────────────────────────────
@@ -640,6 +699,7 @@ const _mc = {
   showVol: true,
   showVP:  false,
   compareTickers: [],      // [{ticker, data, series}]
+  compareLoading: false,
   chart: null,
   mainSeries: null,
   volSeries: null,
@@ -723,8 +783,8 @@ function vwapSeries(data) {
 // Format number for display
 function fmtNum(v, pct) {
   if (v === undefined || v === null) return "—";
-  if (pct) return v.toFixed(2) + "%";
-  return v >= 1e9 ? (v/1e9).toFixed(2)+"B" : v >= 1e6 ? (v/1e6).toFixed(2)+"M" : v >= 1e3 ? (v/1e3).toFixed(1)+"K" : v.toFixed(2);
+  if (pct) return N(v) + "%";
+  return Math.abs(v) >= 1e9 ? N(v/1e9)+(MarketI18n.getLanguage()==="es"?" mil M":"B") : Math.abs(v) >= 1e6 ? N(v/1e6)+"M" : Math.abs(v) >= 1e3 ? N(v/1e3,1)+"K" : N(v);
 }
 
 // SMA series for overlays
@@ -901,13 +961,13 @@ function _drawVP() {
   // POC
   const pocPrice = lo + (pocIdx + 0.5) * bsz;
   hline(pocPrice, "rgba(255,196,0,0.90)",
-        "POC " + pocPrice.toFixed(2),
+        "POC " + N(pocPrice),
         fmtNum(bins[pocIdx]));
 
   // VAH
   const vahPrice = lo + (vaHi + 1) * bsz;
   hline(vahPrice, hexRgba(accentHex, 0.70),
-        "VAH " + vahPrice.toFixed(2), null);
+        "VAH " + N(vahPrice), null);
 
   // VAL
   const valPrice = lo + vaLo * bsz;
@@ -921,7 +981,7 @@ function _drawVP() {
     ctx.restore();
     ctx.fillStyle = hexRgba(accentHex, 0.80);
     ctx.font = "bold 9px 'IBM Plex Mono',monospace";
-    ctx.fillText("VAL " + valPrice.toFixed(2), 4, valY + 10);
+    ctx.fillText("VAL " + N(valPrice), 4, valY + 10);
   }
 
   // VA fill between VAH and VAL (very faint shade)
@@ -950,6 +1010,7 @@ function _buildMainChart() {
   _mc._vpListener = null;
   if (_mc.chart) { _mc.chart.remove(); _mc.chart = null; }
   _mc.overlaySeries = {}; _mc.compareSeries = {};
+  _mc.crosshairParam=null; _mc.crosshairCallback=null;
 
   // ── Compare mode: active whenever compare tickers are present ────────────
   // In compare mode every series is normalised to % change from its own
@@ -979,6 +1040,7 @@ function _buildMainChart() {
   // Create chart
   const chart = LightweightCharts.createChart(container, {
     layout: { background:{color:tc.bg}, textColor:tc.text },
+    localization: mainChartLocalization(),
     grid:   { vertLines:{color:tc.border}, horzLines:{color:tc.border} },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     rightPriceScale: {
@@ -1005,7 +1067,7 @@ function _buildMainChart() {
         autoScale: true,
       },
       localization: {
-        priceFormatter: v => (v >= 0 ? "+" : "") + v.toFixed(2) + "%",
+        priceFormatter: v => (v >= 0 ? "+" : "") + N(v) + "%",
       }
     });
 
@@ -1073,7 +1135,8 @@ function _buildMainChart() {
 
     // Crosshair for compare mode – shows all tickers' % values
     const COMP_COLORS_XH = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
-    chart.subscribeCrosshairMove(param => {
+    _mc.crosshairCallback = param => {
+      _mc.crosshairParam=param;
       const ohlcvBar = document.getElementById("ohlcvBar");
       if (!param.time || !param.seriesData) {
         document.getElementById("ohlcvDate").textContent = "";
@@ -1088,7 +1151,7 @@ function _buildMainChart() {
       document.getElementById("ohlcvO").textContent = "—";
       document.getElementById("ohlcvH").textContent = "—";
       document.getElementById("ohlcvL").textContent = "—";
-      document.getElementById("ohlcvC").textContent = v != null ? (v>=0?"+":"")+v.toFixed(2)+"%" : "—";
+      document.getElementById("ohlcvC").textContent = v != null ? (v>=0?"+":"")+N(v)+"%" : "—";
       // Compare tickers inline
       ohlcvBar.querySelectorAll(".cmp-xh").forEach(el => el.remove());
       _mc.compareTickers.forEach((ct, i) => {
@@ -1099,7 +1162,7 @@ function _buildMainChart() {
         const span = document.createElement("span");
         span.className = "cmp-xh";
         span.style.cssText = `color:${COMP_COLORS_XH[i%COMP_COLORS_XH.length]};font-family:var(--mono);font-size:10px`;
-        span.textContent = ct.ticker + " " + (cv != null ? (cv>=0?"+":"")+cv.toFixed(2)+"%" : "—");
+        span.textContent = ct.ticker + " " + (cv != null ? (cv>=0?"+":"")+N(cv)+"%" : "—");
         ohlcvBar.appendChild(span);
       });
       if (_mc.volSeries) {
@@ -1108,7 +1171,8 @@ function _buildMainChart() {
       } else {
         document.getElementById("ohlcvV").textContent = "—";
       }
-    });
+    };
+    chart.subscribeCrosshairMove(_mc.crosshairCallback);
 
     return; // compare mode fully handled
   }
@@ -1197,7 +1261,8 @@ function _buildMainChart() {
   });
 
   // ── Crosshair readout ─────────────────────────────────────────────────────
-  chart.subscribeCrosshairMove(param => {
+  _mc.crosshairCallback = param => {
+      _mc.crosshairParam=param;
     if (!param.time || !param.seriesData) {
       document.getElementById("ohlcvDate").textContent = "";
       ["ohlcvO","ohlcvH","ohlcvL","ohlcvC","ohlcvV"].forEach(id => document.getElementById(id).textContent = "—");
@@ -1212,9 +1277,9 @@ function _buildMainChart() {
         document.getElementById("ohlcvO").textContent = "—";
         document.getElementById("ohlcvH").textContent = "—";
         document.getElementById("ohlcvL").textContent = "—";
-        document.getElementById("ohlcvC").textContent = isPct ? (v>=0?"+":"")+v.toFixed(2)+"%" : "$"+v.toFixed(2);
+        document.getElementById("ohlcvC").textContent = isPct ? (v>=0?"+":"")+N(v)+"%" : "$"+N(v);
       } else {
-        const fmt = v => isPct ? (v>=0?"+":"")+v.toFixed(2)+"%" : "$"+v.toFixed(2);
+        const fmt = v => isPct ? (v>=0?"+":"")+N(v)+"%" : "$"+N(v);
         document.getElementById("ohlcvO").textContent = fmt(sd.open  || 0);
         document.getElementById("ohlcvH").textContent = fmt(sd.high  || 0);
         document.getElementById("ohlcvL").textContent = fmt(sd.low   || 0);
@@ -1225,7 +1290,8 @@ function _buildMainChart() {
       const vd = param.seriesData.get(_mc.volSeries);
       document.getElementById("ohlcvV").textContent = vd ? fmtNum(vd.value) : "—";
     }
-  });
+  };
+  chart.subscribeCrosshairMove(_mc.crosshairCallback);
 
   chart.timeScale().fitContent();
 
@@ -1304,8 +1370,11 @@ function _bindMainChartControls() {
   const cAdd   = document.getElementById("compareAddBtn");
 
   async function addCompareTicker() {
+    if(_mc.compareLoading)return;
     const t = cInput.value.trim().toUpperCase();
     if (!t || _mc.compareTickers.find(c => c.ticker === t) || t === ticker) { cInput.value=""; return; }
+    _mc.compareLoading=true;
+    cAdd.disabled=true;
     cAdd.textContent = "…";
     try {
       const result = await fetchMarketData(t,null,{includeRecent:document.getElementById("includeIntraday").checked!==false});
@@ -1315,9 +1384,11 @@ function _bindMainChartControls() {
       _renderCompareTags();
       _buildMainChart();
     } catch(err) {
-      alert("Could not load " + t + ": " + err.message);
+      alert(T("Could not load {ticker}: {error}",{ticker:t,error:M(err.message)}));
     }
-    cAdd.textContent = "+Add";
+    _mc.compareLoading=false;
+    cAdd.disabled=false;
+    cAdd.textContent = T("+Add");
     cInput.value = "";
   }
 
@@ -1349,7 +1420,7 @@ const _TIPS = {
 function _btn(el, active, disabled, reason) {
   el.classList.toggle("active", active && !disabled);
   el.toggleAttribute("data-cmp-disabled", disabled);
-  el.title = disabled ? "⚠ " + reason : (_TIPS[el.dataset.chartType || el.dataset.scale || el.dataset.overlay || "vol"] || "");
+  el.title = disabled ? "⚠ " + T(reason) : T(_TIPS[el.dataset.chartType || el.dataset.scale || el.dataset.overlay || (el.hasAttribute("data-vp")?"vp":"vol")] || "");
 }
 
 function _syncUI() {
@@ -1400,18 +1471,10 @@ function _syncUI() {
   const bar = document.getElementById("mcStatusBar");
   if (inCmp) {
     bar.style.display = "";
-    bar.innerHTML =
-      '<span style="color:var(--accent);margin-right:6px">&#x24D8; Compare mode</span>' +
-      'Chart type locked to <b style="color:var(--text)">Line</b> · ' +
-      'Scale locked to <b style="color:var(--text)">% Change</b> · ' +
-      'Overlays &amp; Volume Profile unavailable &nbsp;·&nbsp; ' +
-      'Remove all compare tickers to restore full controls.';
+    bar.innerHTML='<span style="color:var(--accent);margin-right:6px">ⓘ '+escapeHtml(T("Compare mode"))+'</span>'+escapeHtml(T("Chart type locked to Line · Scale locked to % Change · Overlays & Volume Profile unavailable · Remove all compare tickers to restore full controls."));
   } else if (isPct) {
     bar.style.display = "";
-    bar.innerHTML =
-      '<span style="color:var(--hold);margin-right:6px">&#x24D8; % Change mode</span>' +
-      '<b style="color:var(--muted)">BB</b>, <b style="color:var(--muted)">VWAP</b> and ' +
-      '<b style="color:var(--muted)">Volume Profile</b> are unavailable on a % axis.';
+    bar.innerHTML='<span style="color:var(--hold);margin-right:6px">ⓘ '+escapeHtml(T("% Change mode"))+'</span>'+escapeHtml(T("BB, VWAP and Volume Profile are unavailable on a % axis."));
   } else {
     bar.style.display = "none";
   }
@@ -1431,10 +1494,11 @@ function _renderCompareTags() {
   const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
   wrap.innerHTML = _mc.compareTickers.map((ct, i) =>
     `<span class="mc-tag" style="border-color:${COMP_COLORS[i%COMP_COLORS.length]};color:${COMP_COLORS[i%COMP_COLORS.length]}">
-      ${ct.ticker}${ct.provisional?" · PROVISIONAL":""}<span class="mc-tag-x" data-remove="${ct.ticker}">&#x2715;</span>
+      ${escapeHtml(ct.ticker)}${ct.provisional?" · "+escapeHtml(M("PROVISIONAL")):""}<span class="mc-tag-x" role="button" tabindex="0" title="${escapeHtml(T("Remove {ticker} from comparison",{ticker:ct.ticker}))}" aria-label="${escapeHtml(T("Remove {ticker} from comparison",{ticker:ct.ticker}))}" data-remove="${escapeHtml(ct.ticker)}">&#x2715;</span>
     </span>`
   ).join("");
   wrap.querySelectorAll(".mc-tag-x").forEach(x => {
+    x.addEventListener("keydown", event => {if(event.key==="Enter"||event.key===" "){event.preventDefault();x.click();}});
     x.addEventListener("click", () => {
       _mc.compareTickers = _mc.compareTickers.filter(c => c.ticker !== x.dataset.remove);
       _renderCompareTags();
@@ -1448,9 +1512,10 @@ function makeChart(id, type, labels, datasets, extraOpts={}) {
   const ctx = document.getElementById(id).getContext("2d");
   if(!window._cjs)window._cjs={};
   if(window._cjs[id])window._cjs[id].destroy();
+  datasets.forEach(dataset=>{if(dataset.label){dataset._sourceLabel=dataset.label;dataset.label=T(dataset.label);}});
   const _c = new Chart(ctx, {
     type, data:{labels, datasets},
-    options: deepMerge(JSON.parse(JSON.stringify(CHART_OPTIONS)), extraOpts)
+    options: deepMerge({...JSON.parse(JSON.stringify(CHART_OPTIONS)),locale:MarketI18n.locale()}, extraOpts)
   });
   window._cjs[id]=_c;
   return _c;
@@ -1555,7 +1620,7 @@ function renderVolume(raw, dates) {
   makeChart("volChart","bar", labelEvery(dates), [
     { label:"Volume", data:raw.map(d=>d.vol),  backgroundColor:volColors, borderWidth:0, order:2 },
     { label:"Avg20",  data:avgLine, borderColor:"rgba(255,193,7,.8)", borderWidth:1.5, pointRadius:0, type:"line", order:1, spanGaps:true }
-  ], {scales:{y:{ticks:{callback:v=>v>1e9?(v/1e9).toFixed(1)+"B":v>1e6?(v/1e6).toFixed(0)+"M":v}}}});
+  ], {scales:{y:{ticks:{callback:v=>fmtNum(v)}}}});
 }
 
 // ── OBV ───────────────────────────────────────────────────────────────────────
@@ -1567,7 +1632,7 @@ function renderOBV(raw, dates) {
   makeChart("obvChart","line", labelEvery(lbls), [
     { data:vals, borderColor:"#00b894", borderWidth:1.5, pointRadius:0, tension:.3,
       fill:true, backgroundColor:"rgba(0,184,148,.08)" }
-  ], {scales:{y:{ticks:{callback:v=>v>1e9?(v/1e9).toFixed(1)+"B":v>1e6?(v/1e6).toFixed(0)+"M":v}}}});
+  ], {scales:{y:{ticks:{callback:v=>fmtNum(v)}}}});
 }
 
 // ── ROC ───────────────────────────────────────────────────────────────────────
@@ -1633,24 +1698,24 @@ function renderStats(raw, closes, dates) {
   const rsi    = rsiCalc(closes, 14);
   const bb     = bollingerSeries(closes, dates);
   const bbLast = bb.upper.length ? bb.upper[bb.upper.length-1].value : 0;
-  const bbPct  = bb.upper.length ? (MarketScoring.bbPct(closes)*100).toFixed(0)+"%" : "—";
+  const bbPct  = bb.upper.length ? N(MarketScoring.bbPct(closes)*100,0)+"%" : "—";
   const atr_v  = atrSeries(raw, dates);
-  const atrLast = atr_v.length ? atr_v[atr_v.length-1].value.toFixed(2)+"%" : "—";
-  const totalChg = ((last.close-first.close)/first.close*100).toFixed(1);
+  const atrLast = atr_v.length ? N(atr_v[atr_v.length-1].value)+"%" : "—";
+  const totalChg = (last.close-first.close)/first.close*100;
 
   const stats = [
-    {l:"Days",        v:n},
-    {l:"High 52W",    v:"$"+high52.toFixed(2)},
-    {l:"Low 52W",     v:"$"+low52.toFixed(2)},
-    {l:"RSI (14)",    v:closes.length<15?"—":rsi.toFixed(1), c:rsi>70||rsi<30?"var(--hold)":"var(--text)"},
+    {l:"Days",        v:N(n,0)},
+    {l:"High 52W",    v:"$"+N(high52)},
+    {l:"Low 52W",     v:"$"+N(low52)},
+    {l:"RSI (14)",    v:closes.length<15?"—":N(rsi,1), c:rsi>70||rsi<30?"var(--hold)":"var(--text)"},
     {l:"BB %B",       v:bbPct},
     {l:"ATR (norm)",  v:atrLast},
-    {l:"Period Chg",  v:(totalChg>=0?"+":"")+totalChg+"%", c:totalChg>=0?"var(--buy)":"var(--sell)"},
-    {l:"Avg Volume",  v:(raw.slice(-20).reduce((a,b)=>a+b.vol,0)/Math.min(20,raw.length)/1e6).toFixed(1)+"M"},
+    {l:"Period Chg",  v:(totalChg>=0?"+":"")+N(totalChg,1)+"%", c:totalChg>=0?"var(--buy)":"var(--sell)"},
+    {l:"Avg Volume",  v:N(raw.slice(-20).reduce((a,b)=>a+b.vol,0)/Math.min(20,raw.length)/1e6,1)+"M"},
   ];
 
   document.getElementById("statsGrid").innerHTML = stats.map(s=>
-    `<div class="stat-item"><div class="stat-lbl">${s.l}</div><div class="stat-val" style="color:${s.c||"var(--text)"}">${s.v}</div></div>`
+    `<div class="stat-item"><div class="stat-lbl">${escapeHtml(T(s.l))}</div><div class="stat-val" style="color:${s.c||"var(--text)"}">${s.v}</div></div>`
   ).join("");
 }
 
@@ -1671,16 +1736,21 @@ function hmTxt(v){
 }
 
 function renderHeatmap(sigs) {
-  document.getElementById("hmStrip").innerHTML = INDICATORS.map(ind => {
-    if(ind.weight===0)return '<div class="hm-item" style="background:var(--surface2)" title="'+escapeHtml(ind.name)+' — excluded from Composite"><div class="hm-label">'+escapeHtml(ind.name)+'</div><div class="hm-sym" style="color:var(--muted)">off</div><div class="hm-num">weight 0</div></div>';
-    const v = sigs[ind.id]||0;
-    return `<div class="hm-item" style="background:${hmBg(v)}" title="${ind.name}: ${v.toFixed(2)}">
-      <div class="hm-label" style="color:${ind.grpColor}">${ind.name}</div>
+  document.getElementById("hmStrip").innerHTML=INDICATORS.map(ind=>{
+    const name=T(ind.name);
+    if(ind.weight===0)return '<div class="hm-item" style="background:var(--surface2)" title="'+escapeHtml(T("{indicator} — excluded from Composite",{indicator:name}))+'"><div class="hm-label">'+escapeHtml(name)+'</div><div class="hm-sym" style="color:var(--muted)">'+escapeHtml(T("off"))+'</div><div class="hm-num">'+escapeHtml(T("weight 0"))+'</div></div>';
+    const v=sigs[ind.id]||0;
+    return `<div class="hm-item" style="background:${hmBg(v)}" title="${escapeHtml(name)}: ${N(v)}">
+      <div class="hm-label" style="color:${ind.grpColor}">${escapeHtml(name)}</div>
       <div class="hm-sym" style="color:${hmTxt(v)}">${hmSym(v)}</div>
-      <div class="hm-num" style="color:${hmTxt(v)}">${v.toFixed(2)}</div>
+      <div class="hm-num" style="color:${hmTxt(v)}">${N(v)}</div>
     </div>`;
   }).join("");
 }
+
+document.getElementById("language").addEventListener("change",event=>MarketI18n.setLanguage(event.target.value));
+MarketI18n.onChange(applyTickerLanguage);
+applyTickerLanguage();
 
 init();
 </script>

@@ -31,7 +31,7 @@ http.createServer((request,response)=>{
     let body=fs.readFileSync(file);
     if(snapshot&&relative==='js/config.js'){
       body=body.toString().replace(/const SUPABASE_URL = .*?;/,'const SUPABASE_URL = "https://preview.invalid";').replace(/const SUPABASE_KEY = .*?;/,'const SUPABASE_KEY = "sb_publishable_preview";');
-      body+='\nconst previewFetch=window.fetch.bind(window);window.fetch=(input,options)=>String(input).startsWith("https://preview.invalid/rest/v1/market_history")?previewFetch("/__history?"+String(input).split("?")[1],options):previewFetch(input,options);\n';
+      body+='\nconst previewFetch=window.fetch.bind(window);window.fetch=(input,options)=>String(input).startsWith("https://preview.invalid/rest/v1/market_history")?previewFetch("/__history?"+String(input).split("?")[1],options):String(input).startsWith("https://preview.invalid/rest/v1/market_latest_quotes")?Promise.resolve(new Response("[]",{headers:{"Content-Type":"application/json"}})):previewFetch(input,options);\n';
     }
     response.writeHead(200,{'Content-Type':types[path.extname(file)]||'application/octet-stream','Cache-Control':'no-store'});response.end(body);
   }catch{response.writeHead(404);response.end();}

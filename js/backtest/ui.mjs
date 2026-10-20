@@ -1,6 +1,6 @@
 import { inspectHistory, DEFAULT_CONFIG, PRESET_STRATEGIES } from './lab.mjs';
 import { validateWeights, normalizeWeights, equalWeights, readPortfolios, savePortfolio, deletePortfolio, toCsv } from './storage.mjs';
-import { t, translateMessage, getLanguage, setLanguage, applyTranslations, formatNumber } from './i18n.mjs';
+import { t, translateMessage, getLanguage, setLanguage, onLanguageChange, languageLink, applyTranslations, formatNumber } from './i18n.mjs?v=2';
 
 const $ = id => document.getElementById(id);
 const state = { universe: null, weights: {}, portfolios: [], storageReady: true, rows: [], scope: null, source: null,
@@ -252,7 +252,7 @@ function renderResult() {
   chart($('equity-chart'), strategy.equityCurve, benchmark.equityCurve, 'equity');
   chart($('drawdown-chart'), strategy.equityCurve, benchmark.equityCurve, 'drawdown', true);
   const benchmarkTickers = new Map(benchmark.perTicker.map(item => [item.ticker, item]));
-  $('ticker-results').innerHTML = strategy.perTicker.map(item => `<tr><td><a class="ticker-link" href="ticker.html?ticker=${encodeURIComponent(item.ticker)}">${escape(item.ticker)}</a></td><td>${percent(config.weights[item.ticker])}</td><td class="${signClass(item.totalReturn)}">${percent(item.totalReturn)}</td><td>${percent(benchmarkTickers.get(item.ticker)?.totalReturn)}</td><td class="${signClass(item.netProfit)}">${money(item.netProfit)}</td><td>${number(item.tradeCount, 0)}</td></tr>`).join('');
+  $('ticker-results').innerHTML = strategy.perTicker.map(item => `<tr><td><a class="ticker-link" href="${escape(languageLink('ticker.html?ticker=' + encodeURIComponent(item.ticker)))}">${escape(item.ticker)}</a></td><td>${percent(config.weights[item.ticker])}</td><td class="${signClass(item.totalReturn)}">${percent(item.totalReturn)}</td><td>${percent(benchmarkTickers.get(item.ticker)?.totalReturn)}</td><td class="${signClass(item.netProfit)}">${money(item.netProfit)}</td><td>${number(item.tradeCount, 0)}</td></tr>`).join('');
   const warnings = [...(result.data.warnings || []), ...(strategy.dataQuality?.warnings || []), ...(benchmark.dataQuality?.warnings || [])];
   $('result-warnings').innerHTML = warningsHtml(warnings);
   $('data-hash').textContent = t('Datos {start} → {end} · SHA-256 {hash} · Creado {created}', { start: result.data.firstDate, end: result.data.lastDate, hash: result.data.hash, created: result.createdAt });
@@ -369,10 +369,9 @@ async function initialize() {
     renderUniverse(); renderSelection();
   } catch (error) { state.universeFailed = true; renderUniverse(); fail(error); }
 }
-function changeLanguage(language) {
+function renderLanguage() {
   // Presentation only: retain entered weights exactly and do not reload data or recompute results.
   const weightInputs = new Map([...document.querySelectorAll('[data-weight]')].map(input => [input.dataset.weight, input.value]));
-  setLanguage(language);
   applyTranslations();
   $('language').value = getLanguage();
   renderPresetDescription(); renderUniverse(); renderSelection(); renderPortfolios(); renderCoverage();
@@ -384,7 +383,8 @@ function changeLanguage(language) {
   for (const [id, descriptor] of state.statuses) $(id).textContent = translated(descriptor);
   setBusy(state.busy);
 }
-$('language').addEventListener('change', event => changeLanguage(event.target.value));
+$('language').addEventListener('change', event => setLanguage(event.target.value));
+onLanguageChange(renderLanguage);
 $('language').value = getLanguage();
 applyTranslations();
 initialize();
