@@ -34,5 +34,5 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-      - name: Verify scoring, pages, data client, worker and close audit offline
+      - name: Verify scoring, backtest execution, pages, data client and worker offline
         run: node --test tests/*.test.cjs tests/*.test.mjs

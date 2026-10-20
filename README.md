@@ -2,6 +2,8 @@
 
 El ranking separa **Composite, Trend, Entry Timing y Exit Pressure**. El Composite conserva su fórmula configurable, con correcciones para exigir recuperación antes de premiar la sobreventa. Buy/Sell y Strong Buy/Strong Sell se determinan mediante tendencia, momentum, posición y volumen; los datos atrasados quedan en Wait. [Reglas, umbrales, limitaciones y auditoría de los 250 instrumentos](docs/SCORING.md).
 
+El [backtest comparativo con costes](docs/BACKTEST.md) obtiene +38,91% para la nueva lógica frente a +0,36% de la anterior iniciada en efectivo, pero +75,60% para comprar y mantener. La nueva reduce la caída máxima; las ventas no muestran una ventaja media a 5, 10 ni 20 sesiones. Es una evaluación retrospectiva del universo actual, no una validación de rentabilidad futura.
+
 Aplicación estática con 200 empresas y 50 ETF. **Precios recupera las fórmulas GOOGLEFINANCE y un envío rápido de 250 cotizaciones. Los gráficos y análisis incorporan la vela provisional del día, identificada como tal. Supabase valida los datos y mantiene los cierres confirmados.**
 
 La instalación del nuevo Apps Script y sus activadores se realiza con la cuenta propietaria. Copiar esta versión y ejecutar la preparación recupera las fórmulas en el mismo libro; no exige importar de nuevo el Excel. [Ruta rápida e intradiarios](docs/COTIZACIONES_INTRADIA.md).
@@ -68,7 +70,7 @@ La arquitectura y los límites están en [ARQUITECTURA_SUPABASE.md](docs/ARQUITE
 Con Node.js 22 o posterior:
 
 ```powershell
-node --test tests/*.test.cjs
+node --test tests/*.test.cjs tests/*.test.mjs
 node tools/update-universe.mjs --check
 node tools/build-universe.mjs
 node tools/build-server-schema.mjs
