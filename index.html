@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>US Market Scanner · 200 Companies + 50 ETFs</title>
+<title data-i18n="US Market Scanner · 200 Companies + 50 ETFs">US Market Scanner · 200 Companies + 50 ETFs</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
 :root {
@@ -32,6 +32,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding-bot
 .theme-dot{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.3);cursor:pointer;transition:all .18s;padding:0;outline:none;display:inline-block}
 .theme-dot:hover{transform:scale(1.2)}
 .theme-dot.active{border-color:var(--text);transform:scale(1.25);box-shadow:0 0 0 2px var(--bg),0 0 0 3px var(--text)}
+.language-select{font-family:var(--mono);font-size:11px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px}.hdr-right{flex-wrap:wrap;justify-content:flex-end}header{gap:12px;flex-wrap:wrap}
 .theme-sep{width:1px;height:14px;background:var(--border);margin:0 2px}
 .active-preset{font-family:var(--mono);font-size:10px;color:var(--accent);border:1px solid rgba(0,212,255,.3);border-radius:3px;padding:2px 8px;background:rgba(0,212,255,.06)}
 
@@ -232,10 +233,11 @@ svg.spark{display:block}
 
 <div class="wrap">
 <header>
-  <div class="logo">US Stocks + ETFs <span>/</span> Market Scanner</div>
+  <div class="logo"><span data-i18n="US Stocks + ETFs">US Stocks + ETFs</span> <span>/</span> Market Scanner</div>
   <div class="hdr-right">
-    <a class="btn" href="backtest.html" style="text-decoration:none">Backtesting</a>
-    <span>DAILY CANDLES</span>
+    <select id="language" class="language-select" aria-label="Language" data-i18n-aria-label="Language"><option value="es">Español</option><option value="en">English</option></select>
+    <a id="backtestLink" class="btn" href="backtest.html" style="text-decoration:none" data-i18n="Backtesting">Backtesting</a>
+    <span data-i18n="DAILY CANDLES">DAILY CANDLES</span>
     <span id="tsUpdate">—</span>
     <span id="tsCount">—</span>
     <span id="activePresetBadge"></span>
@@ -248,59 +250,59 @@ svg.spark{display:block}
 <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
 
 <div class="controls">
-  <button class="btn" onclick="loadData()">⟳ Refresh</button>
-  <label style="font-size:12px;display:flex;align-items:center;gap:6px"><input id="includeIntraday" type="checkbox" checked onchange="loadData(false)"> Include today's provisional candle</label>
-  <button class="btn btn-cfg" id="cfgToggle" onclick="toggleCfg()">⚙ Indicators</button>
+  <button class="btn" onclick="loadData()" data-i18n="⟳ Refresh">⟳ Refresh</button>
+  <label style="font-size:12px;display:flex;align-items:center;gap:6px"><input id="includeIntraday" type="checkbox" checked onchange="loadData(false)"> <span data-i18n="Include today&#x27;s provisional candle">Include today's provisional candle</span></label>
+  <button class="btn btn-cfg" id="cfgToggle" onclick="toggleCfg()" data-i18n="⚙ Indicators">⚙ Indicators</button>
   <div class="fgroup">
-    <button class="fbtn on"   onclick="setFilter('ALL',this)">All</button>
-    <button class="fbtn buy"  onclick="setFilter('BUY',this)">Buy</button>
-    <button class="fbtn sell" onclick="setFilter('SELL',this)">Sell</button>
-    <button class="fbtn buy" onclick="setFilter('STRONG_BUY',this)">Confirmed buy</button>
-    <button class="fbtn sell" onclick="setFilter('STRONG_SELL',this)">Confirmed sell</button>
-    <button class="fbtn"      onclick="setFilter('HOLD',this)">Hold</button>
-    <button class="fbtn"      onclick="setFilter('WAIT',this)">Awaiting data</button>
+    <button class="fbtn on"   onclick="setFilter('ALL',this)" data-i18n="All">All</button>
+    <button class="fbtn buy"  onclick="setFilter('BUY',this)" data-i18n="Buy">Buy</button>
+    <button class="fbtn sell" onclick="setFilter('SELL',this)" data-i18n="Sell">Sell</button>
+    <button class="fbtn buy" onclick="setFilter('STRONG_BUY',this)" data-i18n="Confirmed buy">Confirmed buy</button>
+    <button class="fbtn sell" onclick="setFilter('STRONG_SELL',this)" data-i18n="Confirmed sell">Confirmed sell</button>
+    <button class="fbtn"      onclick="setFilter('HOLD',this)" data-i18n="Hold">Hold</button>
+    <button class="fbtn"      onclick="setFilter('WAIT',this)" data-i18n="Awaiting data">Awaiting data</button>
   </div>
-  <select class="type-filter" id="instrumentType" aria-label="Instrument type" onchange="renderTable()">
-    <option value="ALL">Stocks + ETFs</option>
-    <option value="STOCK">Stocks</option>
-    <option value="ETF">ETFs</option>
+  <select class="type-filter" id="instrumentType" aria-label="Instrument type" data-i18n-aria-label="Instrument type" onchange="renderTable()">
+    <option value="ALL" data-i18n="Stocks + ETFs">Stocks + ETFs</option>
+    <option value="STOCK" data-i18n="Stocks">Stocks</option>
+    <option value="ETF" data-i18n="ETFs">ETFs</option>
   </select>
-  <input type="text" id="search" placeholder="Ticker or name…" oninput="renderTable()">
+  <input type="text" id="search" placeholder="Ticker or name…" data-i18n-placeholder="Ticker or name…" oninput="renderTable()">
 </div>
 
 <!-- Config Panel -->
 <div class="cfg-panel" id="cfgPanel">
   <div class="cfg-header">
-    <div><div class="cfg-title">Composite Score Configuration</div><div class="cfg-subtitle">Weights and presets affect Composite only · Timing signals use fixed rules · Set weight 1–3 · 0 = off</div></div>
+    <div><div class="cfg-title" data-i18n="Composite Score Configuration">Composite Score Configuration</div><div class="cfg-subtitle" data-i18n="Weights and presets affect Composite only · Timing signals use fixed rules · Set weight 1–3 · 0 = off">Weights and presets affect Composite only · Timing signals use fixed rules · Set weight 1–3 · 0 = off</div></div>
   </div>
-  <div class="presets-wrap"><div class="presets-label">Composite Weight Presets</div><div class="preset-cards" id="presetCards"></div></div>
+  <div class="presets-wrap"><div class="presets-label" data-i18n="Composite Weight Presets">Composite Weight Presets</div><div class="preset-cards" id="presetCards"></div></div>
   <div class="cfg-groups" id="cfgGroups"></div>
 </div>
 
 <!-- Summary -->
 <div class="summary">
-  <div class="card"><div class="card-lbl">Tickers</div><div class="card-val t" id="cTotal">—</div></div>
-  <div class="card"><div class="card-lbl">Buy signals</div><div class="card-val b" id="cBuy">—</div></div>
-  <div class="card"><div class="card-lbl">Sell signals</div><div class="card-val s" id="cSell">—</div></div>
-  <div class="card"><div class="card-lbl">Neutral</div><div class="card-val h" id="cHold">—</div></div>
-  <div class="card"><div class="card-lbl">Active indicators</div><div class="card-val i" id="cInd">—</div></div>
+  <div class="card"><div class="card-lbl" data-i18n="Tickers">Tickers</div><div class="card-val t" id="cTotal">—</div></div>
+  <div class="card"><div class="card-lbl" data-i18n="Buy signals">Buy signals</div><div class="card-val b" id="cBuy">—</div></div>
+  <div class="card"><div class="card-lbl" data-i18n="Sell signals">Sell signals</div><div class="card-val s" id="cSell">—</div></div>
+  <div class="card"><div class="card-lbl" data-i18n="Neutral">Neutral</div><div class="card-val h" id="cHold">—</div></div>
+  <div class="card"><div class="card-lbl" data-i18n="Active indicators">Active indicators</div><div class="card-val i" id="cInd">—</div></div>
 </div>
 
-<p class="score-guide"><strong>Entry Timing</strong> ranks momentum recovery, position within the trend and volume confirmation. <strong>Trend</strong> measures direction and strength; a bullish trend can still have a weak entry. <strong>Exit Pressure</strong> measures persistent loss of 50-day support, with a faster exit for severe high-volume breakdowns. Ordinary pullbacks can remain Hold. Exits require a completed daily candle. <strong>Confirmed buy/sell</strong> adds two closes holding a breakout level and volume confirmation; it does not mean higher expected returns. <strong>Composite</strong> keeps your weighted indicator view and does not set Buy/Sell signals. Scores run from 0 to 100 and are not probabilities.</p>
+<p class="score-guide"><strong data-i18n="Entry Timing">Entry Timing</strong> <span data-i18n="ranks momentum recovery, position within the trend and volume confirmation.">ranks momentum recovery, position within the trend and volume confirmation.</span> <strong data-i18n="Trend">Trend</strong> <span data-i18n="measures direction and strength; a bullish trend can still have a weak entry.">measures direction and strength; a bullish trend can still have a weak entry.</span> <strong data-i18n="Exit Pressure">Exit Pressure</strong> <span data-i18n="measures persistent loss of 50-day support, with a faster exit for severe high-volume breakdowns. Ordinary pullbacks can remain Hold. Exits require a completed daily candle.">measures persistent loss of 50-day support, with a faster exit for severe high-volume breakdowns. Ordinary pullbacks can remain Hold. Exits require a completed daily candle.</span> <strong data-i18n="Confirmed buy/sell">Confirmed buy/sell</strong> <span data-i18n="adds two closes holding a breakout level and volume confirmation; it does not mean higher expected returns.">adds two closes holding a breakout level and volume confirmation; it does not mean higher expected returns.</span> <strong data-i18n="Composite">Composite</strong> <span data-i18n="keeps your weighted indicator view and does not set Buy/Sell signals. Scores run from 0 to 100 and are not probabilities.">keeps your weighted indicator view and does not set Buy/Sell signals. Scores run from 0 to 100 and are not probabilities.</span> </p>
 <!-- Heatmap Legend -->
 <div class="legend">
-  <div class="legend-item"><span style="font-family:var(--mono);color:#00e676;font-size:11px">▲▲</span> Strong positive input</div>
-  <div class="legend-item"><span style="font-family:var(--mono);color:#00a855;font-size:11px">▲ △</span> Positive input</div>
-  <div class="legend-item"><span style="font-family:var(--mono);color:#2a3f52;font-size:11px">·</span> Neutral</div>
-  <div class="legend-item"><span style="font-family:var(--mono);color:#cc2240;font-size:11px">▽ ▼</span> Negative input</div>
-  <div class="legend-item"><span style="font-family:var(--mono);color:#ff3d57;font-size:11px">▼▼</span> Strong negative input</div>
-  <div class="legend-item"><span style="font-family:var(--mono);color:var(--border);font-size:9px">off</span> Disabled</div>
+  <div class="legend-item"><span style="font-family:var(--mono);color:#00e676;font-size:11px">▲▲</span> <span data-i18n="Strong positive input">Strong positive input</span></div>
+  <div class="legend-item"><span style="font-family:var(--mono);color:#00a855;font-size:11px">▲ △</span> <span data-i18n="Positive input">Positive input</span></div>
+  <div class="legend-item"><span style="font-family:var(--mono);color:#2a3f52;font-size:11px">·</span> <span data-i18n="Neutral">Neutral</span></div>
+  <div class="legend-item"><span style="font-family:var(--mono);color:#cc2240;font-size:11px">▽ ▼</span> <span data-i18n="Negative input">Negative input</span></div>
+  <div class="legend-item"><span style="font-family:var(--mono);color:#ff3d57;font-size:11px">▼▼</span> <span data-i18n="Strong negative input">Strong negative input</span></div>
+  <div class="legend-item"><span style="font-family:var(--mono);color:var(--border);font-size:9px" data-i18n="off">off</span> <span data-i18n="Disabled">Disabled</span></div>
   <div class="legend-sep"></div>
-  <div class="legend-grp"><div class="legend-dot" style="background:var(--accent);border-radius:50%"></div>Trend</div>
-  <div class="legend-grp"><div class="legend-dot" style="background:var(--hold);border-radius:50%"></div>Momentum</div>
-  <div class="legend-grp"><div class="legend-dot" style="background:#a855f7;border-radius:50%"></div>Volatility</div>
-  <div class="legend-grp"><div class="legend-dot" style="background:#00b894;border-radius:50%"></div>Volume</div>
-  <div class="legend-grp"><div class="legend-dot" style="background:#fd79a8;border-radius:50%"></div>Candles</div>
+  <div class="legend-grp"><div class="legend-dot" style="background:var(--accent);border-radius:50%"></div><span data-i18n="Trend">Trend</span></div>
+  <div class="legend-grp"><div class="legend-dot" style="background:var(--hold);border-radius:50%"></div><span data-i18n="Momentum">Momentum</span></div>
+  <div class="legend-grp"><div class="legend-dot" style="background:#a855f7;border-radius:50%"></div><span data-i18n="Volatility">Volatility</span></div>
+  <div class="legend-grp"><div class="legend-dot" style="background:#00b894;border-radius:50%"></div><span data-i18n="Volume">Volume</span></div>
+  <div class="legend-grp"><div class="legend-dot" style="background:#fd79a8;border-radius:50%"></div><span data-i18n="Candles">Candles</span></div>
 </div>
 
 <!-- Heatmap Table -->
@@ -310,17 +312,23 @@ svg.spark{display:block}
       <thead id="thead"></thead>
       <tbody id="tbody"></tbody>
     </table>
-    <div id="stateMsg" class="state-msg"><div class="spinner"></div>Connecting…</div>
+    <div id="stateMsg" class="state-msg"><div class="spinner"></div><span data-i18n="Connecting…">Connecting…</span></div>
   </div>
 </div>
 <div class="footer" id="footer"></div>
 </div><!-- wrap -->
 
+<script src="js/i18n.js"></script>
+<script src="js/market-translations.js"></script>
+<script src="js/scanner-translations.js"></script>
 <script src="js/config.js"></script>
 <script src="js/market-calendar.js?v=3"></script>
 <script src="js/data.js?v=3.2"></script>
 <script src="js/scoring.js?v=3"></script>
 <script>
+function t(key,params){return MarketI18n.t(key,params);}
+function localMessage(value){return MarketI18n.message(value);}
+function localizedReasons(row){return (row.reasons||[]).map(localMessage).join(" · ");}
 // ── Theme engine ──────────────────────────────────────────────────────────────
 var THEMES={
   midnight:{name:"🌙 Midnight",color:"#4f8ef7",vars:{"--bg":"#0d1117","--surface":"#13181f","--surface2":"#1a1f2e","--border":"#1e2838","--text":"#e8eaf0","--muted":"#7a8298","--accent":"#4f8ef7","--buy":"#2ecc71","--sell":"#e74c3c","--hold":"#f7c44f","--buy-bg":"rgba(46,204,113,0.18)","--sell-bg":"rgba(231,76,60,0.16)","--hold-bg":"rgba(247,196,79,0.08)","--row-buy-sticky":"rgba(46,204,113,0.13)","--row-sell-sticky":"rgba(231,76,60,0.13)"}},
@@ -350,7 +358,7 @@ function buildThemeSwitcher(){
   Object.keys(THEMES).forEach(function(id){
     var t=THEMES[id];
     var active=id===_activeTheme?" active":"";
-    html+='<button class="theme-dot'+active+'" data-theme="'+id+'" style="background:'+t.color+'" title="'+t.name+'"></button>';
+    html+='<button class="theme-dot'+active+'" data-theme="'+id+'" style="background:'+t.color+'" title="'+escapeHtml(MarketI18n.t(t.name))+'"></button>';
   });
   el.innerHTML=html;
   el.querySelectorAll(".theme-dot").forEach(function(b){
@@ -400,22 +408,22 @@ var PRESETS = [
 ];
 
 var results=[], filter="ALL", sortCol="entryScore", sortAsc=false, activePreset=null, companyUniverse=null;
-var loadingData=false, currentMarketResult=null;
+var loadingData=false, currentMarketResult=null, marketLoadedAt=null, displayStatus=null;
 
 // ── Tooltip ───────────────────────────────────────────────────────────────────
 var tt=document.getElementById("tooltip"), ttT=null;
 function showTooltip(el,id){
   clearTimeout(ttT);
   var ind=INDICATORS.find(function(i){return i.id===id;});if(!ind)return;
-  document.getElementById("tt-name").textContent=ind.name;
-  document.getElementById("tt-formula").textContent=ind.formula;
-  document.getElementById("tt-desc").textContent=ind.desc;
-  document.getElementById("tt-signals").innerHTML=ind.signals.map(function(s){return'<div class="tt-sig-row"><span class="tt-sig-lbl '+s.cls+'">'+s.lbl+'</span><span class="tt-sig-txt">'+s.txt+'</span></div>';}).join("");
-  var r=el.getBoundingClientRect(),l=r.right+10,t=r.top;
+  document.getElementById("tt-name").textContent=t(ind.name);
+  document.getElementById("tt-formula").textContent=t(ind.formula);
+  document.getElementById("tt-desc").textContent=t(ind.desc);
+  document.getElementById("tt-signals").innerHTML=ind.signals.map(function(s){return'<div class="tt-sig-row"><span class="tt-sig-lbl '+s.cls+'">'+escapeHtml(t(s.lbl))+'</span><span class="tt-sig-txt">'+escapeHtml(t(s.txt))+'</span></div>';}).join("");
+  var r=el.getBoundingClientRect(),l=r.right+10,top=r.top;
   if(l+290>window.innerWidth-10)l=r.left-300;
-  if(t+200>window.innerHeight-10)t=window.innerHeight-210;
-  if(t<10)t=10;
-  tt.style.left=l+"px";tt.style.top=t+"px";tt.classList.add("visible");
+  if(top+200>window.innerHeight-10)top=window.innerHeight-210;
+  if(top<10)top=10;
+  tt.style.left=l+"px";tt.style.top=top+"px";tt.classList.add("visible");
 }
 function hideTooltip(){ttT=setTimeout(function(){tt.classList.remove("visible");},100);}
 
@@ -468,7 +476,7 @@ function computeSignals(data){return MarketScoring.computeSignals(data);}
 function computeScore(signals){return MarketScoring.computeScore(signals,INDICATORS);}
 function isBuy(signal){return signal==="BUY"||signal==="STRONG_BUY";}
 function isSell(signal){return signal==="SELL"||signal==="STRONG_SELL";}
-function signalText(signal){return signal==="STRONG_BUY"?"CONFIRMED BUY":signal==="STRONG_SELL"?"CONFIRMED SELL":signal.replace(/_/g," ");}
+function signalText(signal){return t(signal==="STRONG_BUY"?"CONFIRMED BUY":signal==="STRONG_SELL"?"CONFIRMED SELL":signal.replace(/_/g," "));}
 function matchesSignal(signal,selected){return selected==="ALL"||(selected==="BUY"?isBuy(signal):selected==="SELL"?isSell(signal):signal===selected);}
 function scoreColor(value,key){
   if(value==null)return "var(--muted)";
@@ -500,15 +508,16 @@ async function loadData(refreshQuotes=true){
   if(loadingData)return;
   loadingData=true;
   var src = "Supabase";
-  show('<div class="spinner"></div>Loading data from '+src+'…');
+  showStatus('loading',{source:src});
   setProgress(10);
   try{
     setProgress(30);
     var result = await fetchMarketData(null,function(count){
-      show('<div class="spinner"></div>Loading finalized history · '+count.toLocaleString()+' rows…');
+      showStatus('history',{count:count});
       setProgress(Math.min(59,30+count/(MARKET_SETTINGS.expectedInstruments*MARKET_SETTINGS.historyDays)*29));
     },{includeRecent:document.getElementById("includeIntraday").checked!==false,refreshQuotes:refreshQuotes});
     currentMarketResult=result;
+    marketLoadedAt=new Date();
     companyUniverse=result.universe;
     setProgress(60);
     var grouped=groupByTicker(result.data);
@@ -526,19 +535,10 @@ async function loadData(refreshQuotes=true){
     updateIndValues();
     hide();
     setProgress(100);
-    document.getElementById("tsUpdate").textContent="Latest confirmed close: "+(result.latestDate||"awaiting data")+
-      (result.provisionalTickers&&result.provisionalTickers.length?" · Provisional: "+result.latestBarDate:"");
-    var withData=result.coverage.filter(function(item){return item.days>0;}).length;
-    document.getElementById("tsCount").textContent=withData+" / "+results.length+" instruments with data · "+result.total.toLocaleString()+" rows";
-    var warnings=marketQualityMessages(result),qualityEl=document.getElementById("dataQuality");
-    qualityEl.hidden=warnings.length===0;
-    qualityEl.textContent=warnings.join(" · ");
-    qualityEl.title="Missing: "+result.quality.missingTickers.join(", ")+". Short histories: "+result.quality.shortHistories.join(", ")+". Lagging: "+result.quality.laggingTickers.join(", ");
-    document.getElementById("footer").textContent="Source: "+result.source+" · "+result.universe.companies.length+" companies + "+result.universe.etfs.length+" ETFs · "+
-      (result.includeRecent!==false?"Today's accepted provisional candle is included in prices and signals when available. ":"Confirmed daily closes only. ")+"Quote source and New York time appear beside each updated price. Google Finance quotes may be delayed up to 20 min. · Loaded "+new Date().toLocaleString();
+    renderMarketMetadata();
   }catch(e){
     setProgress(100);
-    show('<div style="color:var(--sell);font-size:15px">⚠ Connection error</div><div class="err">'+escapeHtml(e.message)+'</div><br><button class="btn" onclick="loadData()" style="margin-top:12px">Retry</button>');
+    showStatus('error',{error:e.message});
   }finally{loadingData=false;}
 }
 
@@ -598,28 +598,13 @@ function computeAll(grouped,marketResult){
 
 // ── Build table header (once) ─────────────────────────────────────────────────
 function buildTableHeader(){
+  var headers=[['ticker','Ticker','sticky s0'],[null,'Spark','sticky s1'],['close','Price','right sticky s2'],['chg1d','1D %','right'],['chg30d','30D %','right'],['chg1y','1Y %','right'],['entryScore','Entry Timing','right','Momentum recovery, trend position and volume; higher is a better entry setup'],['trendScore','Trend','right','Direction and strength; a high trend score is not an entry signal'],['exitScore','Exit Pressure','right','Higher means stronger deterioration or selling pressure'],['score','Composite','right','Your configurable weighted indicator view'],['signal','Signal','']];
   var html='<tr>';
-  html+='<th class="th-fixed sticky s0" onclick="sortBy(\'ticker\',this)">Ticker</th>';
-  html+='<th class="th-fixed sticky s1">Spark</th>';
-  html+='<th class="th-fixed right sticky s2" onclick="sortBy(\'close\',this)">Price</th>';
-  html+='<th class="th-fixed right " onclick="sortBy(\'chg1d\',this)">1D %</th>';
-  html+='<th class="th-fixed right " onclick="sortBy(\'chg30d\',this)">30D %</th>';
-  html+='<th class="th-fixed right " onclick="sortBy(\'chg1y\',this)">1Y %</th>';
-  html+='<th class="th-fixed right" title="Momentum recovery, trend position and volume; higher is a better entry setup" onclick="sortBy(\'entryScore\',this)">Entry Timing</th>';
-  html+='<th class="th-fixed right" title="Direction and strength; a high trend score is not an entry signal" onclick="sortBy(\'trendScore\',this)">Trend</th>';
-  html+='<th class="th-fixed right" title="Higher means stronger deterioration or selling pressure" onclick="sortBy(\'exitScore\',this)">Exit Pressure</th>';
-  html+='<th class="th-fixed right" title="Your configurable weighted indicator view" onclick="sortBy(\'score\',this)">Composite</th>';
-  html+='<th class="th-fixed" onclick="sortBy(\'signal\',this)">Signal</th>';
-
+  headers.forEach(function(h){html+='<th class="th-fixed '+h[2]+(h[0]===sortCol?' sorted':'')+'"'+(h[0]?' onclick="sortBy(\''+h[0]+'\',this)"':'')+(h[3]?' title="'+escapeHtml(t(h[3]))+'"':'')+'>'+escapeHtml(t(h[1]))+'</th>';});
   INDICATORS.forEach(function(ind){
-    html+='<th style="padding:0;vertical-align:bottom">';
-    html+='<div class="th-vert-wrap grp-'+ind.grpCls+'">';
-    html+='<div class="grp-dot dot-'+ind.grpCls+'"></div>';
-    html+='<div class="th-vert grp-'+ind.grpCls+'" onmouseenter="showTooltip(this,\''+ind.id+'\')" onmouseleave="hideTooltip()" onclick="sortBy(\''+ind.id+'\',this)">'+ind.name+'</div>';
-    html+='</div></th>';
+    html+='<th style="padding:0;vertical-align:bottom"><div class="th-vert-wrap grp-'+ind.grpCls+'"><div class="grp-dot dot-'+ind.grpCls+'"></div><div class="th-vert grp-'+ind.grpCls+(ind.id===sortCol?' sorted':'')+'" onmouseenter="showTooltip(this,\''+ind.id+'\')" onmouseleave="hideTooltip()" onclick="sortBy(\''+ind.id+'\',this)">'+escapeHtml(t(ind.name))+'</div></div></th>';
   });
-  html+='<th class="th-fixed">Why this signal</th>';
-  html+='</tr>';
+  html+='<th class="th-fixed">'+escapeHtml(t('Why this signal'))+'</th></tr>';
   document.getElementById("thead").innerHTML=html;
 }
 
@@ -650,7 +635,7 @@ function renderTable(){
 
 if(!rows.length){
   document.getElementById("tbody").innerHTML="";
-  show("No tickers match this filter.");
+  showStatus("empty");
   return;
 }
 hide();
@@ -662,57 +647,57 @@ hide();
     html+='<tr class="'+rowCls+'">';
 
     // Fixed: Ticker
-    html+='<td class="td-fixed left sticky s0"><span class="tkr" onclick="event.stopPropagation();window.location.href=\'ticker.html?ticker=\'+encodeURIComponent(\''+r.ticker+'\')" style="cursor:pointer" title="'+escapeHtml(instrumentDescription(r.instrument))+' · '+r.days+' sessions · Latest close: '+(r.lastDate||"awaiting data")+'">'+r.ticker+'</span><span class="instrument-type'+(r.instrument.type==="ETF"&&r.instrument.dailyLeverage!==1?' leveraged':'')+'">'+escapeHtml(instrumentTypeLabel(r.instrument))+'</span></td>';
+    html+='<td class="td-fixed left sticky s0"><span class="tkr" onclick="event.stopPropagation();window.location.href=MarketI18n.link(\'ticker.html?ticker=\'+encodeURIComponent(\''+r.ticker+'\'))" style="cursor:pointer" title="'+escapeHtml(MarketPresentation.instrumentDescription(r.instrument))+' · '+escapeHtml(t('{count} sessions · Latest close: {date}',{count:MarketI18n.number(r.days,0),date:r.lastDate||t('awaiting data')}))+'">'+r.ticker+'</span><span class="instrument-type'+(r.instrument.type==="ETF"&&r.instrument.dailyLeverage!==1?' leveraged':'')+'">'+escapeHtml(MarketPresentation.instrumentTypeLabel(r.instrument))+'</span></td>';
 
     // Fixed: Sparkline
     html+='<td class="td-fixed spark-cell sticky s1">'+sparkline(r.closes)+'</td>';
 
     // Fixed: Close
-    var quoteLabel=r.quote?marketQuoteLabel(r.quote):'Confirmed daily close · '+(r.lastDate||'awaiting data');
-    html+='<td class="td-fixed sticky s2" title="'+escapeHtml(quoteLabel)+'">'+(r.close===null?"—":"$"+r.close.toFixed(2))+
+    var quoteLabel=r.quote?localMessage(marketQuoteLabel(r.quote)):t('Confirmed daily close')+' · '+(r.lastDate||t('awaiting data'));
+    html+='<td class="td-fixed sticky s2" title="'+escapeHtml(quoteLabel)+'">'+(r.close===null?"—":"$"+MarketI18n.number(r.close,2))+
       '<div style="font-size:9px;line-height:1.4;white-space:normal;max-width:80px;color:'+(r.provisional?'var(--hold)':'var(--muted)')+'">'+
-      (r.provisional?'PROVISIONAL'+(r.quote&&r.quote.outdated?'<br>OUTDATED':''):r.close===null?'AWAITING DATA':'CONFIRMED')+
-      (r.quote?'<br>'+escapeHtml((r.quote.source==='googlefinance'?'Google':'Yahoo')+' · '+new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(r.quote.source_quote_at)))+' NY':'')+'</div></td>';
+      (r.provisional?t('PROVISIONAL')+(r.quote&&r.quote.outdated?'<br>'+t('OUTDATED'):''):r.close===null?t('AWAITING DATA'):t('CONFIRMED'))+
+      (r.quote?'<br>'+escapeHtml((r.quote.source==='googlefinance'?'Google':'Yahoo')+' · '+new Intl.DateTimeFormat(MarketI18n.locale(),{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(r.quote.source_quote_at)))+' NY':'')+'</div></td>';
 
     // Fixed: 1D %
     (function(){
-      var v=r.chg1d,cls=v===null?"chg-neu":v>0?"chg-pos":v<0?"chg-neg":"chg-neu",txt=v===null?"—":(v>0?"+":"")+v.toFixed(2)+"%";
+      var v=r.chg1d,cls=v===null?"chg-neu":v>0?"chg-pos":v<0?"chg-neg":"chg-neu",txt=v===null?"—":(v>0?"+":"")+MarketI18n.number(v,2)+"%";
       html+='<td class="td-fixed "><span class="'+cls+'">'+txt+'</span></td>';
     })();
     // Fixed: 30D %
     (function(){
-      var v=r.chg30d,cls=v===null?"chg-neu":v>0?"chg-pos":v<0?"chg-neg":"chg-neu",txt=v===null?"—":(v>0?"+":"")+v.toFixed(2)+"%";
+      var v=r.chg30d,cls=v===null?"chg-neu":v>0?"chg-pos":v<0?"chg-neg":"chg-neu",txt=v===null?"—":(v>0?"+":"")+MarketI18n.number(v,2)+"%";
       html+='<td class="td-fixed "><span class="'+cls+'">'+txt+'</span></td>';
     })();
     // Fixed: 1Y %
     (function(){
-      var v=r.chg1y,cls=v===null?"chg-neu":v>0?"chg-pos":v<0?"chg-neg":"chg-neu",txt=v===null?"—":(v>0?"+":"")+v.toFixed(2)+"%";
+      var v=r.chg1y,cls=v===null?"chg-neu":v>0?"chg-pos":v<0?"chg-neg":"chg-neu",txt=v===null?"—":(v>0?"+":"")+MarketI18n.number(v,2)+"%";
       html+='<td class="td-fixed "><span class="'+cls+'">'+txt+'</span></td>';
     })();
 
     ["entryScore","trendScore","exitScore","score"].forEach(function(key){
       var value=r[key],color=scoreColor(value,key);
-      var detail=key==="trendScore"?r.trendLabel:key==="score"?"Configurable Composite":(r.reasons||[]).join(" · ");
-      html+='<td class="td-fixed" title="'+escapeHtml(detail||"")+'"><div class="score-wrap"><span style="color:'+color+'">'+(value==null?"—":value)+'</span><div class="score-bar"><div class="score-fill" style="width:'+(value||0)+'%;background:'+color+'"></div></div></div>'+(key==="trendScore"&&value!=null?'<div style="font-size:9px;color:var(--muted);margin-top:3px">'+escapeHtml(r.trendLabel)+'</div>':'')+'</td>';
+      var detail=key==="trendScore"?localMessage(r.trendLabel):key==="score"?t("Configurable Composite"):localizedReasons(r);
+      html+='<td class="td-fixed" title="'+escapeHtml(detail||"")+'"><div class="score-wrap"><span style="color:'+color+'">'+(value==null?"—":value)+'</span><div class="score-bar"><div class="score-fill" style="width:'+(value||0)+'%;background:'+color+'"></div></div></div>'+(key==="trendScore"&&value!=null?'<div style="font-size:9px;color:var(--muted);margin-top:3px">'+escapeHtml(localMessage(r.trendLabel))+'</div>':'')+'</td>';
     });
-    html+='<td class="td-fixed"><span class="sig '+r.signal+'" title="'+escapeHtml((r.reasons||[]).join(" · "))+'">'+signalText(r.signal)+'</span></td>';
+    html+='<td class="td-fixed"><span class="sig '+r.signal+'" title="'+escapeHtml(localizedReasons(r))+'">'+signalText(r.signal)+'</span></td>';
 
     // Heatmap cells
     INDICATORS.forEach(function(ind){
       var v=r.signals[ind.id]||0;
       if(r.signal==="WAIT"){
-        html+='<td><div class="hm-cell" title="'+escapeHtml((r.reasons||[]).join(" · "))+'" style="color:var(--muted)">—</div></td>';
+        html+='<td><div class="hm-cell" title="'+escapeHtml(localizedReasons(r))+'" style="color:var(--muted)">—</div></td>';
       } else if(ind.weight===0){
         // Disabled: hatched background, clearly OFF
-        html+='<td style="padding:0"><div class="hm-cell hm-off" style="background:repeating-linear-gradient(45deg,rgba(255,255,255,.015) 0px,rgba(255,255,255,.015) 1px,transparent 1px,transparent 6px)" title="'+ind.name+' — disabled (weight 0)"><span style="color:var(--border);font-size:9px">off</span></div></td>';
+        html+='<td style="padding:0"><div class="hm-cell hm-off" style="background:repeating-linear-gradient(45deg,rgba(255,255,255,.015) 0px,rgba(255,255,255,.015) 1px,transparent 1px,transparent 6px)" title="'+escapeHtml(t('{name} — disabled (weight 0)',{name:t(ind.name)}))+'"><span style="color:var(--border);font-size:9px">'+escapeHtml(t('off'))+'</span></div></td>';
       } else {
         var bg=hmBg(v), tc=hmTxt(v), lbl=hmLabel(v);
-        html+='<td style="padding:0"><div class="hm-cell" style="background:'+bg+';color:'+tc+'" title="'+ind.name+': '+v.toFixed(2)+'">'+lbl+'</div></td>';
+        html+='<td style="padding:0"><div class="hm-cell" style="background:'+bg+';color:'+tc+'" title="'+escapeHtml(t(ind.name))+': '+MarketI18n.number(v,2)+'">'+lbl+'</div></td>';
       }
     });
 
     // Fixed: Signal
-    html+='<td class="td-fixed reason-cell">'+escapeHtml((r.reasons||[]).join(" · "))+'</td>';
+    html+='<td class="td-fixed reason-cell">'+escapeHtml(localizedReasons(r))+'</td>';
     html+='</tr>';
   });
   document.getElementById("tbody").innerHTML=html;
@@ -736,7 +721,7 @@ function updateIndValues(){
     var el=document.getElementById("ival_"+i.id);
     if(!el)return;
     var v=avg[i.id];
-    el.textContent=v>0?"+"+v.toFixed(2):v.toFixed(2);
+    el.textContent=v>0?"+"+MarketI18n.number(v,2):MarketI18n.number(v,2);
     el.className="ind-val "+(v>.05?"pos":v<-.05?"neg":"neu");
   });
 }
@@ -746,11 +731,11 @@ function buildPresetCards(){
   var html="";
   PRESETS.forEach(function(p){
     html+='<div class="preset-card" id="pc_'+p.id+'" onclick="applyPreset(\''+p.id+'\')">';
-    html+='<div class="pc-name">'+p.name+'</div><div class="pc-hold">'+p.hold+'</div>';
-    html+='<div class="pc-desc">'+p.desc+'</div>';
+    html+='<div class="pc-name">'+escapeHtml(t(p.name))+'</div><div class="pc-hold">'+escapeHtml(t(p.hold))+'</div>';
+    html+='<div class="pc-desc">'+escapeHtml(t(p.desc))+'</div>';
     html+='<div class="pc-tags">';
-    p.hi.forEach(function(n){html+='<span class="pc-tag hi">'+n+'</span>';});
-    p.off.forEach(function(n){html+='<span class="pc-tag off">'+n+'</span>';});
+    p.hi.forEach(function(n){html+='<span class="pc-tag hi">'+escapeHtml(t(n))+'</span>';});
+    p.off.forEach(function(n){html+='<span class="pc-tag off">'+escapeHtml(t(n))+'</span>';});
     html+='</div><div class="pc-ref">'+p.ref+'</div></div>';
   });
   document.getElementById("presetCards").innerHTML=html;
@@ -760,12 +745,12 @@ function buildCfgPanel(){
   var groups={};INDICATORS.forEach(function(i){if(!groups[i.group])groups[i.group]=[];groups[i.group].push(i);});
   var html="";
   Object.keys(groups).forEach(function(g){
-    html+='<div class="cfg-group"><div class="cfg-group-title" style="color:'+GRP_COLOR[groups[g][0].grpCls]+'">'+g+'</div>';
+    html+='<div class="cfg-group"><div class="cfg-group-title" style="color:'+GRP_COLOR[groups[g][0].grpCls]+'">'+escapeHtml(t(g))+'</div>';
     groups[g].forEach(function(ind){
       var on=ind.weight>0;
       html+='<div class="ind-row"><div class="ind-left">';
       html+='<input type="checkbox" class="ind-cb" id="cb_'+ind.id+'" '+(on?"checked":"")+' onchange="toggleInd(\''+ind.id+'\')">';
-      html+='<span class="ind-name'+(on?"":" off")+'" id="nm_'+ind.id+'" onmouseenter="showTooltip(this,\''+ind.id+'\')" onmouseleave="hideTooltip()" onclick="document.getElementById(\'cb_'+ind.id+'\').click()">'+ind.name+'</span>';
+      html+='<span class="ind-name'+(on?"":" off")+'" id="nm_'+ind.id+'" onmouseenter="showTooltip(this,\''+ind.id+'\')" onmouseleave="hideTooltip()" onclick="document.getElementById(\'cb_'+ind.id+'\').click()">'+escapeHtml(t(ind.name))+'</span>';
       html+='</div><div class="ind-right">';
       html+='<span class="ind-val neu" id="ival_'+ind.id+'">—</span>';
       html+='<div class="weight-wrap" id="w_'+ind.id+'">';
@@ -787,7 +772,7 @@ function applyPreset(id){
   });
   document.querySelectorAll(".preset-card").forEach(function(c){c.classList.remove("active");});
   var pc=document.getElementById("pc_"+id);if(pc)pc.classList.add("active");
-  document.getElementById("activePresetBadge").innerHTML='<span class="active-preset">'+p.name+'</span>';
+  document.getElementById("activePresetBadge").innerHTML='<span class="active-preset">'+escapeHtml(t(p.name))+'</span>';
   recalc();
 }
 function toggleInd(id){
@@ -804,7 +789,7 @@ function setWeight(id,w){
 }
 function clearPreset(){activePreset=null;document.querySelectorAll(".preset-card").forEach(function(c){c.classList.remove("active");});document.getElementById("activePresetBadge").innerHTML="";}
 function refreshW(id,w){var wrap=document.getElementById("w_"+id);if(!wrap)return;wrap.querySelectorAll(".wbtn").forEach(function(b,i){b.classList.toggle("sel",i+1===w);});}
-function toggleCfg(){var p=document.getElementById("cfgPanel"),b=document.getElementById("cfgToggle");p.classList.toggle("open");b.classList.toggle("open");b.textContent=p.classList.contains("open")?"✕ Close":"⚙ Indicators";}
+function toggleCfg(){var p=document.getElementById("cfgPanel"),b=document.getElementById("cfgToggle");p.classList.toggle("open");b.classList.toggle("open");b.textContent=t(p.classList.contains("open")?"✕ Close":"⚙ Indicators");}
 function recalc(){
   saveCompositeWeights();
   if(!results.length)return;
@@ -819,13 +804,49 @@ function sortBy(col,el){
   renderTable();
 }
 function show(h){var m=document.getElementById("stateMsg");m.style.display="block";m.innerHTML=h;}
-function hide(){document.getElementById("stateMsg").style.display="none";}
+function hide(){displayStatus=null;document.getElementById("stateMsg").style.display="none";}
+
+function renderMarketMetadata(){
+  var result=currentMarketResult;if(!result)return;
+  document.getElementById("tsUpdate").textContent=t('Latest confirmed close: {date}',{date:result.latestDate||t('awaiting data')})+(result.provisionalTickers&&result.provisionalTickers.length?' · '+t('Provisional: {date}',{date:result.latestBarDate}):'');
+  var withData=result.coverage.filter(function(item){return item.days>0;}).length;
+  document.getElementById("tsCount").textContent=t('{count} / {total} instruments with data · {rows} rows',{count:MarketI18n.number(withData,0),total:MarketI18n.number(results.length,0),rows:MarketI18n.number(result.total,0)});
+  var warnings=marketQualityMessages(result),qualityEl=document.getElementById("dataQuality");
+  qualityEl.hidden=warnings.length===0;qualityEl.textContent=warnings.map(localMessage).join(' · ');
+  qualityEl.title=t('Missing: {missing}. Short histories: {short}. Lagging: {lagging}',{missing:result.quality.missingTickers.join(', '),short:result.quality.shortHistories.join(', '),lagging:result.quality.laggingTickers.join(', ')});
+  document.getElementById("footer").textContent=t('Source: {source} · {companies} companies + {etfs} ETFs',{source:result.source,companies:MarketI18n.number(result.universe.companies.length,0),etfs:MarketI18n.number(result.universe.etfs.length,0)})+' · '+t(result.includeRecent!==false?"Today's accepted provisional candle is included in prices and signals when available.":'Confirmed daily closes only.')+' '+t('Quote source and New York time appear beside each updated price. Google Finance quotes may be delayed up to 20 min.')+' · '+t('Loaded {date}',{date:(marketLoadedAt||new Date()).toLocaleString(MarketI18n.locale())});
+}
+function showStatus(kind,params){displayStatus={kind:kind,params:params||{}};renderStatus();}
+function renderStatus(){
+  if(!displayStatus)return;
+  var p=displayStatus.params,kind=displayStatus.kind;
+  if(kind==='error')show('<div style="color:var(--sell);font-size:15px">'+escapeHtml(t('⚠ Connection error'))+'</div><div class="err">'+escapeHtml(localMessage(p.error))+'</div><br><button class="btn" onclick="loadData()" style="margin-top:12px">'+escapeHtml(t('Retry'))+'</button>');
+  else if(kind==='empty')show(escapeHtml(t('No tickers match this filter.')));
+  else show('<div class="spinner"></div>'+escapeHtml(kind==='history'?t('Loading finalized history · {count} rows…',{count:MarketI18n.number(p.count,0)}):t('Loading data from {source}…',{source:p.source||'Supabase'})));
+}
+function refreshLanguage(){
+  MarketI18n.apply();
+  document.getElementById('language').value=MarketI18n.getLanguage();
+  document.getElementById('backtestLink').href=MarketI18n.link('backtest.html');
+  document.getElementById('cfgToggle').textContent=t(document.getElementById('cfgPanel').classList.contains('open')?'✕ Close':'⚙ Indicators');
+  // Rebuild labels from existing values; language changes never fetch or change weights.
+  var status=displayStatus;
+  buildPresetCards();buildCfgPanel();buildThemeSwitcher();buildTableHeader();
+  if(activePreset){var preset=PRESETS.find(function(p){return p.id===activePreset;});document.getElementById('pc_'+activePreset).classList.add('active');document.getElementById('activePresetBadge').innerHTML='<span class="active-preset">'+escapeHtml(t(preset.name))+'</span>';}
+  if(results.length){renderTable();updateSummary();updateIndValues();}
+  renderMarketMetadata();
+  if(status){displayStatus=status;renderStatus();}
+  tt.classList.remove('visible');
+}
+document.getElementById('language').addEventListener('change',function(event){MarketI18n.setLanguage(event.target.value);});
+MarketI18n.onChange(refreshLanguage);
 
 restoreCompositeWeights();
 buildPresetCards();
 buildCfgPanel();
 if(activePreset)applyPreset(activePreset);
 buildThemeSwitcher();
+refreshLanguage();
 loadData();
 </script>
 </body>

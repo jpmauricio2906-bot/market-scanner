@@ -271,7 +271,7 @@ test("the dashboard renders all 250 instruments, preserves 0% days, combines typ
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
       innerHTML: "", textContent: "", value: id === "instrumentType" ? "ALL" : "", hidden: false, dataset: {},
-      style: { setProperty() {} }, classList: { add() {}, remove() {}, toggle() {} },
+      style: { setProperty() {} }, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
       querySelectorAll: () => [], addEventListener() {}
     });
     return elements.get(id);
@@ -287,6 +287,10 @@ test("the dashboard renders all 250 instruments, preserves 0% days, combines typ
   });
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
+  context.URL=URL;context.URLSearchParams=URLSearchParams;context.Intl=Intl;
+  for(const file of ['i18n.js','market-translations.js','scanner-translations.js'])
+    vm.runInContext(fs.readFileSync(path.join(root,'js',file),'utf8'),context);
+  context.MarketI18n.setLanguage('en');
   vm.runInContext(scoringSource, context);
   vm.runInContext(inline.replace(/loadData\(\);\s*$/, "globalThis.initialLoad = loadData();"), context);
   await context.initialLoad;
@@ -655,6 +659,11 @@ test("ticker detail sends the provisional candle to every chart and signal and l
     context[name]=(...args)=>renders.set(name,args);
   const html=fs.readFileSync(path.join(root,'ticker.html'),'utf8');
   const start=html.indexOf('let tickerLoading=false;'),end=html.indexOf('// ── Main candlestick + Bollinger',start);
+  context.URL=URL;context.URLSearchParams=URLSearchParams;context.Intl=Intl;
+  for(const file of ['i18n.js','market-translations.js','ticker-translations.js'])
+    vm.runInContext(fs.readFileSync(path.join(root,'js',file),'utf8'),context);
+  context.MarketI18n.setLanguage('en');
+  context.T=context.MarketI18n.t;context.N=context.MarketI18n.number;context.M=context.MarketI18n.message;
   vm.runInContext(scoringSource,context);
   vm.runInContext(html.slice(start,end),context);
   await context.init();

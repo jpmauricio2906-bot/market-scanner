@@ -5,11 +5,19 @@ const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
 const scoring = require('../js/scoring.js');
+function loadLanguage(context, page) {
+  context.URL = URL; context.URLSearchParams = URLSearchParams;
+  for (const file of ['i18n.js', 'market-translations.js', page + '-translations.js']) {
+    vm.runInContext(fs.readFileSync(path.join(root, 'js', file), 'utf8'), context);
+  }
+  context.MarketI18n.setLanguage('en');
+  context.T = context.MarketI18n.t; context.N = context.MarketI18n.number; context.M = context.MarketI18n.message;
+}
 function dashboard(saved = null) {
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) elements.set(id, {innerHTML:'',textContent:'',value:id==='instrumentType'?'ALL':'',
-      style:{setProperty(){}},classList:{add(){},remove(){},toggle(){}},querySelectorAll:()=>[],addEventListener(){}});
+      style:{setProperty(){}},classList:{add(){},remove(){},toggle(){},contains(){return false;}},querySelectorAll:()=>[],addEventListener(){}});
     return elements.get(id);
   };
   const context = vm.createContext({MarketScoring:scoring,MARKET_SETTINGS:{minSignalDays:50},
@@ -17,6 +25,7 @@ function dashboard(saved = null) {
     localStorage:{getItem:key=>key==='marketScanner.compositeWeights.v1'?saved:null,setItem(){}},
     instrumentDescription:instrument=>instrument.name,instrumentTypeLabel:()=> 'Stock',escapeHtml:String,
     window:{location:{}},Intl});
+  loadLanguage(context, 'scanner');
   const source = [...fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
   vm.runInContext(source.replace(/loadData\(\);\s*$/,''),context);
   return {context,element};
@@ -75,6 +84,7 @@ test('table and detail restore the same Composite weights and use the shared eng
   const html=fs.readFileSync(path.join(root,'ticker.html'),'utf8');
   const detail=vm.createContext({MarketScoring:scoring,localStorage:{getItem:()=>saved},
     document:{getElementById:id=>elements[id]??={style:{}}}});
+  loadLanguage(detail, 'ticker');
   vm.runInContext([...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1],detail);
   const start=html.indexOf('const INDICATORS = ['),end=html.indexOf('// ── Chart.js global defaults',start);
   vm.runInContext(html.slice(start,end)+'\nrestoreCompositeWeights();globalThis.detailScore=raw=>computeScore(computeSignals(raw),INDICATORS);',detail);
@@ -92,6 +102,7 @@ test('stale history or an outdated provisional quote cannot escape WAIT',()=>{
 test('detail explains Exit Pressure with the structural components used by v3',()=>{
   const html=fs.readFileSync(path.join(root,'ticker.html'),'utf8'),elements={};
   const detail=vm.createContext({document:{getElementById:id=>elements[id]??={style:{}}},escapeHtml:String});
+  loadLanguage(detail, 'ticker');
   const start=html.indexOf('function timingColor('),end=html.indexOf('// ── Chart.js global defaults',start);
   vm.runInContext(html.slice(start,end),detail);
   const analysis=scoring.analyze(bars());
@@ -108,4 +119,27 @@ test('detail explains Exit Pressure with the structural components used by v3',(
   detail.renderTiming(scoring.analyze([]));
   assert.equal(elements.exitNum.textContent,'—');
   assert.equal(elements.exitParts.textContent,'Awaiting usable data');
+});
+
+test('dashboard language switch preserves filters, sorting, custom weights and every computed value',()=>{
+  const {context,element}=dashboard();
+  context.results=setRows(context,['AAA','BBB','CCC']);
+  context.results.forEach(row=>row.signal='HOLD');
+  context.filter='HOLD';context.sortCol='entryScore';context.sortAsc=true;
+  element('search').value='AAA';element('instrumentType').value='STOCK';
+  element('includeIntraday').checked=false;
+  context.setWeight('roc',3);context.setWeight('rsi',1);
+  const before=JSON.stringify(context.results),weights=JSON.stringify(context.INDICATORS);
+  context.fetchMarketData=()=>{throw new Error('Language change must not request data');};
+  context.MarketI18n.setLanguage('es');
+  assert.match(element('tbody').innerHTML,/>MANTENER</);
+  assert.match(element('tbody').innerHTML,/>AAA</);
+  assert.doesNotMatch(element('tbody').innerHTML,/>BBB</);
+  assert.equal(context.filter,'HOLD');assert.equal(context.sortCol,'entryScore');assert.equal(context.sortAsc,true);
+  assert.equal(element('search').value,'AAA');assert.equal(element('instrumentType').value,'STOCK');
+  assert.equal(element('includeIntraday').checked,false);
+  assert.equal(JSON.stringify(context.results),before);assert.equal(JSON.stringify(context.INDICATORS),weights);
+  context.MarketI18n.setLanguage('en');
+  assert.match(element('tbody').innerHTML,/>HOLD</);
+  assert.equal(JSON.stringify(context.results),before);assert.equal(JSON.stringify(context.INDICATORS),weights);
 });

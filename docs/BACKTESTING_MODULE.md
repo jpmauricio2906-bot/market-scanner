@@ -2,7 +2,7 @@
 
 Abrir **Backtesting** desde el scanner, o **Backtest** desde la ficha de una acción para seleccionarla directamente. El cálculo se ejecuta en un Web Worker del navegador. La pestaña debe permanecer abierta; Cancelar detiene el cálculo.
 
-El selector **Español / English** del encabezado cambia el idioma de controles, resultados, gráficos, avisos y errores, y conserva la preferencia en este navegador. Los enlaces `backtest.html?lang=es` y `backtest.html?lang=en` abren un idioma concreto; pueden combinarse con `&ticker=VLO`. Cambiar de idioma conserva la configuración y el resultado actual sin repetir el cálculo. Los nombres de carteras, tickers y datos originales no se traducen. El formato de pantalla se adapta al idioma; JSON y CSV mantienen su esquema y sus valores numéricos para conservar la reproducibilidad.
+El selector **Español / English** del encabezado cambia el idioma de controles, resultados, gráficos, avisos y errores. La preferencia es compartida con el scanner y las fichas de acciones en este navegador, incluidas las pestañas abiertas; se conserva la elección de la versión anterior. Los enlaces `backtest.html?lang=es` y `backtest.html?lang=en` abren un idioma concreto; pueden combinarse con `&ticker=VLO`. Cambiar de idioma conserva la configuración y el resultado actual sin repetir el cálculo. Los nombres de carteras, tickers y datos originales no se traducen. El formato de pantalla se adapta al idioma; JSON y CSV mantienen su esquema y sus valores numéricos para conservar la reproducibilidad.
 
 ## Selección de activos y carteras
 
