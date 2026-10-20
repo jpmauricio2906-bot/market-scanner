@@ -6,7 +6,7 @@
   "use strict";
 
   // Fixed, inspectable rules, not probabilities or a fitted trading model.
-  const VERSION = "2.0.0";
+  const VERSION = "3.0.0";
   const DEFAULT_INDICATORS = Object.freeze([
     ["sma_cross", 2], ["ema_cross", 2], ["sma50", 1], ["macd", 2],
     ["rsi", 3], ["stoch_rsi", 2], ["roc", 1], ["williams", 1],
@@ -15,7 +15,10 @@
   const THRESHOLDS = Object.freeze({ buy: 60, strongBuy: 75, sell: 60, strongSell: 75,
     bullishTrend: 55, bearishTrend: 45, strongBullishTrend: 65, strongBearishTrend: 35,
     momentum: 55, strongMomentum: 65, confirmedRelativeVolume: 1.2,
-    maxEntryExtensionAtr: 3, minEntryDistanceAtr: -1.5 });
+    maxEntryExtensionAtr: 3, minEntryDistanceAtr: -1.5,
+    exitBreakSessions: 3, exitSlopeSessions: 5, exitDistanceAtr: 1,
+    emergencySupportAtr: 1, emergencyDistanceAtr: 2,
+    breakoutRelativeVolume: 1.5, previousBreakoutRelativeVolume: 1.2 });
 
   const clamp = (value, low = -1, high = 1) => Math.max(low, Math.min(high, value));
   const mean = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
@@ -219,15 +222,14 @@
     if (!Number.isFinite(analysis.trendScore) || !Number.isFinite(analysis.entryScore) || !Number.isFinite(analysis.exitScore)) return "WAIT";
     const { trendScore, entryScore, exitScore, components, metrics } = analysis;
     const bullish = trendScore >= THRESHOLDS.bullishTrend && components.momentum >= THRESHOLDS.momentum && metrics.priceDirection > 0;
-    const bearish = trendScore <= THRESHOLDS.bearishTrend && components.exitMomentum >= THRESHOLDS.momentum && metrics.priceDirection < 0;
     const acceptableEntry = metrics.distanceAtr <= THRESHOLDS.maxEntryExtensionAtr && metrics.distanceAtr >= THRESHOLDS.minEntryDistanceAtr;
+    // A confirmed structural exit takes precedence over a short-term rebound.
+    if (!analysis.provisional && (metrics.exitPersistent || metrics.exitEmergency) && exitScore >= THRESHOLDS.sell) {
+      return metrics.exitPersistent && metrics.sellBreakoutConfirmed ? "STRONG_SELL" : "SELL";
+    }
     if (bullish && acceptableEntry && entryScore >= THRESHOLDS.buy) {
       return !analysis.provisional && trendScore >= THRESHOLDS.strongBullishTrend && entryScore >= THRESHOLDS.strongBuy &&
-        components.momentum >= THRESHOLDS.strongMomentum && metrics.bullVolumeConfirmed ? "STRONG_BUY" : "BUY";
-    }
-    if (bearish && exitScore >= THRESHOLDS.sell) {
-      return !analysis.provisional && trendScore <= THRESHOLDS.strongBearishTrend && exitScore >= THRESHOLDS.strongSell &&
-        components.exitMomentum >= THRESHOLDS.strongMomentum && metrics.bearVolumeConfirmed ? "STRONG_SELL" : "SELL";
+        components.momentum >= THRESHOLDS.strongMomentum && metrics.bullVolumeConfirmed && metrics.buyBreakoutConfirmed ? "STRONG_BUY" : "BUY";
     }
     return "HOLD";
   }
@@ -241,7 +243,8 @@
       signal: "WAIT", components: {}, metrics: {}, provisional, stale, reasons: [valid ? "At least " + minimum + " valid daily sessions are required." : "Invalid OHLC data; no signal calculated."] };
 
     const values = data.map(bar => bar.close), current = last(values), previous = values[values.length - 2];
-    const atr = last(atrValues(data)), unit = Math.max(atr, current * 0.001);
+    const atrHistory = atrValues(data), atr = last(atrHistory), unit = Math.max(atr, current * 0.001);
+    const priorAtr = atrHistory[atrHistory.length - 2], priorAtrUnit = Math.max(priorAtr, previous * 0.001);
     const sma5 = sma(values, 5), sma20 = sma(values, 20), sma50 = sma(values, 50), ema20 = ema(values, 20);
     // Correlated moving averages form ONE structure component. No vote count
     // or confidence claim treats them as independent confirmations.
@@ -254,27 +257,60 @@
       0.3 * clamp((current - values[values.length - 4]) / (unit * 1.5)));
     const distanceAtr = (current - ema20) / unit;
     const position = score(100 - Math.abs(distanceAtr - 0.25) * 25);
-    // Exit position measures deterioration below support; it is not the inverse
-    // of entry quality (an extended bullish stock is not automatically a sell).
-    const exitPosition = score(50 - distanceAtr * 25);
+    const priorSma50 = sma(values.slice(0, -THRESHOLDS.exitSlopeSessions), 50);
+    const distance50Atr = (current - sma50) / unit;
+    let supportBreakStreak = 0;
+    for (let offset = 0; offset < THRESHOLDS.exitBreakSessions; offset++) {
+      const endpoint = values.length - offset;
+      const contemporaneousSma50 = sma(values.slice(0, endpoint), 50);
+      if (contemporaneousSma50 === null || values[endpoint - 1] >= contemporaneousSma50) break;
+      supportBreakStreak++;
+    }
+    // A normal pullback is not an exit: the 50-session support must fail for
+    // three closes, stop rising, and be lost by more than one current ATR.
+    const exitPersistent = !provisional && priorSma50 !== null && supportBreakStreak === THRESHOLDS.exitBreakSessions &&
+      sma50 <= priorSma50 && current < sma50 - THRESHOLDS.exitDistanceAtr * unit;
+    const exitPosition = score(50 - distance50Atr * 25);
+    const exitPersistence = score(supportBreakStreak / THRESHOLDS.exitBreakSessions * 100);
+    const exitSlope = priorSma50 === null ? 50 : score(50 - 25 * (sma50 - priorSma50) / unit);
     const averageVolume = mean(data.slice(-21, -1).map(volumeOf));
     const relativeVolume = averageVolume > 0 ? volumeOf(last(data)) / averageVolume : null;
+    const previousAverageVolume = mean(data.slice(-22, -2).map(volumeOf));
+    const previousRelativeVolume = previousAverageVolume > 0 ? volumeOf(data[data.length - 2]) / previousAverageVolume : null;
     const priceDirection = direction(current - previous), balance = volumeBalance(data);
+    const priorLow20 = Math.min(...data.slice(-21, -1).map(bar => bar.low));
+    const frozenHigh20 = Math.max(...data.slice(-22, -2).map(bar => bar.high));
+    const frozenLow20 = Math.min(...data.slice(-22, -2).map(bar => bar.low));
+    // The emergency escape uses ATR and support known before the current bar:
+    // a large gap cannot inflate its own threshold and hide a breakdown.
+    const exitEmergency = !provisional && priceDirection < 0 && relativeVolume >= THRESHOLDS.breakoutRelativeVolume &&
+      current < priorLow20 - THRESHOLDS.emergencySupportAtr * priorAtrUnit &&
+      current < sma50 - THRESHOLDS.emergencyDistanceAtr * priorAtrUnit;
+    const breakoutVolume = relativeVolume >= THRESHOLDS.breakoutRelativeVolume &&
+      previousRelativeVolume >= THRESHOLDS.previousBreakoutRelativeVolume;
+    // Both closes refer to one level frozen before either breakout candle.
+    const buyBreakoutConfirmed = !provisional && breakoutVolume && previous > frozenHigh20 && current >= frozenHigh20 && current > sma50;
+    const sellBreakoutConfirmed = !provisional && breakoutVolume && previous < frozenLow20 && current < frozenLow20;
     const volumeDirection = relativeVolume === null ? 0 : 0.5 * balance + 0.5 * priceDirection * clamp((relativeVolume - 0.6) / 0.9, 0, 1);
     const components = { momentum: score(50 + 50 * momentum), position, volume: score(50 + 50 * volumeDirection),
-      exitMomentum: score(50 - 50 * momentum), exitPosition, exitVolume: score(50 - 50 * volumeDirection) };
+      exitMomentum: score(50 - 50 * momentum), exitPosition, exitVolume: score(50 - 50 * volumeDirection), exitPersistence, exitSlope };
     let entryScore = score(components.momentum * 0.5 + position * 0.3 + components.volume * 0.2);
-    let exitScore = score(components.exitMomentum * 0.5 + exitPosition * 0.3 + components.exitVolume * 0.2);
+    let exitScore = score(exitPosition * 0.5 + exitPersistence * 0.3 + exitSlope * 0.2);
     // Missing momentum confirmation cannot be offset by an attractive location.
     if (components.momentum < THRESHOLDS.momentum || priceDirection <= 0 || trendScore < THRESHOLDS.bullishTrend) entryScore = Math.min(49, entryScore);
     if (distanceAtr > THRESHOLDS.maxEntryExtensionAtr || distanceAtr < THRESHOLDS.minEntryDistanceAtr) entryScore = Math.min(49, entryScore);
-    if (components.exitMomentum < THRESHOLDS.momentum || priceDirection >= 0 || trendScore > THRESHOLDS.bearishTrend) exitScore = Math.min(49, exitScore);
+    exitScore = exitPersistent || exitEmergency ? Math.max(exitEmergency ? 80 : 60, exitScore) : Math.min(59, exitScore);
     const bullVolumeConfirmed = priceDirection > 0 && relativeVolume >= THRESHOLDS.confirmedRelativeVolume && components.volume >= 65;
     const bearVolumeConfirmed = priceDirection < 0 && relativeVolume >= THRESHOLDS.confirmedRelativeVolume && components.exitVolume >= 65;
     const analysis = { version: VERSION, trendScore, trendLabel: trendScore >= 55 ? "BULLISH" : trendScore <= 45 ? "BEARISH" : "NEUTRAL",
       entryScore, exitScore, components, metrics: { rsi: last(rsi), stochRsi: last(stochValues(values)), atr, atrPct: atr / current * 100,
-        relativeVolume, distanceAtr, priceDirection, volumeBalance: balance, bullVolumeConfirmed, bearVolumeConfirmed }, provisional, stale, reasons: [] };
+        relativeVolume, previousRelativeVolume, distanceAtr, distance50Atr, sma50, priorSma50, supportBreakStreak,
+        exitPersistent, exitEmergency, exitConfirmed: exitPersistent || exitEmergency,
+        priorAtr, priorLow20, frozenHigh20, frozenLow20, buyBreakoutConfirmed, sellBreakoutConfirmed,
+        priceDirection, volumeBalance: balance, bullVolumeConfirmed, bearVolumeConfirmed }, provisional, stale, reasons: [] };
     analysis.signal = classify(analysis);
+    analysis.technicalConfirmation = analysis.signal === "STRONG_BUY" ? "BREAKOUT_HELD_TWO_CLOSES" :
+      analysis.signal === "STRONG_SELL" ? "BREAKDOWN_HELD_TWO_CLOSES" : null;
     analysis.reasons.push(analysis.trendLabel === "BULLISH" ? "Bullish trend; moving averages are evaluated as one group." :
       analysis.trendLabel === "BEARISH" ? "Bearish trend; oversold readings alone do not confirm an entry." : "Mixed or flat trend.");
     analysis.reasons.push(components.momentum >= 55 && priceDirection > 0 ? "Price and momentum support an entry." : "Entry awaits price and momentum recovery.");
@@ -283,8 +319,11 @@
     if (bullVolumeConfirmed) analysis.reasons.push("Above-average volume confirms the upward move.");
     else if (bearVolumeConfirmed) analysis.reasons.push("Above-average volume confirms the downward move.");
     else analysis.reasons.push(relativeVolume === null ? "Volume confirmation is unavailable." : "No strong directional volume confirmation.");
-    if (analysis.signal.includes("SELL")) analysis.reasons.push("Weak trend, falling price and deteriorating momentum support an exit signal.");
-    if (provisional) analysis.reasons.push("Unfinished session: strong signals require a confirmed daily candle.");
+    if (exitPersistent) analysis.reasons.push("Three closes below SMA50, a non-rising SMA50 and a loss greater than 1 ATR confirm a structural exit.");
+    if (exitEmergency) analysis.reasons.push("High-volume breakdown exceeds prior support by 1 prior ATR and SMA50 by 2 prior ATR; emergency exit confirmed.");
+    if (!exitPersistent && !exitEmergency) analysis.reasons.push("No confirmed structural exit; ordinary pullbacks remain on hold.");
+    if (analysis.technicalConfirmation) analysis.reasons.push("The breakout level held for two closes with volume confirmation; this describes technical conditions, not expected performance.");
+    if (provisional) analysis.reasons.push("Unfinished session: exits and strong signals require a confirmed daily candle.");
     if (stale) analysis.reasons.push("Last confirmed close is out of date; wait for current data.");
     return analysis;
   }

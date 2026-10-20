@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "candidateVersion": "3.0.0",
+  "decisionDateNewYork": "2026-10-19",
+  "hypothesis": "Preserve multi-week trends by requiring persistent structural deterioration before selling. Review stronger labels as technical confirmation, not higher expected profitability.",
+  "knownDevelopmentPeriod": {"start": "2025-01-02", "end": "2026-10-16"},
+  "historicalHoldout": {"start": "2018-01-02", "end": "2023-12-29", "warmupStart": "2016-01-01"},
+  "fixedSubperiods": [
+    {"id": "2018_2020", "start": "2018-01-02", "end": "2020-12-31"},
+    {"id": "2021_2023", "start": "2021-01-04", "end": "2023-12-29"}
+  ],
+  "independence": "Newly acquired historical prices were not used in the previous backtest. Rules are fixed before computing their returns. This is a locked historical holdout, not a chronological or prospective out-of-sample validation: later 2025-2026 observations motivated the design. Current-universe selection and revised data remain biases.",
+  "prospectiveValidation": {"firstExecutionDate": "2026-10-20", "status": "awaiting_future_observations", "minimumTradingSessions": 126, "changePolicy": "Changing rules starts a new prospective version; never relabel previously examined data as untouched."},
+  "selection": {"candidates": 1, "parameterSearch": false, "ruleSelectionAfterHoldout": false, "universe": "All 250 current instruments; unavailable pre-listing allocations remain cash; failures are not silently excluded."},
+  "rules": {
+    "buy": "Retain v2 entry family except an explicit structural SELL takes precedence in a conflict.",
+    "persistentSell": "Three consecutive closes below each day's SMA50, SMA50 today <= SMA50 five sessions ago, latest close < latest SMA50 minus one current ATR14. Minimum 55 bars.",
+    "emergencySell": "Latest close below prior-20-bar low minus one prior ATR14, below current SMA50 minus two prior ATR14, relative volume >=1.5, and falling close.",
+    "confirmation": "Both structural exit routes require a confirmed daily candle. No momentum-v2 gate. Each ATR unit has a 0.1%-of-corresponding-price floor.",
+    "exitScore": "50% support depth (clamp(50-25*distanceToSMA50ATR)); 30% consecutive-below-SMA50 count divided by3; 20% SMA50 slope score (clamp(50-25*five-session-SMA50-change/currentATR)). Components and final score rounded to integers. Cap59 without confirmed structural exit; floor60 with one; emergency floor80.",
+    "strongBuyInternal": "Existing v2 strong-buy gates plus previous-bar close breaks preceding20-bar high and current close holds that same frozen level; current relative volume >=1.5, previous >=1.2, current close above SMA50.",
+    "strongSellInternal": "Persistent structural sell plus previous and current close below the same low20 frozen before the previous bar; current relative volume >=1.5, previous >=1.2. A single emergency day cannot be strong.",
+    "strongPresentation": "Display as Confirmed buy / Confirmed sell; extra technical confirmation does not imply validated superior return. Internal STRONG_* identifiers remain compatible."
+  },
+  "execution": {"initialCapital": 100000, "commissionBpsPerSide": 0, "primarySlippageBpsPerSide": 5, "sensitivitySlippageBpsPerSide": [0, 10, 25], "entry": "next expected exchange session open", "terminal": "fixed final-session close with costs", "allocation": "equal initial independent sleeves, fractional shares, no rebalance, no shorts, no cash interest"},
+  "priceBasis": "Primary: all OHLC multiplied by Yahoo adjclose/close per bar, a provider-adjusted total-return proxy. Keep raw quote-OHLC sensitivity; adjusted execution is a hypothetical synthetic price series, not a historical executable quote.",
+  "comparators": ["v2", "v3", "buy_and_hold", "v2_buys_no_signal_exits"],
+  "sensitivities": ["start_cash", "forced_initial_buy", "fixed_subperiods", "slippage", "quote_prices_without_dividends", "stocks", "etf_1x", "leveraged_inverse_etf", "SPY", "known_development_period"],
+  "primaryCriterion": "Net cumulative return of v3 exceeds same-universe buy-and-hold in the historical holdout at5bps slippage. Separately report whether this holds in both fixed subperiods and at10bps. Reduced drawdown or turnover alone does not satisfy the return criterion.",
+  "inference": {"bootstrap": "Paired aggregate daily return difference, circular blocks of20 sessions, 2000 replicates, seed20261019; exploratory, not correction for selection bias.", "events": "Exclusive ordinary vs confirmed signal categories; family onsets, next-open entries, horizons5/10/20, nonoverlapping within ticker/category/horizon, costs both sides. SELL outcome is sell-cash-rebuy advantage versus holding, not short P/L. Correlated events are descriptive.", "smallStrongSamples": "Fewer than50 events or10 instruments in a category/horizon is explicitly insufficient; no thresholds are adjusted to improve its result."},
+  "publishPolicy": "Retain adverse outcomes. Report structural and trading-behavior improvements separately from economic validation. No claim of genuine prospective success before future observations exist."
+}
