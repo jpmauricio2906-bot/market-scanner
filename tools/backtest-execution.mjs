@@ -50,6 +50,8 @@ function tradeStatistics(trades) {
  * The predeclared final close liquidates all positions, independently of signals.
  * Supply the full expected exchange calendar, including warmup dates, to detect
  * missing sessions. Otherwise the union of observed bars is an imperfect proxy.
+ * An explicitly empty bar array reserves that ticker's sleeve in permanent cash;
+ * the caller must distinguish unavailable instruments from failed data downloads.
  */
 export function runPortfolio(panel, options = {}) {
   const strategy = options.strategy ?? 'new';
@@ -70,7 +72,7 @@ export function runPortfolio(panel, options = {}) {
   for (const series of panel.series) {
     if (typeof series.ticker !== 'string' || !series.ticker || seenTickers.has(series.ticker)) throw new Error('Tickers must be nonempty and unique.');
     seenTickers.add(series.ticker);
-    if (!Array.isArray(series.bars) || !series.bars.length) throw new Error(`No bars for ${series.ticker}.`);
+    if (!Array.isArray(series.bars)) throw new Error(`Bars must be an array for ${series.ticker}.`);
     if (strategy !== 'buy_hold' && (!Array.isArray(series.signals) || series.signals.length !== series.bars.length)) {
       throw new Error(`Signals must align with bars for ${series.ticker}.`);
     }
@@ -86,6 +88,8 @@ export function runPortfolio(panel, options = {}) {
       observedDates.add(date);
     });
   }
+  if (!observedDates.size) throw new Error('At least one ticker must have historical bars.');
+  const inactiveTickers = panel.series.filter(series => !series.bars.length).map(series => series.ticker);
   const suppliedCalendar = options.calendarDates != null;
   if (suppliedCalendar && (!Array.isArray(options.calendarDates) || !options.calendarDates.length || !options.calendarDates.every(validDate))) {
     throw new Error('calendarDates must contain ISO session dates.');
@@ -246,6 +250,7 @@ export function runPortfolio(panel, options = {}) {
   for (const field of ['totalReturn', 'cagr', 'maxDrawdown', 'annualizedVolatility', 'averageExposure', 'winRate', 'averageTradeReturn']) metrics[`${field}Pct`] = pct(metrics[field]);
   const perTicker = sleeves.map(sleeve => ({
     ticker: sleeve.ticker, initialCapital: allocation, finalEquity: sleeve.cash,
+    inactive: !sleeve.bars.length,
     netProfit: sleeve.cash - allocation, totalReturn: sleeve.cash / allocation - 1,
     totalReturnPct: (sleeve.cash / allocation - 1) * 100,
     maxDrawdown: sleeve.maxDrawdown, investedSessions: sleeve.investedSessions,
@@ -261,6 +266,7 @@ export function runPortfolio(panel, options = {}) {
     period: { startDate, endDate, requestedStartDate, requestedEndDate, sessions: dates.length, calendarDays, calendarYears },
     assumptions: {
       allocation: 'Equal initial per-ticker sleeves; fractional shares; no rebalancing.',
+      inactiveTickers: 'Tickers with explicitly empty history keep their initial allocation in cash throughout; no redistribution or invented prices.',
       execution: 'Previous completed session signal executes at the next contiguous session open.',
       terminal: 'All holdings liquidated at the predeclared final close, including both-side costs. A missing final bar produces a flagged synthetic mark excluded from settled trade statistics.',
       benchmark: `Buy at first eligible evaluation-period open after ${warmupBars} history bars and hold to terminal close.`,
@@ -274,11 +280,12 @@ export function runPortfolio(panel, options = {}) {
     },
     metrics, equityCurve, trades, executions, perTicker,
     dataQuality: {
-      staleMarkSessions, staleSignalSkips,
+      staleMarkSessions, staleSignalSkips, inactiveTickers,
       staleTerminalTickers: sleeves.filter(sleeve => sleeve.terminalStale).map(sleeve => sleeve.ticker),
       calendarIsObservedUnion: !suppliedCalendar,
       warnings: [
         ...(!suppliedCalendar ? ['Calendar inferred from observed dates cannot detect a session missing from every ticker.'] : []),
+        ...(inactiveTickers.length ? [`${inactiveTickers.length} ticker(s) have explicitly empty history; their equal initial allocations remain in cash throughout.`] : []),
         ...(sleeves.some(sleeve => sleeve.terminalStale) ? ['Some terminal valuations use stale prices and are not observable executions.'] : [])
       ]
     }

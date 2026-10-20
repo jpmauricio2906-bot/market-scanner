@@ -35,7 +35,8 @@ test('frozen baseline preserves the original oversold optimism on a falling seri
   assert.equal(row.newStochRsiSignal, 0);
   assert.ok(row.newComposite < row.oldComposite);
   assert.ok(row.entryScore < 50);
-  assert.ok(['SELL', 'STRONG_SELL'].includes(row.newSignal));
+  assert.equal(row.newSignal, 'HOLD', 'falling momentum alone does not confirm the v3 structural exit');
+  assert.ok(row.exitScore < 60, 'exit pressure stays below its threshold until a structural break is confirmed');
   assert.match(report.vlo.label, /2026-03-21; not a current quotation/);
 });
 

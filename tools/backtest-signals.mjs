@@ -1,5 +1,6 @@
 // Build a causal daily signal panel from a local capture. No price fetching,
 // threshold fitting or knowledge of later bars is used in either scoring call.
+// This original study stays frozen at v1 versus v2 as the live engine evolves.
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -7,7 +8,7 @@ import { normalizeSnapshot, legacySignals, legacyComposite, LEGACY_INDICATORS,
   LEGACY_SOURCE_SHA256 } from './audit-scoring.mjs';
 
 const require = createRequire(import.meta.url);
-const scoring = require('../js/scoring.js');
+const scoring = require('./baselines/scoring-v2.cjs');
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 
 /**
@@ -39,7 +40,7 @@ export async function buildSignalPanel(document, {
   }
   const normalized = normalizeSnapshot(document, { historyDays: Number.MAX_SAFE_INTEGER });
   const [engineSource, auditSource, panelSource] = await Promise.all([
-    readFile(new URL('../js/scoring.js', import.meta.url)),
+    readFile(new URL('./baselines/scoring-v2.cjs', import.meta.url)),
     readFile(new URL('./audit-scoring.mjs', import.meta.url)),
     readFile(new URL('./backtest-signals.mjs', import.meta.url))
   ]);

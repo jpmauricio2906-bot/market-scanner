@@ -147,6 +147,57 @@ test('equal initial sleeves retain separate cash and holdings without rebalancin
   near(result.trades[0].capitalInvested, 500);
 });
 
+test('explicitly empty sleeves preserve equal allocations as cash without invented prices or trades', () => {
+  const active = series('AAA'), inactive = { ticker: 'NOT_YET_LISTED', bars: [], signals: [] };
+  signal(active, 49, 'BUY'); signal(active, 49, 'BUY', 'old');
+  active.bars[54].close = 200;
+  const panel = { series: [active, inactive] }, original = structuredClone(panel);
+  for (const strategy of ['old', 'new', 'buy_hold']) {
+    for (const initialPosition of ['cash', 'long']) {
+      const result = runPortfolio(panel, opts(54, { strategy, initialPosition, commissionBps: 10, slippageBps: 5 }));
+      const cashSleeve = result.perTicker.find(row => row.ticker === inactive.ticker);
+      const activeProceeds = 500 / (100 * 1.0005 * 1.001) * 200 * 0.9995 * 0.999;
+      near(result.metrics.finalEquity, 500 + activeProceeds);
+      near(result.trades[0].capitalInvested, 500);
+      assert.equal(cashSleeve.inactive, true);
+      assert.equal(cashSleeve.initialCapital, 500);
+      assert.equal(cashSleeve.finalEquity, 500);
+      assert.equal(cashSleeve.totalReturn, 0);
+      assert.equal(cashSleeve.tradeCount, 0);
+      assert.equal(cashSleeve.totalCost, 0);
+      assert.equal(cashSleeve.investedSessions, 0);
+      assert.equal(cashSleeve.lastMarkDate, null);
+      assert.equal(cashSleeve.staleMarkSessions, 0);
+      assert.equal(cashSleeve.terminalStale, false);
+      assert.ok(result.executions.every(row => row.ticker === active.ticker));
+      assert.ok(result.equityCurve.every(row => row.cash >= 500));
+      assert.deepEqual(result.dataQuality.inactiveTickers, [inactive.ticker]);
+      assert.deepEqual(result.dataQuality.staleTerminalTickers, []);
+      assert.match(result.dataQuality.warnings[0], /empty history.*remain in cash/);
+    }
+  }
+  assert.deepEqual(panel, original);
+});
+
+test('empty sleeves cannot create evaluation dates and all-empty panels fail even with an explicit calendar', () => {
+  const empty = { ticker: 'NOT_YET_LISTED', bars: [], signals: [] };
+  assert.throws(() => runPortfolio({ series: [empty] }), /At least one ticker must have historical bars/);
+  assert.throws(() => runPortfolio({ series: [empty] }, opts()), /At least one ticker must have historical bars/);
+  const result = runPortfolio({ series: [empty, series()] }, { strategy: 'buy_hold', commissionBps: 0, slippageBps: 0 });
+  assert.equal(result.period.startDate, date(50));
+  assert.equal(result.period.endDate, date(54));
+  assert.equal(result.perTicker.length, 2);
+});
+
+test('empty histories must be explicit arrays and must still align strategy signals', () => {
+  assert.throws(() => runPortfolio({ series: [series(), { ticker: 'MISSING', signals: [] }] }, opts()), /Bars must be an array/);
+  assert.throws(() => runPortfolio({ series: [series(), { ticker: 'MISSING', bars: null, signals: [] }] }, opts()), /Bars must be an array/);
+  assert.throws(() => runPortfolio({ series: [series(), { ticker: 'EMPTY', bars: [], signals: [{ newSignal: 'BUY' }] }] }, opts()), /Signals must align/);
+  const result = runPortfolio({ series: [series()] }, opts());
+  assert.deepEqual(result.dataQuality.inactiveTickers, []);
+  assert.equal(result.perTicker[0].inactive, false);
+});
+
 test('missing held marks carry forward and are flagged, including synthetic terminal valuation', () => {
   const item = series(); signal(item, 49, 'BUY');
   item.bars.splice(53, 2); item.signals.splice(53, 2);

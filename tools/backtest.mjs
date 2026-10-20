@@ -186,7 +186,7 @@ export async function main(args=process.argv.slice(2)){
   if(artifactNames.some(name=>path.join(output,name).toLowerCase()===inputPath.toLowerCase()))throw new Error('Output must not overwrite the input snapshot.');
   await fs.mkdir(output,{recursive:true});
   const raw=await fs.readFile(inputPath),inputHash=hash(raw),input=JSON.parse(raw.toString('utf8').replace(/^\uFEFF/,''));
-  const engineHash=hash(await fs.readFile(path.join(root,'js/scoring.js'))),auditHash=hash(await fs.readFile(path.join(root,'tools/audit-scoring.mjs'))),panelHash=hash(await fs.readFile(path.join(root,'tools/backtest-signals.mjs')));
+  const engineHash=hash(await fs.readFile(path.join(root,'tools/baselines/scoring-v2.cjs'))),auditHash=hash(await fs.readFile(path.join(root,'tools/audit-scoring.mjs'))),panelHash=hash(await fs.readFile(path.join(root,'tools/backtest-signals.mjs')));
   const cachePath=options['--panel-cache']?path.resolve(options['--panel-cache']):path.join(output,'signal-panel.json');
   if(cachePath.toLowerCase()===inputPath.toLowerCase()||artifactNames.filter(name=>name!=='signal-panel.json').some(name=>path.join(output,name).toLowerCase()===cachePath.toLowerCase()))throw new Error('Panel cache must not overwrite input or result artifacts.');
   let panel;

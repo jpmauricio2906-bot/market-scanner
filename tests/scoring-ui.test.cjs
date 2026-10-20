@@ -46,6 +46,9 @@ test('dashboard filters include strong classes and sums them correctly',()=>{
   assert.doesNotMatch(element('tbody').innerHTML,/>EEE</);
   context.filter='STRONG_SELL';context.renderTable();
   assert.match(element('tbody').innerHTML,/>EEE</);assert.doesNotMatch(element('tbody').innerHTML,/>DDD</);
+  assert.equal(context.signalText('STRONG_BUY'),'CONFIRMED BUY');
+  assert.equal(context.signalText('STRONG_SELL'),'CONFIRMED SELL');
+  assert.match(element('tbody').innerHTML,/>CONFIRMED SELL</);
 });
 test('numeric rankings keep missing and stale WAIT rows last in either direction',()=>{
   const {context,element}=dashboard();context.results=setRows(context,['AAA','BBB','CCC']);
@@ -85,4 +88,24 @@ test('stale history or an outdated provisional quote cannot escape WAIT',()=>{
   assert.equal(context.computeAll(grouped,metadata)[0].signal,'WAIT');
   metadata.quoteByTicker.set('AAA',{outdated:false});
   assert.equal(context.computeAll(grouped,metadata)[0].signal,'BUY','fresh provisional can emit ordinary buy, never strong');
+});
+test('detail explains Exit Pressure with the structural components used by v3',()=>{
+  const html=fs.readFileSync(path.join(root,'ticker.html'),'utf8'),elements={};
+  const detail=vm.createContext({document:{getElementById:id=>elements[id]??={style:{}}},escapeHtml:String});
+  const start=html.indexOf('function timingColor('),end=html.indexOf('// ── Chart.js global defaults',start);
+  vm.runInContext(html.slice(start,end),detail);
+  const analysis=scoring.analyze(bars());
+  // Distinct legacy values ensure a regression cannot silently display the
+  // old momentum/volume components beside the new structural exit score.
+  analysis.components.exitMomentum=987;
+  analysis.components.exitVolume=654;
+  detail.renderTiming(analysis);
+  assert.equal(elements.exitNum.textContent,analysis.exitScore+' / 100');
+  assert.equal(elements.exitParts.textContent,
+    `Support depth ${analysis.components.exitPosition} · Persistence ${analysis.components.exitPersistence} · SMA50 slope ${analysis.components.exitSlope}`);
+  assert.doesNotMatch(elements.exitParts.textContent,/Momentum|Volume|987|654/);
+  assert.match(html,/Depth and persistence below 50-day support, together with the slope of SMA50\./);
+  detail.renderTiming(scoring.analyze([]));
+  assert.equal(elements.exitNum.textContent,'—');
+  assert.equal(elements.exitParts.textContent,'Awaiting usable data');
 });

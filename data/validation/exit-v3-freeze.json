@@ -1,0 +1,25 @@
+{
+  "createdAt": "2026-10-20T02:05:19.283Z",
+  "beforeComputingHoldoutReturns": true,
+  "fingerprintHash": "423da45fc4d66edd78539bc6e1a89daaaa293f37581e17176752c9217f900488",
+  "sources": {
+    "js/scoring.js": "78e24a07358bf6c707b792fc6457f7f760014e3b5d75829bfd9ab119515d14fa",
+    "tools/baselines/scoring-v2.cjs": "4780c5aec98a969c77d597972c0034f89b40cd6418e56ad61d26a2646ab83794",
+    "tools/validation-panel.mjs": "d7db0f5fd4f2046f9262464d5d9360de5a0417f4ab4f4571a8cd0043964cc3f0",
+    "tools/backtest-execution.mjs": "7b5b5384d07f4a93f8ffadf1a0cb24cd16337e75abcba1d8cf7cc4043e01663c",
+    "tools/audit-scoring.mjs": "6cb71cd9a0daae705bf2789edbb3b75859da9e1e35a0f162ce2029c2b447a9ea",
+    "tools/backtest.mjs": "0801fde3ace7717dd6f50c3e4e771cbf3ec57729b11818c471ffc9e1b00118b6",
+    "tools/validation-calendar.mjs": "c9c3ba378fd2160e55c6ab12a287c78ec1530ca7ea664a3778a8c0dd13f673ab",
+    "tools/validate-exits.mjs": "262f62b36752e31515e1becdcfd7dba32b9199d32dd558f06e902061123fa75a",
+    "tools/fetch-validation-history.mjs": "18d80749ce3bc4f275fa4f925b3078779c651ecd900b3b1500c9bfb27a55ffb9",
+    "data/validation/exit-v3-protocol.json": "751712cd212b20bcf2bd128f265706b3cf6ba0b1821016edf506aef6833a63f3",
+    "data/universe.json": "d7c4ea71141a69dfebad01ded6263358a4ce49ff7d88ca8fbd57a2b74f2694f9",
+    "supabase/calendar.json": "3c19590a580b648240d3762627e633a13403d5c2d77583a0f048716145a4e70b"
+  },
+  "inputHashes": [
+    "d8c8c3e665eab37d54ee40ec279cddb748c8e427ef1c73270628532ac1f626c1",
+    "e8c042509e1de84f9d60f28bebf1a217da5a6587f54dd104e44ac7b6362cdcec",
+    "aa7b82d79068ea400ee1c352019431a57347c9419e6a6acd5be09ce8d37160bb"
+  ],
+  "protocolVersion": "3.0.0"
+}
