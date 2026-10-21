@@ -7,7 +7,8 @@ export const STRATEGY_DEFAULTS = Object.freeze({
   preset: 'v3', entryScore: 60, trendScore: 55, momentum: 55,
   maxEntryExtensionAtr: 3, minEntryDistanceAtr: -1.5, relativeVolume: 1.2,
   strongOnly: false, exitMode: 'long_trend', exitPeriod: 200,
-  exitConfirmations: 3, exitScore: 60
+  exitConfirmations: 3, exitScore: 60,
+  momentumWeight: 0.5, positionWeight: 0.3, volumeWeight: 0.2
 });
 const BUY = new Set(['BUY', 'STRONG_BUY']);
 const SELL = new Set(['SELL', 'STRONG_SELL']);
@@ -43,6 +44,10 @@ export function validateStrategy(config = {}) {
   if (!['v3', 'long_trend'].includes(result.exitMode)) throw new Error('Unknown exitMode.');
   if (!Number.isSafeInteger(result.exitPeriod) || result.exitPeriod < 20 || result.exitPeriod > 250) throw new Error('exitPeriod must be an integer between 20 and 250.');
   if (!Number.isSafeInteger(result.exitConfirmations) || result.exitConfirmations < 1 || result.exitConfirmations > 10) throw new Error('exitConfirmations must be an integer between 1 and 10.');
+  for (const key of ['momentumWeight', 'positionWeight', 'volumeWeight']) {
+    if (!Number.isFinite(result[key]) || result[key] < 0 || result[key] > 1) throw new Error('Entry component weights must be between 0 and 1.');
+  }
+  if (Math.abs(result.momentumWeight + result.positionWeight + result.volumeWeight - 1) > 1e-9) throw new Error('Entry component weights must sum to 1.');
   return result;
 }
 
@@ -57,7 +62,7 @@ function classifyCustom(analysis, selected) {
   // analyze() already capped its Entry Score under fixed v3 thresholds. Start
   // from the same three components, then apply the EXPERIMENT'S actual gates.
   // Reusing the capped score would silently ignore relaxed parameter values.
-  const rawEntryScore = score(components.momentum * 0.5 + components.position * 0.3 + components.volume * 0.2);
+  const rawEntryScore = score(components.momentum * selected.momentumWeight + components.position * selected.positionWeight + components.volume * selected.volumeWeight);
   const eligible = analysis.trendScore >= selected.trendScore && components.momentum >= selected.momentum &&
     metrics.priceDirection > 0 && metrics.distanceAtr >= selected.minEntryDistanceAtr &&
     metrics.distanceAtr <= selected.maxEntryExtensionAtr &&
@@ -91,10 +96,9 @@ function classifyCustom(analysis, selected) {
  * long-trend confirmation streak. The platform separately rejects data gaps.
  * No return calculation, parameter search, optimization, or future bars occur.
  */
-export function buildStrategySignals(bars, config = {}, { calendarDates } = {}) {
-  const selected = validateStrategy(config);
+export function buildStrategyFeatures(bars, { calendarDates } = {}) {
   if (!Array.isArray(bars)) throw new Error('bars must be an array.');
-  if (!bars.length) return [];
+  if (!bars.length) return { bars, rows: [], longTrend: new Map() };
   if (!Array.isArray(calendarDates) || !calendarDates.length ||
       calendarDates.some((date, index) => !validDate(date) || (index > 0 && date <= calendarDates[index - 1]))) {
     throw new Error('calendarDates must contain unique ascending expected exchange dates.');
@@ -107,17 +111,66 @@ export function buildStrategySignals(bars, config = {}, { calendarDates } = {}) 
     if (![bar.open, bar.high, bar.low, bar.close].every(value => Number.isFinite(value) && value > 0) ||
         bar.high < Math.max(bar.open, bar.close, bar.low) || bar.low > Math.min(bar.open, bar.close)) throw new Error(`Invalid OHLC prices on ${date}.`);
   });
-  let previousSession = null, streak = 0, confirmedWindowCount = 0;
-  return bars.map((bar, index) => {
+  const rows = bars.map((bar, index) => {
     const date = dateOf(bar), session = sessions.get(date);
-    const contiguous = previousSession !== null && session === previousSession + 1;
-    previousSession = session;
     const prefix = bars.slice(Math.max(0, index + 1 - 500), index + 1);
     const analysis = scoring.analyze(prefix, { minSignalDays: 50, provisional: !isFinal(bar), stale: false });
     // A provisional historical observation cannot be a completed signal input.
     if (prefix.some(row => !isFinal(row))) analysis.signal = 'WAIT';
+    // Cache only fields actually used by strategies, not explanatory strings or
+    // unused indicators. This bounds memory for a full-universe optimization.
+    const metrics = Object.fromEntries(['priceDirection', 'distanceAtr', 'relativeVolume', 'exitPersistent',
+      'exitEmergency', 'sellBreakoutConfirmed', 'previousRelativeVolume', 'frozenHigh20', 'sma50']
+      .map(key => [key, analysis.metrics[key]]));
+    return { date, session, analysis: { signal: analysis.signal, provisional: analysis.provisional, stale: analysis.stale,
+      trendScore: analysis.trendScore, entryScore: analysis.entryScore, exitScore: analysis.exitScore,
+      components: { momentum: analysis.components.momentum, position: analysis.components.position, volume: analysis.components.volume }, metrics },
+      previousClose: prefix.at(-2)?.close, currentClose: bar.close };
+  });
+  return { bars, rows, longTrend: new Map() };
+}
+
+function longTrendFeatures(features, period) {
+  if (features.longTrend.has(period)) return features.longTrend.get(period);
+  const { bars, rows } = features;
+  let streak = 0, confirmedWindowCount = 0;
+  const differences = new Float64Array(bars.length).fill(NaN), streaks = new Uint16Array(bars.length), confirmations = new Uint8Array(bars.length);
+  bars.forEach((bar, index) => {
+    confirmedWindowCount += Number(isFinal(bar));
+    if (index >= period) confirmedWindowCount -= Number(isFinal(bars[index - period]));
+    if (index + 1 >= period) {
+      // Preserve the exact centered Neumaier arithmetic of the frozen adapter.
+      let centeredSum = 0, compensation = 0;
+      for (let j = index - period + 1; j <= index; j++) {
+        const difference = bars[j].close - bar.close, next = centeredSum + difference;
+        compensation += Math.abs(centeredSum) >= Math.abs(difference) ? (centeredSum - next) + difference : (difference - next) + centeredSum;
+        centeredSum = next;
+      }
+      differences[index] = (centeredSum + compensation) / period;
+    }
+    const confirmed = !Number.isNaN(differences[index]) && confirmedWindowCount === period;
+    const contiguous = index > 0 && rows[index].session === rows[index - 1].session + 1;
+    streak = confirmed && isFinal(bar) && differences[index] > 0 ? (contiguous ? streak : 0) + 1 : 0;
+    streaks[index] = streak;
+    confirmations[index] = Number(confirmed);
+  });
+  const result = { differences, streaks, confirmations };
+  features.longTrend.set(period, result);
+  return result;
+}
+
+export function buildStrategySignals(bars, config = {}, { calendarDates, features = null } = {}) {
+  const selected = validateStrategy(config);
+  if (!Array.isArray(bars)) throw new Error('bars must be an array.');
+  if (!bars.length) return [];
+  const cached = features ?? buildStrategyFeatures(bars, { calendarDates });
+  // A shorter causal prefix may reuse a previously calculated feature cache.
+  if (cached.rows.length < bars.length || bars.some((bar, index) => cached.bars[index] !== bar)) throw new Error('Strategy features do not match bars.');
+  const longTrend = selected.exitMode === 'long_trend' ? longTrendFeatures(cached, selected.exitPeriod) : null;
+  return bars.map((bar, index) => {
+    const { date, analysis, previousClose } = cached.rows[index];
     const custom = selected.preset === 'custom' ? classifyCustom({ ...analysis,
-      previousClose: prefix.at(-2)?.close, currentClose: bar.close }, selected) : null;
+      previousClose, currentClose: bar.close }, selected) : null;
     let signal = custom?.signal ?? analysis.signal;
     const row = { date, oldSignal: analysis.signal, newSignal: signal,
       trendScore: analysis.trendScore, entryScore: custom ? custom.entryScore : analysis.entryScore,
@@ -125,24 +178,8 @@ export function buildStrategySignals(bars, config = {}, { calendarDates } = {}) 
       relativeVolume: analysis.metrics.relativeVolume ?? null, distanceAtr: analysis.metrics.distanceAtr ?? null,
       ...(custom ? { rawEntryScore: custom.rawEntryScore, v3EntryScore: analysis.entryScore } : {}) };
     if (selected.exitMode === 'long_trend') {
-      confirmedWindowCount += Number(isFinal(bar));
-      if (index >= selected.exitPeriod) confirmedWindowCount -= Number(isFinal(bars[index - selected.exitPeriod]));
-      let smaMinusClose = null;
-      if (index + 1 >= selected.exitPeriod) {
-        // Centered Neumaier sum: constant decimals compare EXACTLY equal to
-        // their SMA. No fitted epsilon can turn a flat price into an exit.
-        let centeredSum = 0, compensation = 0;
-        for (let j = index - selected.exitPeriod + 1; j <= index; j++) {
-          const difference = bars[j].close - bar.close, next = centeredSum + difference;
-          compensation += Math.abs(centeredSum) >= Math.abs(difference) ?
-            (centeredSum - next) + difference : (difference - next) + centeredSum;
-          centeredSum = next;
-        }
-        smaMinusClose = (centeredSum + compensation) / selected.exitPeriod;
-      }
-      const confirmed = smaMinusClose !== null && confirmedWindowCount === selected.exitPeriod;
-      const below = smaMinusClose !== null && smaMinusClose > 0;
-      streak = confirmed && isFinal(bar) && below ? (contiguous ? streak : 0) + 1 : 0;
+      const smaMinusClose = Number.isNaN(longTrend.differences[index]) ? null : longTrend.differences[index];
+      const confirmed = Boolean(longTrend.confirmations[index]), streak = longTrend.streaks[index];
       const exitConfirmed = streak >= selected.exitConfirmations && signal !== 'WAIT';
       row.longTrendSma = smaMinusClose === null ? null : bar.close + smaMinusClose;
       row.longTrendSmaMinusClose = smaMinusClose;

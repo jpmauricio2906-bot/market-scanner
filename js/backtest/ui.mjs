@@ -1,12 +1,14 @@
-import { inspectHistory, DEFAULT_CONFIG, PRESET_STRATEGIES } from './lab.mjs?v=2';
+import { inspectHistory, DEFAULT_CONFIG, PRESET_STRATEGIES } from './lab.mjs?v=3';
 import { fetchBacktestHistory, defaultHistoryStart } from './history.mjs';
 import { validateWeights, normalizeWeights, equalWeights, readPortfolios, savePortfolio, deletePortfolio, toCsv } from './storage.mjs';
-import { t, translateMessage, getLanguage, setLanguage, onLanguageChange, languageLink, applyTranslations, formatNumber } from './i18n.mjs?v=3';
+import { t, translateMessage, getLanguage, setLanguage, onLanguageChange, languageLink, applyTranslations, formatNumber } from './i18n.mjs?v=4';
+import { mountOptimizationUI, selectedOptimizationResult, renderOptimizationResult, recordExploration } from './optimization-ui.mjs?v=1';
 
 const $ = id => document.getElementById(id);
 const state = { universe: null, weights: {}, portfolios: [], storageReady: true, rows: [], scope: new Set(), source: null, download: null,
   worker: null, busy: false, request: 0, revision: 0, resultRevision: null, result: null, tradePage: 0, inspection: null,
-  message: null, statuses: new Map(), universeFailed: false };
+  message: null, statuses: new Map(), universeFailed: false, optimizationResult: null };
+let optimizer;
 const PAGE_SIZE = 25;
 const strategyNames = { v3: 'Scanner v3', sma200: 'Tendencia larga · SMA200', custom: 'Estrategia personalizada' };
 const strategyFields = { entryScore: 'entry-score', trendScore: 'trend-score', momentum: 'momentum-score',
@@ -58,6 +60,7 @@ function status(id, source, params = {}, raw = false) {
 function changed() {
   state.revision++;
   $('dirty-label').hidden = !state.result || state.revision === state.resultRevision;
+  optimizer?.refresh(state.busy);
 }
 function hasHistory() {
   const tickers = selectedTickers();
@@ -104,6 +107,7 @@ function setBusy(busy) {
   updateStrategyDisabled();
   $('save-portfolio').disabled = busy || !state.storageReady;
   $('delete-portfolio').disabled = busy || !state.storageReady;
+  optimizer?.refresh(busy);
 }
 
 function renderUniverse() {
@@ -170,6 +174,7 @@ function refreshCoverage(resetDates) {
     renderCoverage();
     if (resetDates || !$('start-date').value) $('start-date').value = defaultHistoryStart(info.endDate, info.startDate);
     if (resetDates || !$('end-date').value) $('end-date').value = info.endDate || '';
+    optimizer?.suggest(resetDates); optimizer?.refresh(state.busy);
     status('history-status', info.coverage.length === 1 ? '{count} activo cargado · {warmup} sesiones de preparación · cierres confirmados.' : '{count} activos cargados · {warmup} sesiones de preparación · cierres confirmados.', () => ({ count: number(info.coverage.length, 0), warmup: number(info.warmupBars, 0) }));
     status('run-status', 'Historial listo. Revisa las fechas y ejecuta la simulación.');
   } catch (error) {
@@ -211,31 +216,43 @@ function readConfig() {
 }
 function run() {
   if (!hasHistory()) return message('Carga el historial de la selección antes de ejecutar.', 'error');
-  let config;
-  try { config = readConfig(); } catch (error) { fail(error); return; }
+  let config, optimization;
+  try { config = readConfig(); if (optimizer.enabled()) optimization = optimizer.read(); } catch (error) { fail(error); return; }
   const request = ++state.request, revision = state.revision;
   message(''); setBusy(true); $('run-progress').value = 0;
-  status('run-status', 'Calculando señales y ejecuciones…');
+  status('run-status', optimization ? 'Preparando la búsqueda reproducible…' : 'Calculando señales y ejecuciones…');
   try {
-    const worker = new Worker(new URL('./worker.mjs?v=2', import.meta.url), { type: 'module' });
+    const worker = new Worker(new URL('./worker.mjs?v=3', import.meta.url), { type: 'module' });
     state.worker = worker;
     const finish = () => { worker.terminate(); if (state.worker === worker) state.worker = null; if (request === state.request) setBusy(false); };
     worker.onmessage = event => {
       const response = event.data;
       if (request !== state.request || response.id !== String(request)) return;
       if (response.type === 'progress') {
-        const { completed, total, ticker } = response.progress;
+        const { completed, total, ticker, stage } = response.progress;
         $('run-progress').value = total ? completed / total * 100 : 0;
-        status('run-status', total === 1 ? 'Calculando {ticker} · {completed} de {total} activo' : 'Calculando {ticker} · {completed} de {total} activos', () => ({ ticker: ticker || '', completed: number(completed, 0), total: number(total, 0) }));
+        if (optimization) status('run-status', '{stage} · {completed} / {total}', () => ({stage:t({features:'Preparación de indicadores',train:'Entrenamiento',validation:'Validación',test:'Prueba final'}[stage] || 'Preparando la búsqueda reproducible…'),completed:number(completed,0),total:number(total,0)}));
+        else status('run-status', total === 1 ? 'Calculando {ticker} · {completed} de {total} activo' : 'Calculando {ticker} · {completed} de {total} activos', () => ({ ticker: ticker || '', completed: number(completed, 0), total: number(total, 0) }));
       } else if (response.type === 'result') {
-        state.result = response.result; state.resultRevision = revision; state.tradePage = 0;
+        const report = response.result;
+        let exposure;
+        const interval = optimization ? report.phases.test : report.strategy.period;
+        // Training/validation are revealed too. Keep the full viewed interval in
+        // the ledger, while reporting prior overlaps with this run's test only.
+        const viewedRange = optimization ? report.config : interval;
+        try { exposure = recordExploration(localStorage,{startDate:viewedRange.startDate,endDate:viewedRange.endDate,
+          mode:optimization?'optimization':'backtest',tickers:Object.keys(config.weights),configurationHash:report.configurationHash},interval); }
+        catch { exposure = {recorded:false,previousOverlappingViews:null,limited:true}; }
+        report.exploration = exposure;
+        state.optimizationResult = optimization ? report : null;
+        state.result = optimization ? selectedOptimizationResult(report) : report; state.resultRevision = revision; state.tradePage = 0;
         finish(); renderResult();
-        status('run-status', 'Simulación terminada. Los resultados incluyen costes de entrada y salida.');
+        status('run-status', optimization ? 'Optimización terminada. La prueba final incluye costes y cuatro comparadores.' : 'Simulación terminada. Los resultados incluyen costes de entrada y salida.');
         $('results').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
       } else if (response.type === 'error') { finish(); fail(response.error); status('run-status', 'No se completó esta ejecución.'); }
     };
     worker.onerror = event => { finish(); if (request === state.request) { fail(event.message || 'No se pudo iniciar el motor. Recarga la página e inténtalo de nuevo.'); status('run-status', 'La ejecución falló.'); } };
-    worker.postMessage({ type: 'run', id: String(request), payload: { rows: state.rows.filter(row => Object.hasOwn(config.weights, row[1])), config, source: state.source } });
+    worker.postMessage({ type: optimization ? 'optimize' : 'run', id: String(request), payload: { rows: state.rows.filter(row => Object.hasOwn(config.weights, row[1])), config, source: state.source, ...(optimization?{optimization}:{}) } });
   } catch (error) { state.worker?.terminate(); state.worker = null; setBusy(false); fail(error); }
 }
 
@@ -261,7 +278,8 @@ function chart(container, strategy, benchmark, key, drawdown = false) {
 function renderResult() {
   const result = state.result, strategy = result.strategy, benchmark = result.benchmark, config = result.config;
   $('empty-state').hidden = true; $('results').hidden = false; $('dirty-label').hidden = state.revision === state.resultRevision;
-  $('result-title').textContent = t(strategyNames[config.strategy.preset] || 'Estrategia');
+  renderOptimizationResult(state.optimizationResult);
+  $('result-title').textContent = t(state.optimizationResult ? 'Optimización temporal · prueba final' : strategyNames[config.strategy.preset] || 'Estrategia');
   $('result-meta').textContent = t('{start} → {end} · {sessions} sesiones · Motor {version}', { start: strategy.period.startDate, end: strategy.period.endDate, sessions: number(strategy.period.sessions, 0), version: result.engineVersion });
   const assetCount = Object.keys(config.weights).length;
   $('result-config').textContent = t(assetCount === 1 ? '{count} activo · Capital {capital} · Comisión {commission}% y deslizamiento {slippage}% por lado · Pesos iniciales sin rebalanceo' : '{count} activos · Capital {capital} · Comisión {commission}% y deslizamiento {slippage}% por lado · Pesos iniciales sin rebalanceo', { count: number(assetCount, 0), capital: money(config.initialCapital), commission: number(config.commissionBps / 100), slippage: number(config.slippageBps / 100) });
@@ -363,7 +381,7 @@ $('cancel').addEventListener('click', () => {
 $('trades-strategy').addEventListener('change', () => { state.tradePage = 0; renderTrades(); });
 $('trades-prev').addEventListener('click', () => { state.tradePage--; renderTrades(); });
 $('trades-next').addEventListener('click', () => { state.tradePage++; renderTrades(); });
-$('export-json').addEventListener('click', () => download(JSON.stringify(state.result, null, 2), 'application/json', 'json'));
+$('export-json').addEventListener('click', () => download(JSON.stringify(state.optimizationResult || state.result, null, 2), 'application/json', 'json'));
 $('export-trades').addEventListener('click', () => {
   const rows = ['strategy', 'benchmark'].flatMap(comparator => state.result[comparator].trades.map(row => ({ comparator, ...row })));
   const columns = ['comparator', 'ticker', 'entryDate', 'entrySignalDate', 'exitDate', 'exitSignalDate', 'exitReason', 'entryPrice', 'exitPrice', 'units', 'capitalInvested', 'netProceeds', 'netProfit', 'netReturn', 'commissionCost', 'slippageCost', 'totalCost', 'holdingSessions', 'exitIsExecutable'];
@@ -412,6 +430,9 @@ $('themeSwitcher').addEventListener('click', event => {
 globalThis.MarketBacktestTheme.onChange(updateThemeButtons);
 onLanguageChange(renderLanguage);
 $('language').value = getLanguage();
+optimizer = mountOptimizationUI({getContext:() => ({weights:{...state.weights},strategy:currentStrategy(),rows:state.rows,
+  startDate:$('start-date').value,endDate:$('end-date').value,initialCapital:Number($('capital').value),
+  commissionBps:Number($('commission').value)*100,slippageBps:Number($('slippage').value)*100}),onChange:changed});
 applyTranslations();
 renderThemes();
 initialize();

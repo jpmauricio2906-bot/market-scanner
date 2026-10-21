@@ -1,6 +1,9 @@
 // Presentation-only translations. Engine errors and exported research records
 // retain their original text; this module never changes inputs or calculations.
 const pairs = [
+  ['Los pesos de los componentes de entrada deben estar entre 0 y 1.', 'Entry component weights must be between 0 and 1.'],
+  ['Los pesos de los componentes de entrada deben sumar 1.', 'Entry component weights must sum to 1.'],
+  ['Los indicadores preparados no corresponden a las barras.', 'Strategy features do not match bars.'],
   ['Selecciona al menos un activo.', 'Select at least one asset.'],
   ['Selecciona entre 1 y 250 activos.', 'Select between 1 and 250 assets.'],
   ['Selecciona activos y asigna sus pesos.', 'Select assets and assign their weights.'],

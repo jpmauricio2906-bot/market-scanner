@@ -1,6 +1,7 @@
-import { staticTranslations } from './static-translations.mjs?v=2';
+import { staticTranslations } from './static-translations.mjs?v=3';
 import { dynamicTranslations } from './dynamic-translations.mjs?v=2';
-import { localizeMessage } from './message-translations.mjs?v=2';
+import { localizeMessage } from './message-translations.mjs?v=3';
+import { localizeOptimizationMessage } from './optimization-translations.mjs';
 import '../i18n.js';
 
 const shared = globalThis.MarketI18n;
@@ -18,7 +19,7 @@ export function t(source, params = {}) {
     Object.hasOwn(params, key) ? String(params[key]) : match);
 }
 
-export const translateMessage = text => localizeMessage(String(text ?? ''), getLanguage());
+export const translateMessage = text => localizeOptimizationMessage(localizeMessage(String(text ?? ''), getLanguage()), getLanguage());
 export const formatNumber = shared.number;
 
 export function applyTranslations(root = document) {
