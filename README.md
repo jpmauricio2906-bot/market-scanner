@@ -6,6 +6,8 @@
 
 **Formato y colores compartidos:** Backtesting usa la tipografía, tarjetas, tablas y ocho plantillas del scanner. Los círculos del encabezado conservan el tema elegido al navegar entre scanner, fichas y Backtesting; cambiar colores mantiene los parámetros y los resultados calculados.
 
+**Optimización con prueba reservada:** búsqueda reproducible de parámetros, pesos de entrada y pesos de activos, con entrenamiento, validación y prueba final cronológicos. Incluye costes y compara con la estrategia original y comprar y mantener a ambos juegos de pesos. La prueba final no participa en la selección de esta ejecución; repetir búsquedas sobre fechas ya vistas sigue siendo exploración. [Funcionamiento y límites](docs/OPTIMIZATION.md).
+
 El ranking separa **Composite, Trend, Entry Timing y Exit Pressure**. La versión 3 exige pérdida persistente del soporte de 50 sesiones para vender, con una salida rápida ante rupturas severas con volumen. Las ventas requieren el cierre diario confirmado. Las etiquetas **Confirmed buy/sell** añaden una ruptura sostenida durante dos cierres y volumen, sin implicar mayor rentabilidad esperada; los datos atrasados quedan en Wait. [Reglas y fórmulas](docs/SCORING.md) y [evaluación histórica reservada de v3 con costes](docs/EXIT_VALIDATION.md).
 
 **Resultado 2018–2023:** v3 obtiene +54,82%, v2 +49,60% y comprar y mantener +126,32%, con comisión $0 y deslizamiento 0,05% por lado. V3 reduce las operaciones 35,83%, pero empeora la caída máxima frente a v2 (−21,20% frente a −15,41%). No supera comprar y mantener ni acredita una ventaja consistente de las señales confirmadas. Es una prueba histórica reservada sobre el universo actual, con sesgo de supervivencia; la validación prospectiva permanece pendiente.

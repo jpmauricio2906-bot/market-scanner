@@ -1,10 +1,10 @@
 // Browser/Node orchestration for the interactive lab. Published research files
 // and production scoring remain immutable; this is a separate experiment API.
 import {runPortfolio} from './execution.mjs';
-import {validateStrategy, strategyWarmup, buildStrategySignals} from './strategies.mjs';
+import {validateStrategy, strategyWarmup, buildStrategySignals} from './strategies.mjs?v=2';
 import {EXCHANGE_CALENDAR} from './calendar.mjs?v=2';
 
-export const ENGINE_VERSION = 'backtest-lab-1.1.0';
+export const ENGINE_VERSION = 'backtest-lab-1.2.0';
 const baseStrategy = {preset:'custom', entryScore:60, trendScore:55, momentum:55,
   maxEntryExtensionAtr:3, minEntryDistanceAtr:-1.5, relativeVolume:1.2,
   strongOnly:false, exitMode:'long_trend', exitPeriod:200, exitConfirmations:3, exitScore:60};
@@ -68,7 +68,7 @@ export function validateConfig(config) {
 // Ingress is finalizedData from the dedicated read-only history client. Arrays have
 // no intrinsic finality field; runExperiment requires an explicit source claim.
 // There is no upload path that treats arbitrary OHLC arrays as confirmed data.
-function normalizeRows(rows,weights,endDate=null) {
+export function normalizeRows(rows,weights,endDate=null) {
   if (!Array.isArray(rows) || rows.length>800000) throw new Error('El historial debe contener como máximo 800.000 barras.');
   const grouped = new Map(Object.keys(weights).map(ticker=>[ticker,[]]));
   const seen = new Set();
@@ -90,7 +90,7 @@ function normalizeRows(rows,weights,endDate=null) {
   }
   return [...grouped].map(([ticker,bars])=>({ticker,bars:bars.sort((a,b)=>a.date.localeCompare(b.date))}));
 }
-function coverageFor(series,warmupBars) {
+export function coverageFor(series,warmupBars) {
   return series.map(({ticker,bars})=>({ticker,bars:bars.length,firstDate:bars[0]?.date??null,
     lastDate:bars.at(-1)?.date??null,firstEligibleDate:bars[warmupBars]?.date??null}));
 }
@@ -103,7 +103,7 @@ export function inspectHistory(rows,{weights,strategy=DEFAULT_CONFIG.strategy}) 
     !item.firstEligibleDate?[`${item.ticker}: ${item.bars} barras; necesita ${warmupBars+1} para ejecutar. Su asignación permanece en efectivo.`]:[]);
   return {coverage,startDate:eligible[0]??null,endDate:lastDates[0]??null,warmupBars,warnings};
 }
-function ensureComplete(series,calendarDates,startDate,endDate,warmupBars) {
+export function ensureComplete(series,calendarDates,startDate,endDate,warmupBars) {
   const calendarIndex=new Map(calendarDates.map((date,index)=>[date,index]));
   for (const {ticker,bars} of series) {
     if (!bars.length) throw new Error(`${ticker}: no hay historial confirmado en el período. No se sustituye una descarga ausente por efectivo.`);

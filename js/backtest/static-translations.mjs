@@ -1,5 +1,7 @@
 // Spanish source strings are stable translation keys; user data is never translated.
+import { optimizationTranslations } from './optimization-translations.mjs';
 export const staticTranslations = {
+  ...optimizationTranslations,
   'Backtesting · Market Scanner': 'Backtesting · Market Scanner',
   'Ir a la configuración': 'Skip to setup',
   'Principal': 'Main navigation',
