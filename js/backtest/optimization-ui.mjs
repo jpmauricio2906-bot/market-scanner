@@ -42,7 +42,9 @@ export function optimizationEarliestStart(rows, config, optimization) {
   }
   const tickers = Object.keys(config.weights || {});
   if (!tickers.length || !rows?.length) return null;
-  const dates = tickers.map(ticker => rows.filter(row=>row[1]===ticker).map(row=>row[0]).sort()[warmup]);
+  const grouped = new Map(tickers.map(ticker=>[ticker,[]]));
+  for (const row of rows) grouped.get(row[1])?.push(row[0]);
+  const dates = tickers.map(ticker => grouped.get(ticker).sort()[warmup]);
   return dates.every(Boolean) ? {date:dates.sort().at(-1),warmupBars:warmup} : null;
 }
 export function readExplorationHistory(storage) {
@@ -151,7 +153,7 @@ export function mountOptimizationUI({getContext,onChange}) {
     $('opt-protocol-costs').textContent = t('Costes por lado: comisión {commission}% + deslizamiento {slippage}%, para todos los comparadores.',{commission:num(context.commissionBps/100),slippage:num(context.slippageBps/100)});
   }
   mode.addEventListener('change',() => {if (!userEditedDates) suggest(true);onChange();refresh();});
-  for (const id of ['start-date','end-date']) $(id).addEventListener('change',()=>{userEditedDates=true;startAdjustment=null;});
+  for (const id of ['start-date','end-date']) $(id).addEventListener('change',()=>{userEditedDates=true;startAdjustment=null;refresh();});
   options.addEventListener('change',() => {onChange();refresh();});
   $('opt-suggest-dates').addEventListener('click',() => {suggest(true);onChange();refresh();});
   applyTranslations(mode); applyTranslations(options); refresh();
