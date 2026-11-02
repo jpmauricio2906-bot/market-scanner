@@ -13,6 +13,9 @@
 <script src="js/i18n.js"></script>
 <script src="js/market-translations.js"></script>
 <script src="js/ticker-translations.js"></script>
+<script src="js/chart-appearance.js"></script>
+<script src="js/ticker-appearance.js"></script>
+<link rel="stylesheet" href="js/ticker-appearance.css">
 <script>
 // Shared indicators keep charts and scanner signals consistent.
 const sma = MarketScoring.sma;
@@ -294,6 +297,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <!-- Mode status bar: appears when controls are locked -->
       <div id="mcStatusBar" style="display:none;font-family:var(--mono);font-size:9px;color:var(--muted);padding:4px 6px 6px;letter-spacing:.04em"></div>
 
+      <div id="mainAppearance"></div>
       <div class="main-chart" id="mainChart"></div>
     </div>
 
@@ -657,6 +661,7 @@ function renderTickerSummary(){
 }
 function applyTickerLanguage(){
   MarketI18n.apply();
+  TickerAppearance.refreshLanguage();
   document.title=ticker+" — Market Scanner";
   document.getElementById("language").value=MarketI18n.getLanguage();
   document.getElementById("scannerLink").href=MarketI18n.link('index.html');
@@ -1009,7 +1014,7 @@ function _buildMainChart() {
   if (_mc._vpResize) { _mc._vpResize.disconnect(); _mc._vpResize = null; }
   _mc._vpListener = null;
   if (_mc.chart) { _mc.chart.remove(); _mc.chart = null; }
-  _mc.overlaySeries = {}; _mc.compareSeries = {};
+  _mc.overlaySeries = {}; _mc.compareSeries = {}; _mc.baselineSeries = null;
   _mc.crosshairParam=null; _mc.crosshairCallback=null;
 
   // ── Compare mode: active whenever compare tickers are present ────────────
@@ -1108,6 +1113,7 @@ function _buildMainChart() {
         { time:dDates[0],               value:0 },
         { time:dDates[dDates.length-1], value:0 }
       ]);
+      _mc.baselineSeries = baselineSeries;
     }
 
     // Volume still works on its own scale – keep it if user wants
@@ -1134,7 +1140,6 @@ function _buildMainChart() {
   setTimeout(_drawVP, 60); // initial draw after LWC renders
 
     // Crosshair for compare mode – shows all tickers' % values
-    const COMP_COLORS_XH = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
     _mc.crosshairCallback = param => {
       _mc.crosshairParam=param;
       const ohlcvBar = document.getElementById("ohlcvBar");
@@ -1161,7 +1166,7 @@ function _buildMainChart() {
         const cv = cd?.value;
         const span = document.createElement("span");
         span.className = "cmp-xh";
-        span.style.cssText = `color:${COMP_COLORS_XH[i%COMP_COLORS_XH.length]};font-family:var(--mono);font-size:10px`;
+        span.style.cssText = `color:${TickerAppearance.compareColor(ct.ticker,i)};font-family:var(--mono);font-size:10px`;
         span.textContent = ct.ticker + " " + (cv != null ? (cv>=0?"+":"")+N(cv)+"%" : "—");
         ohlcvBar.appendChild(span);
       });
@@ -1174,6 +1179,7 @@ function _buildMainChart() {
     };
     chart.subscribeCrosshairMove(_mc.crosshairCallback);
 
+    _syncMainAppearance();
     return; // compare mode fully handled
   }
 
@@ -1302,6 +1308,14 @@ function _buildMainChart() {
   _mc._vpResize = new ResizeObserver(() => { if (_mc.showVP) _drawVP(); });
   _mc._vpResize.observe(container);
   setTimeout(_drawVP, 60); // initial draw after LWC renders
+  _syncMainAppearance();
+}
+
+function _syncMainAppearance() {
+  TickerAppearance.syncMain(_mc,ticker,()=>{
+    _renderCompareTags();
+    if(_mc.crosshairCallback&&_mc.crosshairParam)_mc.crosshairCallback(_mc.crosshairParam);
+  });
 }
 
 function _bindMainChartControls() {
@@ -1491,9 +1505,8 @@ function _renderCompareTags() {
   // Sync all button disabled/active states
   _syncUI();
 
-  const COMP_COLORS = ["#e84393","#ff7675","#a29bfe","#00cec9","#fdcb6e","#b2bec3","#fd79a8"];
   wrap.innerHTML = _mc.compareTickers.map((ct, i) =>
-    `<span class="mc-tag" style="border-color:${COMP_COLORS[i%COMP_COLORS.length]};color:${COMP_COLORS[i%COMP_COLORS.length]}">
+    `<span class="mc-tag" style="border-color:${TickerAppearance.compareColor(ct.ticker,i)};color:${TickerAppearance.compareColor(ct.ticker,i)}">
       ${escapeHtml(ct.ticker)}${ct.provisional?" · "+escapeHtml(M("PROVISIONAL")):""}<span class="mc-tag-x" role="button" tabindex="0" title="${escapeHtml(T("Remove {ticker} from comparison",{ticker:ct.ticker}))}" aria-label="${escapeHtml(T("Remove {ticker} from comparison",{ticker:ct.ticker}))}" data-remove="${escapeHtml(ct.ticker)}">&#x2715;</span>
     </span>`
   ).join("");
@@ -1518,6 +1531,7 @@ function makeChart(id, type, labels, datasets, extraOpts={}) {
     options: deepMerge({...JSON.parse(JSON.stringify(CHART_OPTIONS)),locale:MarketI18n.locale()}, extraOpts)
   });
   window._cjs[id]=_c;
+  TickerAppearance.registerChart(id,_c);
   return _c;
 }
 function deepMerge(a, b) {
