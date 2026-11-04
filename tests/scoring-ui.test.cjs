@@ -22,13 +22,13 @@ function dashboard(saved = null) {
   };
   const context = vm.createContext({MarketScoring:scoring,MARKET_SETTINGS:{minSignalDays:50},
     document:{getElementById:element,querySelectorAll:()=>[],documentElement:element('root')},
-    localStorage:{getItem:key=>key==='marketScanner.compositeWeights.v1'?saved:null,setItem(){}},
+    localStorage:{getItem:key=>key==='marketScanner.compositeWeights.v1'?saved:null,setItem:(key,value)=>{if(key==='marketScanner.compositeWeights.v1')saved=value;}},
     instrumentDescription:instrument=>instrument.name,instrumentTypeLabel:()=> 'Stock',escapeHtml:String,
     window:{location:{}},Intl});
   loadLanguage(context, 'scanner');
   const source = [...fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
   vm.runInContext(source.replace(/loadData\(\);\s*$/,''),context);
-  return {context,element};
+  return {context,element,saved:()=>saved};
 }
 function bars() {
   return Array.from({length:95},(_,i)=>{
@@ -142,4 +142,42 @@ test('dashboard language switch preserves filters, sorting, custom weights and e
   context.MarketI18n.setLanguage('en');
   assert.match(element('tbody').innerHTML,/>HOLD</);
   assert.equal(JSON.stringify(context.results),before);assert.equal(JSON.stringify(context.INDICATORS),weights);
+});
+
+
+test('General restores initial weights and manual changes persist as Custom',()=>{
+  const app=dashboard(),{context,element}=app;
+  assert.equal(context.activePreset,'general');
+  assert.match(element('activePresetBadge').innerHTML,/Profile: General/);
+  const initial=JSON.stringify(context.INDICATORS.map(i=>[i.id,i.weight]));
+  context.results=setRows(context,['AAA']);
+  const timing=JSON.stringify(context.results.map(({entryScore,exitScore,trendScore,signal})=>({entryScore,exitScore,trendScore,signal})));
+  context.applyPreset('reversion');
+  context.applyPreset('general');
+  assert.equal(JSON.stringify(context.INDICATORS.map(i=>[i.id,i.weight])),initial);
+  context.setWeight('rsi',1);
+  assert.equal(context.activePreset,null);
+  assert.match(element('activePresetBadge').innerHTML,/Profile: Custom/);
+  let restored=dashboard(app.saved());
+  assert.equal(restored.context.activePreset,null);
+  assert.equal(restored.context.INDICATORS.find(i=>i.id==='rsi').weight,1);
+  assert.match(restored.element('activePresetBadge').innerHTML,/Profile: Custom/);
+  context.MarketI18n.setLanguage('es');
+  assert.match(element('activePresetBadge').innerHTML,/Perfil: Personalizado/);
+  context.applyPreset('general');
+  assert.match(element('activePresetBadge').innerHTML,/Perfil: General/);
+  assert.equal(JSON.stringify(context.INDICATORS.map(i=>[i.id,i.weight])),initial);
+  assert.equal(dashboard(app.saved()).context.activePreset,'general');
+  element('cb_rsi').checked=false;context.toggleInd('rsi');
+  assert.equal(context.INDICATORS.find(i=>i.id==='rsi').weight,0);
+  assert.equal(context.activePreset,null);
+  assert.equal(JSON.stringify(context.results.map(({entryScore,exitScore,trendScore,signal})=>({entryScore,exitScore,trendScore,signal}))),timing);
+});
+
+test('existing named profiles retain their weights when restored',()=>{
+  const app=dashboard();app.context.applyPreset('reversion');
+  const restored=dashboard(app.saved());
+  assert.equal(restored.context.activePreset,'reversion');
+  assert.equal(restored.context.INDICATORS.find(i=>i.id==='sma_cross').weight,0);
+  assert.match(restored.element('activePresetBadge').innerHTML,/Profile: Mean Reversion/);
 });

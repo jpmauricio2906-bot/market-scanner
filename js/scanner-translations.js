@@ -1,5 +1,10 @@
 /* Scanner presentation only. Indicator IDs, weights and scoring rules stay language-neutral. */
 MarketI18n.register({
+  "General": "General",
+  "Custom": "Personalizado",
+  "Profile: {name}": "Perfil: {name}",
+  "Reference configuration": "Configuración de referencia",
+  "Initial weights across all indicators. Adjust any weight to create a custom profile.": "Pesos iniciales de todos los indicadores. Ajusta cualquier peso para crear un perfil personalizado.",
   "US Market Scanner · 200 Companies + 50 ETFs": "Market Scanner de EE. UU. · 200 empresas + 50 ETF",
   "US Stocks + ETFs": "Acciones de EE. UU. + ETF",
   "Language": "Idioma",
